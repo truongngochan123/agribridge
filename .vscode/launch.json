@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Debug AGRIBRIDGE-BE",
+      "request": "launch",
+      "mainClass": "com.agribridge.backend.AgribridgeBackendApplication",
+      "projectName": "agribridge-be",
+      "cwd": "${workspaceFolder}/AGRIBRIDGE-BE",
+      "vmArgs": "-Dfile.encoding=UTF-8 -Dspring.profiles.active=local",
+      "env": {
+        "JAVA_TOOL_OPTIONS": "-Dfile.encoding=UTF-8",
+        "APP_DB_UNICODE_MIGRATION_ENABLED": "true"
+      }
+    },
+    {
+      "type": "java",
+      "name": "Attach to AGRIBRIDGE-BE :5005",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5005
+    }
+  ]
+}

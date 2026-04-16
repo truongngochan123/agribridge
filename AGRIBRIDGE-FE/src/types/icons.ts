@@ -1,0 +1,10 @@
+export type IconName =
+  | 'FileSearch'
+  | 'FileText'
+  | 'MessagesSquare'
+  | 'ShoppingCart'
+  | 'MapPinned'
+  | 'ReceiptText'
+  | 'Wallet'
+  | 'Store'
+  | 'Truck'

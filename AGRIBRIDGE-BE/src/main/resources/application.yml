@@ -1,0 +1,58 @@
+server:
+  port: 8081
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+spring:
+  application:
+    name: agribridge-be
+  datasource:
+    url: jdbc:sqlserver://${DB_HOST:localhost}:${DB_PORT:1433};databaseName=${DB_NAME:agribridge};encrypt=true;trustServerCertificate=true;sendStringParametersAsUnicode=true
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:123456}
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        use_nationalized_character_data: true
+  messages:
+    encoding: UTF-8
+  sql:
+    init:
+      encoding: UTF-8
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
+
+logging:
+  level:
+    org.hibernate.SQL: warn
+
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+  api-key: ${CLOUDINARY_API_KEY:}
+  api-secret: ${CLOUDINARY_API_SECRET:}
+  folder: ${CLOUDINARY_FOLDER:agribridge}
+
+app:
+  public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:5173}
+  mail:
+    enabled: ${APP_MAIL_ENABLED:false}
+  database:
+    unicode-migration:
+      enabled: ${APP_DB_UNICODE_MIGRATION_ENABLED:true}

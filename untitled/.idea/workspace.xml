@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="b4ca9b57-3592-4e55-b34a-1de9bb207eeb" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/../AGRIBRIDGE-BE/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/../AGRIBRIDGE-BE/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../AGRIBRIDGE-BE/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../AGRIBRIDGE-BE/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/config/CorsConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/../AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/config/CorsConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/config/DataSeeder.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/entity/MarketPriceEntity.java" beforeDir="false" afterPath="$PROJECT_DIR$/../AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/entity/MarketPriceEntity.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/HomeServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/../AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/HomeServiceImpl.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../AGRIBRIDGE-BE/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/../AGRIBRIDGE-BE/src/main/resources/application.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../AGRIBRIDGE-BE/src/test/java/com/agribridge/backend/config/DataSeederTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../AGRIBRIDGE-BE/src/test/java/com/agribridge/backend/config/DataSeederTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../KT_FPT_MVC/src/controller/KhachHangController.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../KT_FPT_MVC/src/dao/DBConnect.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../KT_FPT_MVC/src/dao/KhachHangDAO.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../KT_FPT_MVC/src/dao/LoaiKhachHangDAO.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../KT_FPT_MVC/src/dao/MuonTraSachDAO.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../KT_FPT_MVC/src/dao/SachDAO.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../KT_FPT_MVC/src/dao/TheLoaiSachDAO.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../KT_FPT_MVC/src/model/KhachHang.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../KT_FPT_MVC/src/model/LoaiKhachHang.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../KT_FPT_MVC/src/model/MuonTraSach.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../KT_FPT_MVC/src/model/Sach.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../KT_FPT_MVC/src/model/TheLoaiSach.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../KT_FPT_MVC/src/service/KhachHangService.java" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ComposerSettings">
+    <execution />
+  </component>
+  <component name="CopilotPersistence">
+    <persistenceIdMap>
+      <entry key="_D:/AGRIBRIDGE/untitled" value="3C6qfCCtY1c2XscICDfircXMX1Y" />
+    </persistenceIdMap>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../../" />
+  </component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="PhpWorkspaceProjectConfiguration" interpreter_name="C:/xampp/php/php.exe" />
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 0
+}]]></component>
+  <component name="ProjectId" id="3C6qfCCtY1c2XscICDfircXMX1Y" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "git-widget-placeholder": "appmod/java-upgrade-20260402081051",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "nodejs_package_manager_path": "npm",
+    "onboarding.tips.debug.path": "D:/AGRIBRIDGE/untitled/src/Main.java",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-30f59d01ecdd-26cb7f24e5b0-intellij.indexing.shared.core-IU-253.29346.138" />
+        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-IU-253.29346.138" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="b4ca9b57-3592-4e55-b34a-1de9bb207eeb" name="Changes" comment="" />
+      <created>1775716473886</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1775716473886</updated>
+      <workItem from="1775716475145" duration="170000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/Main.java</url>
+          <line>10</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+  <component name="github-copilot-workspace">
+    <instructionFileLocations>
+      <option value=".github/instructions" />
+    </instructionFileLocations>
+    <promptFileLocations>
+      <option value=".github/prompts" />
+    </promptFileLocations>
+  </component>
+</project>

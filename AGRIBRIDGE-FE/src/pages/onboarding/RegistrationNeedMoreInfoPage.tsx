@@ -1,0 +1,449 @@
+import { AlertCircle, FileWarning, Loader2, LogOut, Send, Trash2, UploadCloud } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { VN_ADDRESS_OPTIONS } from '../../data/vnAddress'
+import { clearAuthSession, getStoredAuthSession, storeAuthSession } from '../../services/authSession'
+import {
+  fetchRegistrationResubmitDraft,
+  normalizeUploadedUrls,
+  submitRegistrationResubmission,
+  type RegistrationResubmitDraft,
+} from '../../services/registrationService'
+import { uploadRegistrationFile } from '../../services/uploadService'
+
+const inputClass =
+  'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-200 focus:ring-2'
+const textAreaClass =
+  'w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-emerald-200 focus:ring-2'
+const uploadBoxClass =
+  'flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm font-medium text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50/50'
+const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
+
+type FormState = {
+  companyId: number
+  userId: number
+  companyType: 'supplier' | 'buyer'
+  companyName: string
+  ownerName: string
+  fullName: string
+  loginPhone: string
+  loginEmail: string
+  citizenId: string
+  taxCode: string
+  registrationNumber: string
+  companyPhone: string
+  companyEmail: string
+  address: string
+  province: string
+  district: string
+  description: string
+  logoUrl: string
+  documentUrls: string[]
+}
+
+function buildFormState(draft: RegistrationResubmitDraft): FormState {
+  return {
+    companyId: draft.companyId,
+    userId: draft.userId,
+    companyType: draft.companyType,
+    companyName: draft.companyName,
+    ownerName: draft.ownerName,
+    fullName: draft.fullName,
+    loginPhone: draft.loginPhone,
+    loginEmail: draft.loginEmail ?? '',
+    citizenId: draft.citizenId ?? '',
+    taxCode: draft.taxCode ?? '',
+    registrationNumber: draft.registrationNumber ?? '',
+    companyPhone: draft.companyPhone ?? draft.loginPhone,
+    companyEmail: draft.companyEmail ?? draft.loginEmail ?? '',
+    address: draft.address,
+    province: draft.province,
+    district: draft.district ?? '',
+    description: draft.description ?? '',
+    logoUrl: draft.logoUrl ?? '',
+    documentUrls: draft.documents.map((item) => item.fileUrl),
+  }
+}
+
+export function RegistrationNeedMoreInfoPage() {
+  const navigate = useNavigate()
+  const session = getStoredAuthSession()
+  const [draft, setDraft] = useState<RegistrationResubmitDraft | null>(null)
+  const [form, setForm] = useState<FormState | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingDocument, setUploadingDocument] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  useEffect(() => {
+    async function loadDraft() {
+      if (!session?.companyId || !session.userId) {
+        navigate('/auth/login', { replace: true })
+        return
+      }
+      try {
+        setLoading(true)
+        setError('')
+        const payload = await fetchRegistrationResubmitDraft(session.companyId, session.userId)
+        setDraft(payload)
+        setForm(buildFormState(payload))
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'Không t?i du?c h? so c?n b? sung.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadDraft()
+  }, [navigate, session?.companyId, session?.userId])
+
+  const districts = useMemo(
+    () => VN_ADDRESS_OPTIONS.find((item) => item.province === form?.province)?.districts ?? [],
+    [form?.province],
+  )
+
+  function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((current) => (current ? { ...current, [key]: value } : current))
+  }
+
+  async function handleUploadLogo(file?: File) {
+    if (!file || !form) return
+    if (!file.type.startsWith('image/')) {
+      setError('Logo ph?i là file ?nh h?p l?.')
+      return
+    }
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      setError('Logo ph?i nh? hon ho?c b?ng 5MB.')
+      return
+    }
+    try {
+      setUploadingLogo(true)
+      setError('')
+      const uploaded = await uploadRegistrationFile(file)
+      updateField('logoUrl', uploaded.url)
+    } catch {
+      setError('Không upload du?c logo. Vui lòng th? l?i.')
+    } finally {
+      setUploadingLogo(false)
+    }
+  }
+
+  async function handleUploadDocument(file?: File) {
+    if (!file || !form) return
+    const isImage = file.type.startsWith('image/')
+    const isPdf = file.type === 'application/pdf'
+    if (!isImage && !isPdf) {
+      setError('Tài li?u ph?i là PNG, JPG ho?c PDF.')
+      return
+    }
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      setError('Tài li?u ph?i nh? hon ho?c b?ng 5MB.')
+      return
+    }
+    try {
+      setUploadingDocument(true)
+      setError('')
+      const uploaded = await uploadRegistrationFile(file)
+      updateField('documentUrls', [...form.documentUrls, uploaded.url])
+    } catch {
+      setError('Không upload du?c tài li?u. Vui lòng th? l?i.')
+    } finally {
+      setUploadingDocument(false)
+    }
+  }
+
+  function removeDocument(url: string) {
+    if (!form) return
+    updateField(
+      'documentUrls',
+      form.documentUrls.filter((item) => item !== url),
+    )
+  }
+
+  async function handleSubmit() {
+    if (!form) return
+    if (!form.companyName.trim() || !form.ownerName.trim() || !form.fullName.trim()) {
+      setError('Vui lòng nh?p d?y d? tên doanh nghi?p, ngu?i d?i di?n và h? tên tài kho?n.')
+      return
+    }
+    if (!form.loginPhone.trim() || !form.address.trim() || !form.province.trim()) {
+      setError('Vui lòng nh?p s? di?n tho?i, d?a ch? và t?nh / thành.')
+      return
+    }
+
+    try {
+      setSubmitting(true)
+      setError('')
+      setSuccess('')
+      const response = await submitRegistrationResubmission({
+        companyId: form.companyId,
+        userId: form.userId,
+        companyName: form.companyName,
+        ownerName: form.ownerName,
+        fullName: form.fullName,
+        loginPhone: form.loginPhone,
+        loginEmail: form.loginEmail || undefined,
+        citizenId: form.citizenId || undefined,
+        taxCode: form.taxCode || undefined,
+        registrationNumber: form.registrationNumber || undefined,
+        companyPhone: form.companyPhone || undefined,
+        companyEmail: form.companyEmail || undefined,
+        address: form.address,
+        province: form.province,
+        district: form.district || undefined,
+        description: form.description || undefined,
+        logoUrl: form.logoUrl || undefined,
+        documentUrls: normalizeUploadedUrls(form.documentUrls),
+      })
+      storeAuthSession(response, form.loginPhone)
+      setSuccess('H? so dã du?c g?i l?i và dang ch? duy?t.')
+      window.setTimeout(() => {
+        navigate('/onboarding/verification/pending', { replace: true })
+      }, 900)
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Không g?i l?i du?c h? so.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  function handleLogout() {
+    clearAuthSession()
+    navigate('/auth/login', { replace: true })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">
+        <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm">
+          <Loader2 className="h-4 w-4 animate-spin" /> Ðang t?i h? so c?n b? sung...
+        </div>
+      </div>
+    )
+  }
+
+  if (!draft || !form) {
+    return (
+      <div className="min-h-screen bg-slate-50 px-4 py-10">
+        <div className="mx-auto max-w-3xl rounded-3xl border border-red-200 bg-white p-8 shadow-sm">
+          <p className="text-lg font-bold text-red-700">{error || 'Không tìm th?y h? so d? b? sung.'}</p>
+          <div className="mt-5 flex gap-3">
+            <button onClick={() => navigate('/auth/login', { replace: true })} className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white">
+              Quay l?i dang nh?p
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 px-4 py-8">
+      <div className="mx-auto max-w-6xl space-y-4">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+          Tài kho?n c?a b?n c?n b? sung h? so tru?c khi có th? s? d?ng h? th?ng. Ch? trang này và dang xu?t dang du?c m?.
+        </div>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
+                <FileWarning className="h-7 w-7" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-600">H? so c?n b? sung</p>
+                <h1 className="mt-2 text-3xl font-extrabold text-slate-900">C?p nh?t h? so doanh nghi?p d? g?i l?i xét duy?t</h1>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+                  Vui lòng c?p nh?t thông tin doanh nghi?p, gi?y t? và tài li?u theo yêu c?u c?a admin. Sau khi g?i l?i,
+                  h? so s? chuy?n v? tr?ng thái ch? duy?t và b?n chua th? dùng các module chính cho t?i khi du?c phê duy?t.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:border-slate-300"
+            >
+              <LogOut className="h-4 w-4" /> Ðang xu?t
+            </button>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-5 w-5 text-amber-600" />
+              <div>
+                <p className="font-bold text-slate-900">Yêu c?u b? sung t? admin</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                  {draft.verificationNote?.trim() || 'Admin chua d? l?i ghi chú chi ti?t.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+          <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Tên pháp lý doanh nghi?p *">
+                <input className={inputClass} value={form.companyName} onChange={(event) => updateField('companyName', event.target.value)} />
+              </Field>
+              <Field label="Ngu?i d?i di?n *">
+                <input className={inputClass} value={form.ownerName} onChange={(event) => updateField('ownerName', event.target.value)} />
+              </Field>
+              <Field label="H? tên tài kho?n *">
+                <input className={inputClass} value={form.fullName} onChange={(event) => updateField('fullName', event.target.value)} />
+              </Field>
+              <Field label="S? di?n tho?i dang nh?p *">
+                <input className={inputClass} value={form.loginPhone} onChange={(event) => updateField('loginPhone', event.target.value)} />
+              </Field>
+              <Field label="Email dang nh?p">
+                <input className={inputClass} value={form.loginEmail} onChange={(event) => updateField('loginEmail', event.target.value)} />
+              </Field>
+              <Field label="CCCD / CMND">
+                <input className={inputClass} value={form.citizenId} onChange={(event) => updateField('citizenId', event.target.value)} />
+              </Field>
+              <Field label="Mã s? thu?">
+                <input className={inputClass} value={form.taxCode} onChange={(event) => updateField('taxCode', event.target.value)} />
+              </Field>
+              <Field label="S? gi?y dang ký kinh doanh">
+                <input className={inputClass} value={form.registrationNumber} onChange={(event) => updateField('registrationNumber', event.target.value)} />
+              </Field>
+              <Field label="S? di?n tho?i doanh nghi?p">
+                <input className={inputClass} value={form.companyPhone} onChange={(event) => updateField('companyPhone', event.target.value)} />
+              </Field>
+              <Field label="Email doanh nghi?p">
+                <input className={inputClass} value={form.companyEmail} onChange={(event) => updateField('companyEmail', event.target.value)} />
+              </Field>
+              <Field label="T?nh / Thành *">
+                <select className={inputClass} value={form.province} onChange={(event) => updateField('province', event.target.value)}>
+                  <option value="">Ch?n t?nh / thành</option>
+                  {VN_ADDRESS_OPTIONS.map((item) => (
+                    <option key={item.province} value={item.province}>
+                      {item.province}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Qu?n / Huy?n">
+                <select className={inputClass} value={form.district} onChange={(event) => updateField('district', event.target.value)}>
+                  <option value="">Ch?n qu?n / huy?n</option>
+                  {districts.map((district) => (
+                    <option key={district} value={district}>
+                      {district}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            <Field label="Ð?a ch? chi ti?t *">
+              <input className={inputClass} value={form.address} onChange={(event) => updateField('address', event.target.value)} />
+            </Field>
+
+            <Field label="Mô t? doanh nghi?p">
+              <textarea rows={4} className={textAreaClass} value={form.description} onChange={(event) => updateField('description', event.target.value)} />
+            </Field>
+          </div>
+
+          <div className="space-y-4">
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-extrabold text-slate-900">Logo và gi?y t?</h2>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-slate-700">Logo doanh nghi?p</p>
+                  {form.logoUrl ? (
+                    <img src={form.logoUrl} alt="Logo doanh nghi?p" className="mb-3 h-40 w-full rounded-2xl border border-slate-200 object-cover" />
+                  ) : (
+                    <div className="mb-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                      Chua có logo
+                    </div>
+                  )}
+                  <label className={uploadBoxClass}>
+                    <input type="file" accept="image/*" className="hidden" onChange={(event) => handleUploadLogo(event.target.files?.[0])} />
+                    <span className="inline-flex items-center gap-2">
+                      <UploadCloud className="h-4 w-4" /> {uploadingLogo ? 'Ðang upload logo...' : 'Upload / thay logo'}
+                    </span>
+                  </label>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-slate-700">Gi?y t? dã upload</p>
+                  <div className="space-y-2">
+                    {form.documentUrls.length > 0 ? (
+                      form.documentUrls.map((url) => (
+                        <div key={url} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                          <a href={url} target="_blank" rel="noreferrer" className="truncate text-sm font-medium text-blue-600 hover:underline">
+                            {url.split('/').pop() || 'document'}
+                          </a>
+                          <button onClick={() => removeDocument(url)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-red-600">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                        Chua có gi?y t? nào sau khi b? sung.
+                      </div>
+                    )}
+                  </div>
+                  <label className={`${uploadBoxClass} mt-3`}>
+                    <input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => handleUploadDocument(event.target.files?.[0])} />
+                    <span className="inline-flex items-center gap-2">
+                      <UploadCloud className="h-4 w-4" /> {uploadingDocument ? 'Ðang upload tài li?u...' : 'Upload thêm gi?y t?'}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-extrabold text-slate-900">Tr?ng thái hi?n t?i</h2>
+              <dl className="mt-4 space-y-3 text-sm">
+                <InfoRow label="Lo?i tài kho?n" value={form.companyType === 'supplier' ? 'Nhà cung c?p' : 'Nhà buôn'} />
+                <InfoRow label="Tr?ng thái h? so" value="C?n b? sung" />
+                <InfoRow label="Tài li?u hi?n có" value={String(form.documentUrls.length)} />
+              </dl>
+            </section>
+          </div>
+        </section>
+
+        {error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div> : null}
+        {success ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{success}</div> : null}
+
+        <div className="flex flex-wrap justify-between gap-3">
+          <Link to="/support" className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:border-slate-300">
+            Liên h? h? tr?
+          </Link>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || uploadingLogo || uploadingDocument}
+            className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {submitting ? 'Ðang g?i l?i h? so...' : 'G?i l?i h? so'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}</span>
+      {children}
+    </label>
+  )
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-3">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="font-semibold text-slate-900">{value}</dd>
+    </div>
+  )
+}

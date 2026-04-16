@@ -1,0 +1,48 @@
+import type { BuyerMarketRow } from '../types/buyerDashboard'
+
+export const buyerMarketPrices: BuyerMarketRow[] = [
+  {
+    id: 'm1',
+    product: 'Tôm Sú',
+    gradeSize: 'A+ / 20-25',
+    currentPrice: '450,000đ/kg',
+    change: '+5.2%',
+    changeType: 'up',
+    region: 'Miền Tây',
+    source: 'Giao dịch thực tế',
+    updatedAt: '10 phút trước',
+  },
+  {
+    id: 'm2',
+    product: 'Cá Tra Fillet',
+    gradeSize: 'A / 170-200g',
+    currentPrice: '85,000đ/kg',
+    change: '-2.1%',
+    changeType: 'down',
+    region: 'Đồng Tháp',
+    source: 'Giao dịch thực tế',
+    updatedAt: '25 phút trước',
+  },
+  {
+    id: 'm3',
+    product: 'Gạo ST25',
+    gradeSize: 'Premium',
+    currentPrice: '35,000đ/kg',
+    change: '+1.5%',
+    changeType: 'up',
+    region: 'Sóc Trăng',
+    source: 'RFQ trung bình',
+    updatedAt: '1 giờ trước',
+  },
+  {
+    id: 'm4',
+    product: 'Thanh Long Đỏ',
+    gradeSize: 'A / 300-400g',
+    currentPrice: '28,000đ/kg',
+    change: '+3.8%',
+    changeType: 'up',
+    region: 'Bình Thuận',
+    source: 'Giao dịch thực tế',
+    updatedAt: '2 giờ trước',
+  },
+]
