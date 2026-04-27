@@ -134,13 +134,44 @@ function getLotMoq(lot: BuyerLotDetail) {
 }
 
 function getLotImages(lot: BuyerLotDetail) {
-  const images = [lot.imageUrl, ...(lot.imageUrls ?? []), lot.product?.imageUrl, ...(lot.product?.imageUrls ?? [])]
-    .map((url) => {
-      const trimmed = url?.trim()
-      return trimmed ? resolveUploadedFileUrl(trimmed) || trimmed : undefined
-    })
-    .filter((url): url is string => Boolean(url))
-  return Array.from(new Set(images))
+  const urls: string[] = []
+  const collect = (value: unknown) => {
+    if (!value) return
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (trimmed) urls.push(resolveUploadedFileUrl(trimmed) || trimmed)
+      return
+    }
+    if (Array.isArray(value)) {
+      value.forEach(collect)
+      return
+    }
+    if (typeof value === 'object') {
+      const record = value as Record<string, unknown>
+      collect(record.url)
+      collect(record.imageUrl)
+      collect(record.image_url)
+      collect(record.fileUrl)
+      collect(record.file_url)
+      collect(record.path)
+    }
+  }
+
+  collect(lot.batchImageUrl)
+  collect(lot.lotImageUrl)
+  collect(lot.imageUrl)
+  collect(lot.imageUrls)
+  collect(lot.images)
+  collect(lot.batchImages)
+  collect(lot.lotImages)
+  collect(lot.media)
+  collect(lot.attachments)
+  collect(lot.thumbnailUrl)
+  collect(lot.productImageUrl)
+  collect(lot.product?.imageUrl)
+  collect(lot.product?.imageUrls)
+  collect(lot.product?.images)
+  return Array.from(new Set(urls.filter(Boolean)))
 }
 
 function deriveLotStatus(lot: BuyerLotDetail) {
@@ -632,20 +663,22 @@ function HistoryTab({ lot, unit }: { lot: BuyerLotDetail; unit: string }) {
 function SupplierTab({ lot, onContact, showToast }: { lot: BuyerLotDetail; onContact: () => void; showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) {
   const supplier = lot.supplier
   const supplierRoute = lot.supplierId ? `/suppliers/${lot.supplierId}` : ''
+  const supplierName = lot.supplierName || supplier?.companyName || supplier?.name || '--'
+  const supplierLocation = lot.supplierProvince || supplier?.province || lot.originRegion || lot.originProvince || '--'
   return (
     <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-xl font-extrabold">{lot.supplierName || supplier?.name || '--'}</h3>
-          <p className="mt-1 inline-flex items-center gap-2 text-sm"><MapPin className="h-4 w-4" /> {lot.supplierProvince || supplier?.province || lot.originProvince || '--'}</p>
+          <h3 className="text-xl font-extrabold">{supplierName}</h3>
+          <p className="mt-1 inline-flex items-center gap-2 text-sm"><MapPin className="h-4 w-4" /> {supplierLocation}</p>
         </div>
         {supplier?.verified ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700"><ShieldCheck className="h-3.5 w-3.5" /> Đã xác minh</span>
         ) : null}
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <div className="rounded-lg bg-white p-3"><p className="text-2xl font-extrabold text-emerald-700">{supplier?.responseRate != null ? `${supplier.responseRate}%` : '--'}</p><p className="text-sm text-emerald-700/80">Tỷ lệ phản hồi</p></div>
-        <div className="rounded-lg bg-white p-3"><p className="text-2xl font-extrabold text-emerald-700">{supplier?.deliveryRate != null ? `${supplier.deliveryRate}%` : '--'}</p><p className="text-sm text-emerald-700/80">Giao đúng hẹn</p></div>
+        <div className="rounded-lg bg-white p-3"><p className="text-lg font-extrabold text-emerald-700">{supplier?.responseRate != null ? `${supplier.responseRate}%` : 'Đang cập nhật'}</p><p className="text-sm text-emerald-700/80">Tỷ lệ phản hồi</p></div>
+        <div className="rounded-lg bg-white p-3"><p className="text-lg font-extrabold text-emerald-700">{supplier?.deliveryRate != null ? `${supplier.deliveryRate}%` : 'Đang cập nhật'}</p><p className="text-sm text-emerald-700/80">Giao đúng hẹn</p></div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         {supplierRoute ? (

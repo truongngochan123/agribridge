@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient'
+import { resolveUploadedFileUrl } from './uploadService'
 
 export type BuyerSourcingProduct = {
   productId: number
@@ -85,6 +86,7 @@ export type BuyerLotDetail = {
   supplier?: {
     id?: number
     name?: string | null
+    companyName?: string | null
     phone?: string | null
     email?: string | null
     province?: string | null
@@ -103,7 +105,17 @@ export type BuyerLotDetail = {
     unit?: string | null
     imageUrl?: string | null
     imageUrls?: string[]
+    images?: unknown
   } | null
+  thumbnailUrl?: string | null
+  productImageUrl?: string | null
+  batchImageUrl?: string | null
+  lotImageUrl?: string | null
+  images?: unknown
+  batchImages?: unknown
+  lotImages?: unknown
+  media?: unknown
+  attachments?: unknown
   transactionHistory?: Array<{
     id?: number | string
     buyer?: string | null
@@ -170,12 +182,19 @@ type BuyerLotDetailPayload = Partial<BuyerLotDetail> & {
   lot?: BuyerLotDetail
   batch?: BuyerLotDetail
   product?: BuyerLotDetail['product']
+  supplier?: BuyerLotDetail['supplier']
+  company?: BuyerLotDetail['supplier']
   qc?: {
     result?: string | null
     documentUrl?: string | null
     notes?: string | null
   } | null
   certifications?: BuyerCertificationPreview[]
+  certificates?: unknown
+  productCertifications?: unknown
+  product_certifications?: unknown
+  certificationList?: unknown
+  certificateList?: unknown
 }
 
 type BuyerSourcingPayload =
@@ -233,39 +252,163 @@ function toNumber(value: unknown): number | undefined {
   return undefined
 }
 
+type LooseRecord = Record<string, unknown>
+
+function asRecord(value: unknown): LooseRecord | undefined {
+  return value && typeof value === 'object' ? (value as LooseRecord) : undefined
+}
+
+function readString(source: unknown, keys: string[]): string | undefined {
+  const record = asRecord(source)
+  if (!record) return undefined
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  }
+  return undefined
+}
+
+function readNumber(source: unknown, keys: string[]): number | undefined {
+  const record = asRecord(source)
+  if (!record) return undefined
+  for (const key of keys) {
+    const value = toNumber(record[key])
+    if (value != null) return value
+  }
+  return undefined
+}
+
+function collectImageUrlsFromValue(value: unknown, output: string[]) {
+  if (!value) return
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed) output.push(resolveUploadedFileUrl(trimmed) || trimmed)
+    return
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectImageUrlsFromValue(item, output))
+    return
+  }
+  const record = asRecord(value)
+  if (!record) return
+  const direct = readString(record, ['url', 'imageUrl', 'image_url', 'fileUrl', 'file_url', 'path'])
+  if (direct) output.push(resolveUploadedFileUrl(direct) || direct)
+}
+
+function collectImageUrls(...sources: unknown[]): string[] {
+  const urls: string[] = []
+  const scalarKeys = [
+    'imageUrl',
+    'image_url',
+    'thumbnailUrl',
+    'thumbnail_url',
+    'productImageUrl',
+    'product_image_url',
+    'batchImageUrl',
+    'batch_image_url',
+    'lotImageUrl',
+    'lot_image_url',
+  ]
+  const listKeys = ['images', 'imageUrls', 'image_urls', 'batchImages', 'batch_images', 'lotImages', 'lot_images', 'media', 'attachments']
+
+  sources.forEach((source) => {
+    const record = asRecord(source)
+    if (!record) return
+    scalarKeys.forEach((key) => collectImageUrlsFromValue(record[key], urls))
+    listKeys.forEach((key) => collectImageUrlsFromValue(record[key], urls))
+  })
+
+  return Array.from(new Set(urls.filter(Boolean)))
+}
+
+function normalizeCertification(value: unknown): BuyerCertificationPreview | null {
+  const record = asRecord(value)
+  if (!record) return null
+  const name = readString(record, ['name', 'certificateName', 'certificationName', 'certificate_name', 'certification_name', 'type', 'standard'])
+  if (!name) return null
+  return {
+    name,
+    issuedBy: readString(record, ['issuedBy', 'issuer', 'provider', 'issued_by']) ?? null,
+    issuedDate: readString(record, ['issuedDate', 'issued_date']) ?? null,
+    expiryDate: readString(record, ['expiryDate', 'expiry_date', 'expiredAt', 'expired_at']) ?? null,
+    documentUrl: readString(record, ['documentUrl', 'fileUrl', 'url', 'certificateUrl', 'document_url', 'file_url', 'certificate_url']) ?? null,
+  }
+}
+
+function collectCertifications(...sources: unknown[]): BuyerCertificationPreview[] {
+  const keys = ['certifications', 'certificates', 'productCertifications', 'product_certifications', 'certificationList', 'certificateList']
+  const rows: BuyerCertificationPreview[] = []
+  sources.forEach((source) => {
+    const record = asRecord(source)
+    if (!record) return
+    keys.forEach((key) => {
+      const value = record[key]
+      if (Array.isArray(value)) {
+        value.forEach((item) => {
+          const cert = normalizeCertification(item)
+          if (cert) rows.push(cert)
+        })
+      }
+    })
+  })
+  return rows
+}
+
 function normalizeBuyerLotDetail(payload: BuyerLotDetailPayload): BuyerLotDetail {
   const wrapper = payload
   const raw = (wrapper.data ?? wrapper.lot ?? wrapper.batch ?? payload) as BuyerLotDetail
   const product = raw.product ?? wrapper.product ?? null
+  const productRecord = product as unknown
   const qc = wrapper.qc
-  const supplier = raw.supplier ?? null
+  const supplier = raw.supplier ?? wrapper.supplier ?? wrapper.company ?? null
+  const company = wrapper.company ?? null
+  const imageUrls = collectImageUrls(raw, wrapper, product)
+  const certifications = collectCertifications(raw, wrapper, product)
 
   const lot: BuyerLotDetail = {
     ...raw,
-    id: raw.id ?? raw.batchId,
-    batchId: raw.batchId ?? raw.id,
-    productId: raw.productId ?? product?.id,
-    productName: raw.productName ?? product?.name,
-    categoryName: raw.categoryName ?? product?.categoryName ?? product?.category,
-    originProvince: raw.originProvince ?? product?.originProvince,
-    originRegion: raw.originRegion ?? product?.originRegion ?? product?.originProvince,
+    id: raw.id ?? raw.batchId ?? readNumber(raw, ['batch_id']),
+    batchId: raw.batchId ?? raw.id ?? readNumber(raw, ['batch_id']),
+    productId: raw.productId ?? product?.id ?? readNumber(raw, ['product_id']),
+    productName: raw.productName ?? product?.name ?? readString(raw, ['product_name']),
+    categoryName: raw.categoryName ?? product?.categoryName ?? product?.category ?? readString(raw, ['category_name']),
+    originProvince: raw.originProvince ?? product?.originProvince ?? readString(raw, ['origin_province']),
+    originRegion: raw.originRegion ?? product?.originRegion ?? product?.originProvince ?? readString(raw, ['origin_region', 'origin_province']),
     unit: raw.unit ?? product?.unit,
-    imageUrl: raw.imageUrl ?? product?.imageUrl,
-    imageUrls: raw.imageUrls ?? product?.imageUrls ?? [],
-    supplierId: raw.supplierId ?? supplier?.id,
-    supplierName: raw.supplierName ?? supplier?.name,
-    supplierPhone: raw.supplierPhone ?? supplier?.phone,
-    supplierEmail: raw.supplierEmail ?? supplier?.email,
-    supplierProvince: raw.supplierProvince ?? supplier?.province,
-    qcResult: raw.qcResult ?? qc?.result,
-    qcDocumentUrl: raw.qcDocumentUrl ?? qc?.documentUrl,
-    qcNotes: raw.qcNotes ?? qc?.notes,
-    certifications: raw.certifications ?? wrapper.certifications ?? [],
-    traceabilityUrl: raw.traceabilityUrl ?? raw.qrCodeUrl ?? raw.publicUrl ?? raw.publicTraceUrl ?? raw.publicBatchUrl,
+    imageUrl: imageUrls[0] ?? raw.imageUrl ?? product?.imageUrl,
+    imageUrls,
+    supplierId: raw.supplierId ?? supplier?.id ?? readNumber(raw, ['supplier_id', 'supplierCompanyId', 'supplier_company_id']),
+    supplierName:
+      raw.supplierName ??
+      supplier?.companyName ??
+      supplier?.name ??
+      company?.companyName ??
+      company?.name ??
+      readString(raw, ['supplier_name', 'supplierCompanyName', 'supplier_company_name', 'companyName', 'company_name']),
+    supplierPhone: raw.supplierPhone ?? supplier?.phone ?? company?.phone ?? readString(raw, ['supplier_phone', 'phone']),
+    supplierEmail: raw.supplierEmail ?? supplier?.email ?? company?.email ?? readString(raw, ['supplier_email', 'email']),
+    supplierProvince: raw.supplierProvince ?? supplier?.province ?? company?.province ?? readString(raw, ['supplier_province', 'province']),
+    supplier,
+    qcResult: raw.qcResult ?? qc?.result ?? readString(raw, ['qc_result', 'qualityResult', 'quality_result']),
+    qcDocumentUrl:
+      raw.qcDocumentUrl ??
+      qc?.documentUrl ??
+      readString(raw, ['qc_document_url', 'qualityDocumentUrl', 'quality_document_url', 'inspectionDocumentUrl', 'inspection_document_url']),
+    qcNotes: raw.qcNotes ?? qc?.notes ?? readString(raw, ['qc_notes', 'qualityNotes', 'quality_notes']),
+    certifications,
+    traceabilityUrl:
+      raw.traceabilityUrl ??
+      raw.qrCodeUrl ??
+      raw.publicUrl ??
+      raw.publicTraceUrl ??
+      raw.publicBatchUrl ??
+      readString(raw, ['traceability_url', 'qrCode', 'qr_code', 'public_url', 'public_trace_url', 'public_batch_url']),
   }
 
   return {
     ...lot,
+    product: product ? { ...product, imageUrls: collectImageUrls(productRecord) } : product,
     price: toNumber(lot.price) ?? null,
     quantity: toNumber(lot.quantity) ?? null,
     availableQuantity: toNumber(lot.availableQuantity) ?? null,
