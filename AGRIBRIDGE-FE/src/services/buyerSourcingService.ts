@@ -76,6 +76,7 @@ export type BuyerBatchPreview = {
 export type CreateBuyerRfqRequest = {
   buyerCompanyId: number
   productId: number
+  batchId?: number | null
   categoryId?: number | null
   quantity: number
   unit: string
@@ -207,6 +208,7 @@ export async function createBuyerSourcingRfq(payload: CreateBuyerRfqRequest) {
   const response = await apiClient.post<CreateBuyerRfqResponse>('/api/buyer/sourcing/rfqs', {
     buyer_company_id: payload.buyerCompanyId,
     product_id: payload.productId,
+    batch_id: payload.batchId,
     category_id: payload.categoryId,
     quantity: payload.quantity,
     unit: payload.unit,

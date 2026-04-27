@@ -18,6 +18,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import { useToast } from '../../hooks/useToast'
 import {
+  createBuyerSourcingRfq,
   fetchBuyerSourcingProductBatches,
   fetchBuyerSourcingProduct,
   type BuyerBatchPreview,
@@ -29,6 +30,15 @@ import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
 type TimeFilter = 'all' | '7d' | '30d' | '90d'
 type StockFilter = 'all' | 'available' | 'out-of-stock'
 type GradeFilter = 'all' | 'A' | 'B' | 'C'
+
+type RfqFormState = {
+  quantity: string
+  unit: string
+  deliveryDate: string
+  province: string
+  description: string
+  expiredDate: string
+}
 
 type BuyerSourcingProductDetail = BuyerSourcingProduct & {
   batchList?: BuyerBatchPreview[]
@@ -71,6 +81,42 @@ function formatDateLabel(value?: string | null) {
   return parsed.toLocaleDateString('vi-VN')
 }
 
+function formatDateInput(date: Date) {
+  return date.toISOString().slice(0, 10)
+}
+
+function dateAfterDays(days: number) {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return formatDateInput(date)
+}
+
+function normalizeDefaultProvince(value?: string | null) {
+  const trimmed = value?.trim()
+  if (!trimmed || trimmed === '--' || trimmed.toUpperCase() === 'N/A') return ''
+  return trimmed
+}
+
+function getBuyerDefaultDeliveryProvince() {
+  return (
+    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.branchProvince')) ||
+    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.companyProvince')) ||
+    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.province')) ||
+    ''
+  )
+}
+
+function createInitialBatchRfqForm(unit: string): RfqFormState {
+  return {
+    quantity: '',
+    unit,
+    deliveryDate: '',
+    province: getBuyerDefaultDeliveryProvince(),
+    description: '',
+    expiredDate: '',
+  }
+}
+
 function isUrl(value?: string | null) {
   if (!value) return false
   const trimmed = value.trim()
@@ -110,6 +156,10 @@ function getBatchQuantity(batch: BuyerBatchPreview) {
 
 function getBatchMoq(batch: BuyerBatchPreview) {
   return batch.moq ?? batch.minMoq
+}
+
+function getBatchId(batch: BuyerBatchPreview) {
+  return batch.id ?? batch.batchId
 }
 
 function getProductImage(product?: BuyerSourcingProductDetail | null) {
@@ -172,6 +222,9 @@ export function BuyerProductBatchesPage() {
   const [stockFilter, setStockFilter] = useState<StockFilter>('all')
   const [gradeFilter, setGradeFilter] = useState<GradeFilter>('all')
   const [detailBatch, setDetailBatch] = useState<BuyerBatchPreview | null>(null)
+  const [rfqBatch, setRfqBatch] = useState<BuyerBatchPreview | null>(null)
+  const [rfqForm, setRfqForm] = useState<RfqFormState | null>(null)
+  const [submittingRfq, setSubmittingRfq] = useState(false)
 
   const parsedProductId = Number(productId)
   const unit = product?.unit || 'kg'
@@ -271,12 +324,74 @@ export function BuyerProductBatchesPage() {
   }
 
   const handleRfq = (batch: BuyerBatchPreview) => {
-    const code = getBatchCode(batch)
-    sessionStorage.setItem('agribridge.buyer.rfq.context', JSON.stringify({ productId: parsedProductId, batchId: batch.id, batchCode: code }))
-    showToast(`Đã lưu ngữ cảnh RFQ cho lô ${code}.`, 'info')
-    navigate('/buyer/rfq')
+    setRfqBatch(batch)
+    setRfqForm(createInitialBatchRfqForm(unit))
   }
 
+  const submitBatchRfq = async () => {
+    if (!product || !rfqBatch || !rfqForm) return
+    const quantity = Number(rfqForm.quantity)
+    const buyerCompanyId = Number(sessionStorage.getItem('agribridge.auth.companyId'))
+    if (!buyerCompanyId) {
+      showToast('Thiếu thông tin công ty buyer, vui lòng đăng nhập lại.', 'error')
+      return
+    }
+    if (!quantity || quantity <= 0) {
+      showToast('Số lượng RFQ phải lớn hơn 0.', 'error')
+      return
+    }
+    if (!rfqForm.unit.trim()) {
+      showToast('Đơn vị là bắt buộc.', 'error')
+      return
+    }
+    if (!rfqForm.deliveryDate || !rfqForm.expiredDate) {
+      showToast('Vui lòng nhập ngày giao dự kiến và hạn báo giá.', 'error')
+      return
+    }
+    if (!rfqForm.province.trim()) {
+      showToast('Tỉnh/khu vực giao hàng là bắt buộc.', 'error')
+      return
+    }
+    const today = formatDateInput(new Date())
+    if (rfqForm.expiredDate < today) {
+      showToast('Hạn báo giá không được trước hôm nay.', 'error')
+      return
+    }
+    if (rfqForm.deliveryDate < today) {
+      showToast('Ngày giao dự kiến không được trước hôm nay.', 'error')
+      return
+    }
+    if (rfqForm.deliveryDate < rfqForm.expiredDate) {
+      showToast('Ngày giao dự kiến nên sau hoặc bằng hạn báo giá.', 'info')
+      return
+    }
+
+    const batchCode = getBatchCode(rfqBatch)
+    const description = `[Lô hàng: ${batchCode}] ${rfqForm.description.trim()}`.trim()
+
+    setSubmittingRfq(true)
+    try {
+      await createBuyerSourcingRfq({
+        buyerCompanyId,
+        productId: parsedProductId,
+        batchId: getBatchId(rfqBatch),
+        categoryId: product.categoryId,
+        quantity,
+        unit: rfqForm.unit.trim(),
+        deliveryDate: rfqForm.deliveryDate,
+        province: rfqForm.province.trim(),
+        description,
+        expiredAt: `${rfqForm.expiredDate}T23:59:59`,
+      })
+      showToast('Đã tạo RFQ cho lô hàng.', 'success')
+      setRfqBatch(null)
+      setRfqForm(null)
+    } catch (requestError) {
+      showToast(readApiErrorMessage(requestError) || 'Không thể tạo RFQ cho lô hàng.', 'error')
+    } finally {
+      setSubmittingRfq(false)
+    }
+  }
   return (
     <BuyerShell activeKey="sourcing" title="Danh sách lô hàng" subtitle="">
       <div className="flex h-full flex-col gap-3">
@@ -394,7 +509,26 @@ export function BuyerProductBatchesPage() {
           unit={unit}
           onClose={() => setDetailBatch(null)}
           onOrder={() => handleOrderNow(detailBatch)}
-          onRfq={() => handleRfq(detailBatch)}
+          onRfq={() => {
+            handleRfq(detailBatch)
+            setDetailBatch(null)
+          }}
+        />
+      ) : null}
+
+      {rfqBatch && rfqForm && product ? (
+        <BatchRfqModal
+          batch={rfqBatch}
+          product={product}
+          form={rfqForm}
+          unit={unit}
+          submitting={submittingRfq}
+          onChange={setRfqForm}
+          onClose={() => {
+            setRfqBatch(null)
+            setRfqForm(null)
+          }}
+          onSubmit={submitBatchRfq}
         />
       ) : null}
     </BuyerShell>
@@ -665,6 +799,147 @@ function SummaryCell({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl bg-slate-50 px-3 py-2.5">
       <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
       <p className="mt-0.5 truncate text-sm font-bold text-slate-800">{value}</p>
+    </div>
+  )
+}
+
+function BatchRfqModal({
+  batch,
+  product,
+  form,
+  unit,
+  submitting,
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  batch: BuyerBatchPreview
+  product: BuyerSourcingProductDetail
+  form: RfqFormState
+  unit: string
+  submitting: boolean
+  onChange: (form: RfqFormState) => void
+  onClose: () => void
+  onSubmit: () => void
+}) {
+  const batchCode = getBatchCode(batch)
+  const moq = getBatchMoq(batch)
+  const quantity = Number(form.quantity)
+  const showMoqWarning = moq != null && quantity > 0 && quantity < moq
+  const images = getBatchImages(batch, product)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/50 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 bg-white px-5 py-4">
+          <div>
+            <h3 className="text-xl font-extrabold text-emerald-950">Tạo RFQ theo lô hàng</h3>
+            <p className="text-sm text-emerald-700/70">{product.productName} · {batchCode}</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1 text-emerald-700 hover:bg-emerald-50">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+            <div className="flex items-start gap-3">
+              <img src={images[0] || getProductImage(product)} alt={batchCode} className="h-16 w-16 shrink-0 rounded-xl object-cover" />
+              <div className="min-w-0 flex-1">
+                <h4 className="truncate text-base font-black text-slate-900">{batchCode}</h4>
+                <p className="mt-0.5 truncate text-xs font-semibold text-slate-600">{product.productName}</p>
+                <p className="mt-0.5 truncate text-xs text-slate-500">{product.supplierName || 'Nhà cung cấp'}</p>
+                <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-4">
+                  <BuyerInfoChip label="Giá lô" value={formatBatchPrice(batch, unit)} highlight />
+                  <BuyerInfoChip label="MOQ" value={formatQuantity(moq, unit)} />
+                  <BuyerInfoChip label="Tồn kho" value={formatQuantity(getBatchQuantity(batch), unit)} />
+                  <BuyerInfoChip label="Grade" value={batch.grade || '--'} />
+                  <BuyerInfoChip label="Size" value={batch.size || '--'} />
+                  <BuyerInfoChip label="Hạn sử dụng" value={formatDateLabel(batch.expiryDate)} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-emerald-950">Số lượng *</label>
+              <input
+                value={form.quantity}
+                onChange={(event) => onChange({ ...form, quantity: event.target.value })}
+                type="number"
+                min="0"
+                className="h-11 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm"
+                placeholder={`Tối thiểu ${formatQuantity(moq, unit)}`}
+              />
+              {showMoqWarning ? (
+                <p className="mt-1 text-xs font-semibold text-amber-600">
+                  Số lượng đang thấp hơn MOQ {formatQuantity(moq, unit)}. Nhà cung cấp có thể không chấp nhận.
+                </p>
+              ) : null}
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-emerald-950">Đơn vị *</label>
+              <input value={form.unit} onChange={(event) => onChange({ ...form, unit: event.target.value })} className="h-11 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm" placeholder="kg, thùng, tấn..." />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-emerald-950">Ngày giao dự kiến *</label>
+              <input value={form.deliveryDate} onChange={(event) => onChange({ ...form, deliveryDate: event.target.value })} type="date" className="h-11 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm" />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {[3, 7, 14].map((days) => (
+                  <button key={days} type="button" onClick={() => onChange({ ...form, deliveryDate: dateAfterDays(days) })} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50">
+                    {days} ngày
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-emerald-950">Hạn báo giá *</label>
+              <input value={form.expiredDate} onChange={(event) => onChange({ ...form, expiredDate: event.target.value })} type="date" className="h-11 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm" />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <button type="button" onClick={() => onChange({ ...form, expiredDate: dateAfterDays(0) })} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50">Hôm nay</button>
+                {[3, 7].map((days) => (
+                  <button key={days} type="button" onClick={() => onChange({ ...form, expiredDate: dateAfterDays(days) })} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50">
+                    {days} ngày
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-semibold text-emerald-950">Tỉnh/khu vực giao hàng *</label>
+              <input
+                value={form.province}
+                onChange={(event) => onChange({ ...form, province: event.target.value })}
+                className="h-11 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm"
+                placeholder="Nhập tỉnh/khu vực nhận hàng, ví dụ: TP. Hồ Chí Minh"
+              />
+              {form.province.trim() ? (
+                <p className="mt-1 text-xs font-medium text-slate-500">Mặc định lấy từ địa chỉ/chi nhánh của bạn, có thể chỉnh nếu muốn giao nơi khác.</p>
+              ) : null}
+            </div>
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-semibold text-emerald-950">Mô tả nhu cầu</label>
+              <textarea
+                value={form.description}
+                onChange={(event) => onChange({ ...form, description: event.target.value })}
+                className="h-24 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 py-2 text-sm"
+                placeholder="Ví dụ: cần loại A, đóng thùng lạnh, giao buổi sáng, ưu tiên có chứng chỉ/QC."
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 text-sm text-emerald-900">
+            Bạn sắp gửi RFQ: Cần mua <span className="font-bold">{form.quantity || '--'} {form.unit || unit}</span> {product.productName}, lô <span className="font-bold">{batchCode}</span>, giao tại <span className="font-bold">{form.province || '--'}</span>, hạn báo giá <span className="font-bold">{form.expiredDate || '--'}</span>, ngày giao <span className="font-bold">{form.deliveryDate || '--'}</span>.
+          </div>
+        </div>
+
+        <div className="flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
+          <button onClick={onClose} className="rounded-lg border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700">Hủy</button>
+          <button disabled={submitting} onClick={onSubmit} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-wait disabled:bg-emerald-300">
+            {submitting ? 'Đang gửi...' : 'Gửi RFQ'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
