@@ -106,6 +106,35 @@ function isBatchPreviewArray(value: unknown): value is BuyerBatchPreview[] {
   return Array.isArray(value)
 }
 
+function isUrl(value?: string | null): boolean {
+  if (!value) return false
+  return /^https?:\/\//i.test(value.trim())
+}
+
+function normalizeBatchPreview(batch: BuyerBatchPreview): BuyerBatchPreview {
+  const normalizedCode = batch.code?.trim() || undefined
+  const normalizedBatchCode = batch.batchCode?.trim() || undefined
+
+  const inferredTraceabilityUrl =
+    batch.traceabilityUrl ||
+    batch.qrCodeUrl ||
+    batch.publicUrl ||
+    batch.publicTraceUrl ||
+    batch.publicBatchUrl ||
+    (isUrl(normalizedCode) ? normalizedCode : undefined)
+
+  return {
+    ...batch,
+    batchCode: isUrl(normalizedBatchCode) ? undefined : batch.batchCode,
+    code: normalizedCode,
+    traceabilityUrl: inferredTraceabilityUrl,
+  }
+}
+
+function normalizeBatchPreviewRows(rows: BuyerBatchPreview[]): BuyerBatchPreview[] {
+  return rows.map(normalizeBatchPreview)
+}
+
 function pickBatchRows(value: unknown): BuyerBatchPreview[] {
   if (!value || typeof value !== 'object') return []
   const row = value as {
@@ -119,7 +148,7 @@ function pickBatchRows(value: unknown): BuyerBatchPreview[] {
 
   const candidates = [row.batches, row.batchList, row.availableBatches, row.lots, row.productBatches, row.supplierBatches]
   const found = candidates.find(isBatchPreviewArray)
-  return found ?? []
+  return found ? normalizeBatchPreviewRows(found) : []
 }
 
 function normalizeBuyerSourcingProduct(payload: BuyerSourcingPayload): BuyerSourcingProduct {
@@ -166,10 +195,10 @@ export async function fetchBuyerSourcingProductBatches(productId: number): Promi
     availableBatches?: unknown
   }
 
-  if (Array.isArray(response.data)) return response.data as BuyerBatchPreview[]
-  if (Array.isArray(payload?.data)) return payload.data as BuyerBatchPreview[]
-  if (Array.isArray(payload?.batches)) return payload.batches as BuyerBatchPreview[]
-  if (Array.isArray(payload?.availableBatches)) return payload.availableBatches as BuyerBatchPreview[]
+  if (Array.isArray(response.data)) return normalizeBatchPreviewRows(response.data as BuyerBatchPreview[])
+  if (Array.isArray(payload?.data)) return normalizeBatchPreviewRows(payload.data as BuyerBatchPreview[])
+  if (Array.isArray(payload?.batches)) return normalizeBatchPreviewRows(payload.batches as BuyerBatchPreview[])
+  if (Array.isArray(payload?.availableBatches)) return normalizeBatchPreviewRows(payload.availableBatches as BuyerBatchPreview[])
 
   return []
 }

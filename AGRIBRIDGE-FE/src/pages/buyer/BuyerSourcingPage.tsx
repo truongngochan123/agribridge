@@ -1,4 +1,4 @@
-import { Award, Bookmark, ExternalLink, Eye, Flame, Layers, MapPin, PackageSearch, Search, ShoppingBag, X } from 'lucide-react'
+import { Award, Bookmark, ExternalLink, Eye, Flame, Layers, MapPin, PackageSearch, QrCode, Search, ShoppingBag, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
@@ -172,6 +172,31 @@ function getProductBatches(product: BuyerSourcingProductDetail): BuyerBatchPrevi
   return product.batches ?? product.batchList ?? product.availableBatches ?? []
 }
 
+function isUrl(value?: string | null): boolean {
+  if (!value) return false
+  return /^https?:\/\//i.test(value.trim())
+}
+
+function getBatchCode(batch: BuyerBatchPreview, index = 0) {
+  if (batch.batchCode && !isUrl(batch.batchCode)) return batch.batchCode
+  if (batch.batchNo && !isUrl(batch.batchNo)) return batch.batchNo
+  if (batch.lotCode && !isUrl(batch.lotCode)) return batch.lotCode
+  if (batch.code && !isUrl(batch.code)) return batch.code
+  return `BATCH-${String(batch.id ?? index + 1).padStart(6, '0')}`
+}
+
+function getBatchTraceabilityUrl(batch: BuyerBatchPreview): string | undefined {
+  const raw =
+    batch.traceabilityUrl ||
+    batch.qrCodeUrl ||
+    batch.publicUrl ||
+    batch.publicTraceUrl ||
+    batch.publicBatchUrl ||
+    (isUrl(batch.code) ? batch.code : undefined)
+
+  return raw?.trim() || undefined
+}
+
 function batchStatusClass(status?: string | null) {
   const normalized = (status || '').toUpperCase()
   if (normalized === 'OUT_OF_STOCK' || normalized === 'SOLD_OUT' || normalized === 'UNAVAILABLE') {
@@ -290,7 +315,7 @@ export function BuyerSourcingPage() {
     const grades = new Set<string>()
     products.forEach((product) => {
       product.gradeSummary
-        ?.split(/[,\-]/)
+        ?.split(/[,-]/)
         .map((item) => item.trim())
         .filter(Boolean)
         .forEach((item) => grades.add(item))
@@ -1027,8 +1052,22 @@ function ProductDetailModal({
                 </thead>
                 <tbody>
                   {batchRows.map((batch, index) => (
-                    <tr key={batch.id ?? `${batch.batchCode}-${index}`} className={`border-b border-slate-100 transition hover:bg-emerald-50/40 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
-                      <td className="px-3 py-2 font-bold text-slate-800">{batch.batchCode || `#${batch.id ?? index + 1}`}</td>
+                    <tr key={batch.id ?? `${getBatchCode(batch, index)}-${index}`} className={`border-b border-slate-100 transition hover:bg-emerald-50/40 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                      <td className="px-3 py-2 font-bold text-slate-800">
+                        <div className="flex items-center gap-2">
+                          <span>{getBatchCode(batch, index)}</span>
+                          {getBatchTraceabilityUrl(batch) ? (
+                            <button
+                              type="button"
+                              title="Truy xuất nguồn gốc"
+                              onClick={() => openDocumentUrl(getBatchTraceabilityUrl(batch))}
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100"
+                            >
+                              <QrCode className="h-3 w-3" />
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
                       <td className="px-3 py-2 font-semibold text-slate-700">{batch.grade || '--'}</td>
                       <td className="px-3 py-2 font-semibold text-slate-700">{formatQuantity(batch.quantity, product.unit)}</td>
                       <td className="px-3 py-2 font-bold text-emerald-700">{batches.length > 0 ? (batch.price ? `${compactCurrency(batch.price)} /${product.unit || ''}` : '--') : formatPrice(product)}</td>
