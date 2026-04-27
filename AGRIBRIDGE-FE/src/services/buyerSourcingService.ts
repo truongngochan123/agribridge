@@ -51,6 +51,7 @@ export type BuyerLotDetail = {
   productId?: number | null
   productName?: string | null
   categoryName?: string | null
+  supplierCompanyId?: number | null
   supplierId?: number | null
   supplierName?: string | null
   supplierPhone?: string | null
@@ -417,6 +418,57 @@ function normalizeBuyerLotDetail(payload: BuyerLotDetailPayload): BuyerLotDetail
   }
 }
 
+function isSameLotBatch(lot: BuyerLotDetail, batch: BuyerBatchPreview): boolean {
+  const lotId = lot.batchId ?? lot.id
+  if (lotId != null && (batch.id === lotId || batch.batchId === lotId)) return true
+  const lotCode = (lot.batchCode || lot.batchNo || lot.lotCode || lot.code || '').trim()
+  const batchCode = (batch.batchCode || batch.batchNo || batch.lotCode || batch.code || '').trim()
+  return Boolean(lotCode && batchCode && lotCode === batchCode)
+}
+
+async function enrichBuyerLotDetail(lot: BuyerLotDetail): Promise<BuyerLotDetail> {
+  if (!lot.productId) return lot
+
+  const [productResult, batchResult] = await Promise.allSettled([
+    fetchBuyerSourcingProduct(lot.productId),
+    fetchBuyerSourcingProductBatches(lot.productId),
+  ])
+
+  const product = productResult.status === 'fulfilled' ? productResult.value : undefined
+  const batchRows = batchResult.status === 'fulfilled' ? batchResult.value : []
+  const matchedBatch = batchRows.find((batch) => isSameLotBatch(lot, batch))
+  const batchImageUrls = matchedBatch ? collectImageUrls(matchedBatch) : []
+  const lotImageUrls = collectImageUrls(lot)
+  const productImageUrls = product ? collectImageUrls(product) : []
+  const imageUrls = Array.from(new Set([...batchImageUrls, ...lotImageUrls, ...productImageUrls]))
+  const productCertifications = product ? collectCertifications(product) : []
+  const certifications = (lot.certifications?.length ? lot.certifications : productCertifications) ?? []
+
+  return {
+    ...lot,
+    productName: lot.productName ?? product?.productName,
+    categoryName: lot.categoryName ?? product?.categoryName,
+    supplierCompanyId: product?.supplierCompanyId,
+    supplierName: lot.supplierName ?? product?.supplierName,
+    supplierProvince: lot.supplierProvince ?? product?.originRegion,
+    originRegion: lot.originRegion ?? product?.originRegion,
+    unit: lot.unit ?? product?.unit,
+    imageUrl: imageUrls[0] ?? lot.imageUrl,
+    imageUrls,
+    certifications,
+    product: {
+      ...(lot.product ?? {}),
+      id: lot.product?.id ?? product?.productId,
+      name: lot.product?.name ?? product?.productName,
+      categoryName: lot.product?.categoryName ?? product?.categoryName,
+      originRegion: lot.product?.originRegion ?? product?.originRegion,
+      unit: lot.product?.unit ?? product?.unit,
+      imageUrl: productImageUrls[0] ?? lot.product?.imageUrl,
+      imageUrls: productImageUrls.length > 0 ? productImageUrls : lot.product?.imageUrls,
+    },
+  }
+}
+
 function pickBatchRows(value: unknown): BuyerBatchPreview[] {
   if (!value || typeof value !== 'object') return []
   const row = value as {
@@ -488,10 +540,10 @@ export async function fetchBuyerSourcingProductBatches(productId: number): Promi
 export async function fetchBuyerLotDetail(lotId: number): Promise<BuyerLotDetail> {
   try {
     const response = await apiClient.get<BuyerLotDetailPayload>(`/api/buyer/lots/${lotId}`)
-    return normalizeBuyerLotDetail(response.data)
+    return enrichBuyerLotDetail(normalizeBuyerLotDetail(response.data))
   } catch (error) {
     const response = await apiClient.get<BuyerLotDetailPayload>(`/api/public/batch/${lotId}`)
-    return normalizeBuyerLotDetail(response.data)
+    return enrichBuyerLotDetail(normalizeBuyerLotDetail(response.data))
   }
 }
 
