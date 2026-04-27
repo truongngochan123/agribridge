@@ -1,10 +1,14 @@
 import { Award, Bookmark, ExternalLink, Eye, Flame, Layers, MapPin, PackageSearch, QrCode, Search, ShoppingBag, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { BuyerQuickOrderModal } from '../../components/buyer/BuyerQuickOrderModal'
+import { BuyerSelectBatchModal } from '../../components/buyer/BuyerSelectBatchModal'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import type { BuyerQuickOrderFormData, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
 import { useToast } from '../../hooks/useToast'
 import {
   createBuyerSourcingRfq,
+  fetchBuyerSourcingProductBatches,
   fetchBuyerSourcingProduct,
   fetchBuyerSourcingProducts,
   type BuyerBatchPreview,
@@ -197,6 +201,42 @@ function getBatchTraceabilityUrl(batch: BuyerBatchPreview): string | undefined {
   return raw?.trim() || undefined
 }
 
+function getBatchId(batch: BuyerBatchPreview) {
+  return batch.id ?? batch.batchId
+}
+
+function isBatchAvailable(batch: BuyerBatchPreview) {
+  const normalizedStatus = (batch.status || '').toUpperCase()
+  if (
+    normalizedStatus.includes('OUT') ||
+    normalizedStatus.includes('SOLD') ||
+    normalizedStatus.includes('HET') ||
+    normalizedStatus.includes('UNAVAILABLE')
+  ) {
+    return false
+  }
+  const quantity = batch.availableQuantity ?? batch.quantity
+  if (quantity != null && quantity <= 0) return false
+  return true
+}
+
+function toQuickOrderTarget(product: BuyerSourcingProduct, batch: BuyerBatchPreview): BuyerQuickOrderTarget {
+  return {
+    productId: product.productId,
+    categoryId: product.categoryId,
+    productName: product.productName,
+    categoryName: product.categoryName,
+    supplierName: product.supplierName,
+    originRegion: product.originRegion,
+    unit: product.unit,
+    minMoq: batch.moq ?? batch.minMoq ?? product.minMoq,
+    availableQuantity: batch.availableQuantity ?? batch.quantity,
+    imageUrl: batch.imageUrl || product.imageUrl,
+    batchId: getBatchId(batch),
+    batchCode: getBatchCode(batch),
+  }
+}
+
 function batchStatusClass(status?: string | null) {
   const normalized = (status || '').toUpperCase()
   if (normalized === 'OUT_OF_STOCK' || normalized === 'SOLD_OUT' || normalized === 'UNAVAILABLE') {
@@ -214,7 +254,6 @@ function openDocumentUrl(url?: string | null) {
 }
 
 export function BuyerSourcingPage() {
-  const navigate = useNavigate()
   const { showToast } = useToast()
   const [products, setProducts] = useState<BuyerSourcingProduct[]>([])
   const [loading, setLoading] = useState(true)
@@ -234,6 +273,12 @@ export function BuyerSourcingPage() {
   const [rfqProduct, setRfqProduct] = useState<BuyerSourcingProduct | null>(null)
   const [rfqForm, setRfqForm] = useState<RfqFormState | null>(null)
   const [submittingRfq, setSubmittingRfq] = useState(false)
+  const [quickOrderTarget, setQuickOrderTarget] = useState<BuyerQuickOrderTarget | null>(null)
+  const [quickOrderSubmitting, setQuickOrderSubmitting] = useState(false)
+  const [selectBatchState, setSelectBatchState] = useState<{
+    product: BuyerSourcingProduct
+    batches: BuyerBatchPreview[]
+  } | null>(null)
   const [certPreviewProduct, setCertPreviewProduct] = useState<{
     name: string
     certifications: BuyerCertificationPreview[]
@@ -405,12 +450,59 @@ export function BuyerSourcingPage() {
     }
   }
 
-  const handleOrderNow = (product: BuyerSourcingProduct) => {
+  const handleOrderNow = async (product: BuyerSourcingProduct) => {
     if (!product.hasAvailableStock) {
       showToast('Sản phẩm hiện chưa có lô khả dụng.', 'info')
       return
     }
-    navigate(`/buyer/sourcing/products/${product.productId}/batches`)
+    try {
+      const rows = await fetchBuyerSourcingProductBatches(product.productId)
+      const availableRows = rows.filter(isBatchAvailable)
+      if (availableRows.length === 0) {
+        showToast('Sản phẩm hiện chưa có lô khả dụng.', 'info')
+        return
+      }
+      if (availableRows.length === 1) {
+        setQuickOrderTarget(toQuickOrderTarget(product, availableRows[0]))
+        return
+      }
+      setSelectBatchState({
+        product,
+        batches: availableRows,
+      })
+    } catch (requestError) {
+      showToast(readApiErrorMessage(requestError) || 'Không thể tải danh sách lô để đặt hàng.', 'error')
+    }
+  }
+
+  const handleQuickOrderSubmit = async (form: BuyerQuickOrderFormData) => {
+    if (!quickOrderTarget) return
+
+    const quantity = Number(form.quantity)
+    if (!quantity || quantity <= 0) {
+      showToast('Số lượng đặt hàng phải lớn hơn 0.', 'error')
+      return
+    }
+    if (!form.unit.trim()) {
+      showToast('Đơn vị là bắt buộc.', 'error')
+      return
+    }
+    if (!form.deliveryDate) {
+      showToast('Ngày giao dự kiến là bắt buộc.', 'error')
+      return
+    }
+    if (!form.province.trim()) {
+      showToast('Tỉnh/khu vực giao hàng là bắt buộc.', 'error')
+      return
+    }
+
+    setQuickOrderSubmitting(true)
+    try {
+      showToast('Chức năng đặt hàng nhanh chưa được kết nối API.', 'info')
+      setQuickOrderTarget(null)
+    } finally {
+      setQuickOrderSubmitting(false)
+    }
   }
 
   const toggleSaved = (productId: number) => {
@@ -620,7 +712,7 @@ export function BuyerSourcingPage() {
 
                     <div className="mt-auto grid grid-cols-[1fr_auto_auto] gap-1.5 border-t border-slate-100 pt-2">
                       <button
-                        onClick={() => handleOrderNow(product)}
+                        onClick={() => void handleOrderNow(product)}
                         disabled={!product.hasAvailableStock}
                         className="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-500 px-2 py-1.5 text-xs font-bold text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:from-slate-300 disabled:to-slate-300 disabled:opacity-80"
                       >
@@ -668,6 +760,31 @@ export function BuyerSourcingPage() {
           productName={certPreviewProduct.name}
           certifications={certPreviewProduct.certifications}
           onClose={() => setCertPreviewProduct(null)}
+        />
+      ) : null}
+
+      {selectBatchState ? (
+        <BuyerSelectBatchModal
+          productName={selectBatchState.product.productName}
+          unit={selectBatchState.product.unit}
+          batches={selectBatchState.batches}
+          onClose={() => setSelectBatchState(null)}
+          onSelect={(batch) => {
+            setSelectBatchState(null)
+            setQuickOrderTarget(toQuickOrderTarget(selectBatchState.product, batch))
+          }}
+        />
+      ) : null}
+
+      {quickOrderTarget ? (
+        <BuyerQuickOrderModal
+          target={quickOrderTarget}
+          defaultProvince={buyerDefaultProvince || getBuyerDefaultDeliveryProvince()}
+          submitting={quickOrderSubmitting}
+          onClose={() => setQuickOrderTarget(null)}
+          onSubmit={(form) => {
+            void handleQuickOrderSubmit(form)
+          }}
         />
       ) : null}
 

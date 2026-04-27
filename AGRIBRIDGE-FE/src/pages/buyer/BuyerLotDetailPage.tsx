@@ -17,7 +17,9 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { BuyerQuickOrderModal } from '../../components/buyer/BuyerQuickOrderModal'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import type { BuyerQuickOrderFormData, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
 import { useToast } from '../../hooks/useToast'
 import {
   createBuyerSourcingRfq,
@@ -213,6 +215,22 @@ function openDocumentUrl(url?: string | null) {
   window.open(resolveUploadedFileUrl(url) || url, '_blank', 'noopener,noreferrer')
 }
 
+function toQuickOrderTarget(lot: BuyerLotDetail, lotCode: string): BuyerQuickOrderTarget {
+  return {
+    productId: lot.productId ?? 0,
+    productName: lot.productName || lotCode,
+    categoryName: lot.categoryName,
+    supplierName: lot.supplierName,
+    originRegion: lot.originRegion || lot.originProvince || lot.supplierProvince,
+    unit: lot.unit,
+    minMoq: getLotMoq(lot),
+    availableQuantity: getLotQuantity(lot),
+    imageUrl: lot.imageUrl || lot.productImageUrl || lot.batchImageUrl || lot.lotImageUrl,
+    batchId: getLotId(lot),
+    batchCode: lotCode,
+  }
+}
+
 export function BuyerLotDetailPage() {
   const { lotId } = useParams<{ lotId: string }>()
   const { showToast } = useToast()
@@ -222,10 +240,11 @@ export function BuyerLotDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<ActiveTab>('lot')
   const [qty, setQty] = useState(1)
-  const [submittingOrder, setSubmittingOrder] = useState(false)
   const [saved, setSaved] = useState(false)
   const [rfqForm, setRfqForm] = useState<RfqFormState | null>(null)
   const [submittingRfq, setSubmittingRfq] = useState(false)
+  const [quickOrderTarget, setQuickOrderTarget] = useState<BuyerQuickOrderTarget | null>(null)
+  const [submittingQuickOrder, setSubmittingQuickOrder] = useState(false)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
 
   const parsedLotId = Number(lotId)
@@ -284,27 +303,46 @@ export function BuyerLotDetailPage() {
     setQty(Math.max(min, nextValue || min))
   }
 
-  const handleOrderNow = async () => {
+  const handleOrderNow = () => {
     if (!lot) return
     if (status === 'out-of-stock') return
-    if (!qty || qty <= 0) {
+    setQuickOrderTarget(toQuickOrderTarget(lot, lotCode))
+  }
+
+  const submitQuickOrder = async (form: BuyerQuickOrderFormData) => {
+    if (!quickOrderTarget) return
+    const quantityValue = Number(form.quantity)
+    if (!quantityValue || quantityValue <= 0) {
       showToast('Số lượng đặt hàng phải lớn hơn 0.', 'error')
       return
     }
-    if (quantity != null && qty > quantity) {
+    if (!form.unit.trim()) {
+      showToast('Đơn vị là bắt buộc.', 'error')
+      return
+    }
+    if (!form.deliveryDate) {
+      showToast('Ngày giao dự kiến là bắt buộc.', 'error')
+      return
+    }
+    if (!form.province.trim()) {
+      showToast('Tỉnh/khu vực giao hàng là bắt buộc.', 'error')
+      return
+    }
+    if (quantity != null && quantityValue > quantity) {
       showToast('Số lượng vượt quá tồn kho khả dụng.', 'error')
       return
     }
-    if (moq != null && qty < moq) {
+    if (moq != null && quantityValue < moq) {
       showToast(`Số lượng phải tối thiểu ${formatQuantity(moq, unit)}.`, 'error')
       return
     }
 
-    setSubmittingOrder(true)
+    setSubmittingQuickOrder(true)
     try {
-      showToast('Chức năng đặt hàng từ lô hàng chưa được kết nối API.', 'info')
+      showToast('Chức năng đặt hàng nhanh chưa được kết nối API.', 'info')
+      setQuickOrderTarget(null)
     } finally {
-      setSubmittingOrder(false)
+      setSubmittingQuickOrder(false)
     }
   }
 
@@ -500,8 +538,8 @@ export function BuyerLotDetailPage() {
               </div>
 
               <div className="mt-4 space-y-2">
-                <button disabled={status === 'out-of-stock' || submittingOrder} onClick={handleOrderNow} className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
-                  {submittingOrder ? 'Đang xử lý...' : 'Đặt hàng ngay'}
+                <button disabled={status === 'out-of-stock'} onClick={handleOrderNow} className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
+                  Đặt hàng ngay
                 </button>
                 <button onClick={openRfqModal} className="w-full rounded-lg border border-emerald-400 py-2.5 text-sm font-semibold text-emerald-700">Gửi yêu cầu báo giá</button>
                 <button onClick={contactSupplier} className="w-full rounded-lg border border-emerald-200 py-2.5 text-sm font-semibold text-emerald-700">Liên hệ nhà cung cấp</button>
@@ -547,6 +585,18 @@ export function BuyerLotDetailPage() {
           onChange={setRfqForm}
           onClose={() => setRfqForm(null)}
           onSubmit={submitRfq}
+        />
+      ) : null}
+
+      {quickOrderTarget ? (
+        <BuyerQuickOrderModal
+          target={quickOrderTarget}
+          defaultProvince={getBuyerDefaultDeliveryProvince()}
+          submitting={submittingQuickOrder}
+          onClose={() => setQuickOrderTarget(null)}
+          onSubmit={(form) => {
+            void submitQuickOrder(form)
+          }}
         />
       ) : null}
     </BuyerShell>

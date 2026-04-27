@@ -14,7 +14,9 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { BuyerQuickOrderModal } from '../../components/buyer/BuyerQuickOrderModal'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import type { BuyerQuickOrderFormData, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
 import { useToast } from '../../hooks/useToast'
 import {
   createBuyerSourcingRfq,
@@ -194,6 +196,23 @@ function batchStatusBadge(status: 'available' | 'out-of-stock') {
     : 'border border-rose-300/50 bg-rose-500/15 text-rose-700'
 }
 
+function toQuickOrderTarget(product: BuyerSourcingProductDetail, batch: BuyerBatchPreview, unit: string): BuyerQuickOrderTarget {
+  return {
+    productId: product.productId,
+    categoryId: product.categoryId,
+    productName: product.productName,
+    categoryName: product.categoryName,
+    supplierName: product.supplierName,
+    originRegion: product.originRegion,
+    unit,
+    minMoq: getBatchMoq(batch) ?? product.minMoq,
+    availableQuantity: getBatchQuantity(batch),
+    imageUrl: batch.imageUrl || product.imageUrl,
+    batchId: getBatchId(batch),
+    batchCode: getBatchCode(batch),
+  }
+}
+
 export function BuyerProductBatchesPage() {
   const { productId } = useParams<{ productId: string }>()
   const navigate = useNavigate()
@@ -211,6 +230,8 @@ export function BuyerProductBatchesPage() {
   const [rfqBatch, setRfqBatch] = useState<BuyerBatchPreview | null>(null)
   const [rfqForm, setRfqForm] = useState<RfqFormState | null>(null)
   const [submittingRfq, setSubmittingRfq] = useState(false)
+  const [quickOrderTarget, setQuickOrderTarget] = useState<BuyerQuickOrderTarget | null>(null)
+  const [submittingQuickOrder, setSubmittingQuickOrder] = useState(false)
 
   const parsedProductId = Number(productId)
   const unit = product?.unit || 'kg'
@@ -302,11 +323,40 @@ export function BuyerProductBatchesPage() {
       showToast('Lô hàng hiện đã hết hàng.', 'info')
       return
     }
-    if (batch.id) {
-      navigate(`/buyer/lots/${batch.id}`)
+    if (!product) {
+      showToast('Chưa tải xong dữ liệu sản phẩm.', 'info')
       return
     }
-    showToast('Lô hàng chưa có mã chi tiết để đặt hàng.', 'info')
+    setQuickOrderTarget(toQuickOrderTarget(product, batch, unit))
+  }
+
+  const submitQuickOrder = async (form: BuyerQuickOrderFormData) => {
+    if (!quickOrderTarget) return
+    const quantity = Number(form.quantity)
+    if (!quantity || quantity <= 0) {
+      showToast('Số lượng đặt hàng phải lớn hơn 0.', 'error')
+      return
+    }
+    if (!form.unit.trim()) {
+      showToast('Đơn vị là bắt buộc.', 'error')
+      return
+    }
+    if (!form.deliveryDate) {
+      showToast('Ngày giao dự kiến là bắt buộc.', 'error')
+      return
+    }
+    if (!form.province.trim()) {
+      showToast('Tỉnh/khu vực giao hàng là bắt buộc.', 'error')
+      return
+    }
+
+    setSubmittingQuickOrder(true)
+    try {
+      showToast('Chức năng đặt hàng nhanh chưa được kết nối API.', 'info')
+      setQuickOrderTarget(null)
+    } finally {
+      setSubmittingQuickOrder(false)
+    }
   }
 
   const openLotDetail = (batch: BuyerBatchPreview) => {
@@ -510,6 +560,18 @@ export function BuyerProductBatchesPage() {
             setRfqForm(null)
           }}
           onSubmit={submitBatchRfq}
+        />
+      ) : null}
+
+      {quickOrderTarget ? (
+        <BuyerQuickOrderModal
+          target={quickOrderTarget}
+          defaultProvince={getBuyerDefaultDeliveryProvince()}
+          submitting={submittingQuickOrder}
+          onClose={() => setQuickOrderTarget(null)}
+          onSubmit={(form) => {
+            void submitQuickOrder(form)
+          }}
         />
       ) : null}
     </BuyerShell>
