@@ -226,6 +226,7 @@ export function BuyerLotDetailPage() {
   const [saved, setSaved] = useState(false)
   const [rfqForm, setRfqForm] = useState<RfqFormState | null>(null)
   const [submittingRfq, setSubmittingRfq] = useState(false)
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
 
   const parsedLotId = Number(lotId)
 
@@ -260,7 +261,11 @@ export function BuyerLotDetailPage() {
   }, [parsedLotId])
 
   const images = useMemo(() => (lot ? getLotImages(lot) : []), [lot])
-  const mainImage = images[0] || placeholderImage
+  const galleryImages = images.length > 0 ? images : [placeholderImage]
+  const safeSelectedImageIndex = Math.min(selectedImageIndex, galleryImages.length - 1)
+  const mainImage = galleryImages[safeSelectedImageIndex] || placeholderImage
+  const thumbnailImages = galleryImages.slice(0, 3)
+  const hiddenThumbnailCount = Math.max(galleryImages.length - 3, 0)
   const unit = lot?.unit || 'kg'
   const lotCode = lot ? getLotCode(lot) : '--'
   const quantity = lot ? getLotQuantity(lot) : undefined
@@ -269,6 +274,10 @@ export function BuyerLotDetailPage() {
   const traceabilityUrl = lot ? getTraceabilityUrl(lot) : null
   const totalAmount = lot?.price && qty > 0 ? lot.price * qty : null
   const backTo = lot?.productId ? `/buyer/sourcing/products/${lot.productId}/batches` : '/buyer/sourcing'
+
+  useEffect(() => {
+    setSelectedImageIndex(0)
+  }, [lot?.id, lot?.batchId, images])
 
   const updateQty = (nextValue: number) => {
     const min = moq && moq > 0 ? moq : 1
@@ -435,11 +444,29 @@ export function BuyerLotDetailPage() {
 
           <section className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
             <div className="rounded-2xl border border-emerald-200 bg-white p-3">
-              <img src={mainImage} alt={lot.productName || lotCode} className="h-[420px] w-full rounded-xl object-cover" />
+              <div className="flex aspect-[16/9] min-h-[320px] w-full items-center justify-center overflow-hidden rounded-xl bg-slate-50 sm:min-h-[380px]">
+                <img src={mainImage} alt={lot.productName || lotCode} className="h-full w-full object-contain" />
+              </div>
               <div className="mt-3 grid grid-cols-3 gap-2">
-                {(images.length > 0 ? images : [placeholderImage]).map((img) => (
-                  <img key={img} src={img} alt="thumb" className="h-24 w-full rounded-lg object-cover" />
-                ))}
+                {thumbnailImages.map((img, index) => {
+                  const isActive = safeSelectedImageIndex === index
+                  const showOverlay = index === 2 && hiddenThumbnailCount > 0
+                  return (
+                    <button
+                      key={`${img}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedImageIndex(index)}
+                      className={`relative h-20 overflow-hidden rounded-lg border bg-slate-50 transition sm:h-24 ${isActive ? 'border-emerald-400 ring-2 ring-emerald-100' : 'border-slate-200 hover:border-emerald-300'}`}
+                    >
+                      <img src={img} alt={`thumb-${index + 1}`} className="h-full w-full object-cover" />
+                      {showOverlay ? (
+                        <span className="absolute inset-0 flex items-center justify-center bg-slate-950/55 text-lg font-black text-white">
+                          +{hiddenThumbnailCount}
+                        </span>
+                      ) : null}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
