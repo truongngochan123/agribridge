@@ -16,7 +16,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BuyerQuickOrderModal } from '../../components/buyer/BuyerQuickOrderModal'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
-import type { BuyerQuickOrderFormData, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
+import type { BuyerQuickOrderPayload, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
 import { useToast } from '../../hooks/useToast'
 import {
   createBuyerSourcingRfq,
@@ -203,13 +203,19 @@ function toQuickOrderTarget(product: BuyerSourcingProductDetail, batch: BuyerBat
     productName: product.productName,
     categoryName: product.categoryName,
     supplierName: product.supplierName,
+    supplierId: product.supplierCompanyId,
+    supplierCompanyId: product.supplierCompanyId,
     originRegion: product.originRegion,
     unit,
+    price: batch.price ?? null,
     minMoq: getBatchMoq(batch) ?? product.minMoq,
     availableQuantity: getBatchQuantity(batch),
     imageUrl: batch.imageUrl || product.imageUrl,
     batchId: getBatchId(batch),
     batchCode: getBatchCode(batch),
+    grade: batch.grade,
+    size: batch.size,
+    expiryDate: batch.expiryDate,
   }
 }
 
@@ -330,29 +336,10 @@ export function BuyerProductBatchesPage() {
     setQuickOrderTarget(toQuickOrderTarget(product, batch, unit))
   }
 
-  const submitQuickOrder = async (form: BuyerQuickOrderFormData) => {
-    if (!quickOrderTarget) return
-    const quantity = Number(form.quantity)
-    if (!quantity || quantity <= 0) {
-      showToast('Số lượng đặt hàng phải lớn hơn 0.', 'error')
-      return
-    }
-    if (!form.unit.trim()) {
-      showToast('Đơn vị là bắt buộc.', 'error')
-      return
-    }
-    if (!form.deliveryDate) {
-      showToast('Ngày giao dự kiến là bắt buộc.', 'error')
-      return
-    }
-    if (!form.province.trim()) {
-      showToast('Tỉnh/khu vực giao hàng là bắt buộc.', 'error')
-      return
-    }
-
+  const submitQuickOrder = async (_payload: BuyerQuickOrderPayload) => {
     setSubmittingQuickOrder(true)
     try {
-      showToast('Chức năng đặt hàng nhanh chưa được kết nối API.', 'info')
+      showToast('UI đặt hàng đã sẵn sàng, API tạo đơn hàng chưa được kết nối.', 'info')
       setQuickOrderTarget(null)
     } finally {
       setSubmittingQuickOrder(false)
@@ -566,11 +553,10 @@ export function BuyerProductBatchesPage() {
       {quickOrderTarget ? (
         <BuyerQuickOrderModal
           target={quickOrderTarget}
-          defaultProvince={getBuyerDefaultDeliveryProvince()}
           submitting={submittingQuickOrder}
           onClose={() => setQuickOrderTarget(null)}
-          onSubmit={(form) => {
-            void submitQuickOrder(form)
+          onSubmit={(payload) => {
+            void submitQuickOrder(payload)
           }}
         />
       ) : null}

@@ -19,7 +19,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BuyerQuickOrderModal } from '../../components/buyer/BuyerQuickOrderModal'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
-import type { BuyerQuickOrderFormData, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
+import type { BuyerQuickOrderPayload, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
 import { useToast } from '../../hooks/useToast'
 import {
   createBuyerSourcingRfq,
@@ -221,13 +221,19 @@ function toQuickOrderTarget(lot: BuyerLotDetail, lotCode: string): BuyerQuickOrd
     productName: lot.productName || lotCode,
     categoryName: lot.categoryName,
     supplierName: lot.supplierName,
+    supplierId: lot.supplierId ?? lot.supplierCompanyId,
+    supplierCompanyId: lot.supplierCompanyId,
     originRegion: lot.originRegion || lot.originProvince || lot.supplierProvince,
     unit: lot.unit,
+    price: lot.price ?? null,
     minMoq: getLotMoq(lot),
     availableQuantity: getLotQuantity(lot),
     imageUrl: lot.imageUrl || lot.productImageUrl || lot.batchImageUrl || lot.lotImageUrl,
     batchId: getLotId(lot),
     batchCode: lotCode,
+    grade: lot.grade,
+    size: lot.size,
+    expiryDate: lot.expiryDate,
   }
 }
 
@@ -309,37 +315,10 @@ export function BuyerLotDetailPage() {
     setQuickOrderTarget(toQuickOrderTarget(lot, lotCode))
   }
 
-  const submitQuickOrder = async (form: BuyerQuickOrderFormData) => {
-    if (!quickOrderTarget) return
-    const quantityValue = Number(form.quantity)
-    if (!quantityValue || quantityValue <= 0) {
-      showToast('Số lượng đặt hàng phải lớn hơn 0.', 'error')
-      return
-    }
-    if (!form.unit.trim()) {
-      showToast('Đơn vị là bắt buộc.', 'error')
-      return
-    }
-    if (!form.deliveryDate) {
-      showToast('Ngày giao dự kiến là bắt buộc.', 'error')
-      return
-    }
-    if (!form.province.trim()) {
-      showToast('Tỉnh/khu vực giao hàng là bắt buộc.', 'error')
-      return
-    }
-    if (quantity != null && quantityValue > quantity) {
-      showToast('Số lượng vượt quá tồn kho khả dụng.', 'error')
-      return
-    }
-    if (moq != null && quantityValue < moq) {
-      showToast(`Số lượng phải tối thiểu ${formatQuantity(moq, unit)}.`, 'error')
-      return
-    }
-
+  const submitQuickOrder = async (_payload: BuyerQuickOrderPayload) => {
     setSubmittingQuickOrder(true)
     try {
-      showToast('Chức năng đặt hàng nhanh chưa được kết nối API.', 'info')
+      showToast('UI đặt hàng đã sẵn sàng, API tạo đơn hàng chưa được kết nối.', 'info')
       setQuickOrderTarget(null)
     } finally {
       setSubmittingQuickOrder(false)
@@ -591,11 +570,10 @@ export function BuyerLotDetailPage() {
       {quickOrderTarget ? (
         <BuyerQuickOrderModal
           target={quickOrderTarget}
-          defaultProvince={getBuyerDefaultDeliveryProvince()}
           submitting={submittingQuickOrder}
           onClose={() => setQuickOrderTarget(null)}
-          onSubmit={(form) => {
-            void submitQuickOrder(form)
+          onSubmit={(payload) => {
+            void submitQuickOrder(payload)
           }}
         />
       ) : null}
