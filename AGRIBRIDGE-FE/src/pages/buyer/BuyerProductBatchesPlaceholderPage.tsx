@@ -1,7 +1,6 @@
 import {
   ArrowLeft,
   CalendarDays,
-  ExternalLink,
   Eye,
   Flame,
   Layers,
@@ -195,18 +194,6 @@ function batchStatusBadge(status: 'available' | 'out-of-stock') {
     : 'border border-rose-300/50 bg-rose-500/15 text-rose-700'
 }
 
-function qcBadgeStyle(value?: string | null) {
-  const normalized = (value || '').toUpperCase()
-  if (normalized === 'PASS') return 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-  if (normalized === 'FAIL') return 'bg-rose-100 text-rose-700 border border-rose-200'
-  return 'bg-slate-100 text-slate-600 border border-slate-200'
-}
-
-function openExternal(url?: string | null) {
-  if (!url) return
-  window.open(resolveUploadedFileUrl(url) || url, '_blank', 'noopener,noreferrer')
-}
-
 export function BuyerProductBatchesPage() {
   const { productId } = useParams<{ productId: string }>()
   const navigate = useNavigate()
@@ -221,7 +208,6 @@ export function BuyerProductBatchesPage() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
   const [stockFilter, setStockFilter] = useState<StockFilter>('all')
   const [gradeFilter, setGradeFilter] = useState<GradeFilter>('all')
-  const [detailBatch, setDetailBatch] = useState<BuyerBatchPreview | null>(null)
   const [rfqBatch, setRfqBatch] = useState<BuyerBatchPreview | null>(null)
   const [rfqForm, setRfqForm] = useState<RfqFormState | null>(null)
   const [submittingRfq, setSubmittingRfq] = useState(false)
@@ -321,6 +307,15 @@ export function BuyerProductBatchesPage() {
       return
     }
     showToast('Lô hàng chưa có mã chi tiết để đặt hàng.', 'info')
+  }
+
+  const openLotDetail = (batch: BuyerBatchPreview) => {
+    const lotId = getBatchId(batch)
+    if (!lotId) {
+      showToast('Lô hàng chưa có mã chi tiết.', 'info')
+      return
+    }
+    navigate(`/buyer/lots/${lotId}`)
   }
 
   const handleRfq = (batch: BuyerBatchPreview) => {
@@ -496,25 +491,11 @@ export function BuyerProductBatchesPage() {
               unit={unit}
               onOrder={() => handleOrderNow(batch)}
               onRfq={() => handleRfq(batch)}
-              onDetail={() => setDetailBatch(batch)}
+              onDetail={() => openLotDetail(batch)}
             />
           ))}
         </div>
       </div>
-
-      {detailBatch ? (
-        <BatchDetailModal
-          batch={detailBatch}
-          product={product}
-          unit={unit}
-          onClose={() => setDetailBatch(null)}
-          onOrder={() => handleOrderNow(detailBatch)}
-          onRfq={() => {
-            handleRfq(detailBatch)
-            setDetailBatch(null)
-          }}
-        />
-      ) : null}
 
       {rfqBatch && rfqForm && product ? (
         <BatchRfqModal
@@ -658,148 +639,6 @@ function BatchCard({
         </div>
       </div>
     </article>
-  )
-}
-
-function BatchDetailModal({
-  batch,
-  product,
-  unit,
-  onClose,
-  onOrder,
-  onRfq,
-}: {
-  batch: BuyerBatchPreview
-  product: BuyerSourcingProductDetail | null
-  unit: string
-  onClose: () => void
-  onOrder: () => void
-  onRfq: () => void
-}) {
-  const code = getBatchCode(batch)
-  const status = deriveBatchStatus(batch)
-  const images = getBatchImages(batch, product)
-  const qcResult = batch.qcResult || 'N/A'
-  const traceUrl = getBatchTraceabilityUrl(batch)
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/50 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(0,0,0,0.25)]">
-        <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 px-5 py-4">
-          <div className="relative flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border-2 border-white/30 shadow-lg">
-                <img src={images[0] || getProductImage(product)} alt={code} className="h-full w-full object-cover" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="truncate text-base font-black text-white drop-shadow">{code}</h3>
-                <p className="mt-0.5 text-[11px] text-white/70">{product?.productName || '--'} · {product?.originRegion || '--'}</p>
-              </div>
-            </div>
-            <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/20 text-white transition hover:bg-white/30" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="relative mt-3 flex flex-wrap gap-2">
-            <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-sm">Grade {batch.grade || '--'}</span>
-            <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-sm">{batchStatusLabel(status)}</span>
-            <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-sm">QC {qcResult}</span>
-            {images.length > 0 ? <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-sm">{images.length} ảnh</span> : null}
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {images.length > 0 ? (
-            <section className="border-b border-slate-100 p-4">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Hình ảnh lô hàng</p>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {images.map((url, index) => (
-                  <img key={`${url}-${index}`} src={url} alt={`batch-${index}`} className="h-24 w-24 shrink-0 rounded-xl border border-slate-200 object-cover shadow-sm" />
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          <section className="grid grid-cols-2 gap-3 border-b border-slate-100 p-4 sm:grid-cols-4">
-            <SummaryCell label="Mã lô" value={code} />
-            <SummaryCell label="Grade" value={batch.grade || '--'} />
-            <SummaryCell label="Size" value={batch.size || '--'} />
-            <SummaryCell label="Tồn kho" value={formatQuantity(getBatchQuantity(batch), unit)} />
-            <SummaryCell label="MOQ" value={formatQuantity(getBatchMoq(batch), unit)} />
-            <SummaryCell label="Giá" value={formatBatchPrice(batch, unit)} />
-            <SummaryCell label="Thu hoạch" value={formatDateLabel(batch.harvestDate)} />
-            <SummaryCell label="Hết hạn" value={formatDateLabel(batch.expiryDate)} />
-            <SummaryCell label="Bảo quản" value={batch.storageTemp || '--'} />
-            <SummaryCell label="Trạng thái" value={batchStatusLabel(status)} />
-          </section>
-
-          <section className="border-b border-slate-100 p-4">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">QC / kiểm định</p>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${qcBadgeStyle(batch.qcResult)}`}>QC {qcResult}</span>
-              <p className="mt-2 text-sm text-slate-600">{batch.qcNotes || 'Không có ghi chú QC.'}</p>
-              {batch.qcDocumentUrl ? (
-                <button onClick={() => openExternal(batch.qcDocumentUrl)} className="mt-3 inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Xem file
-                </button>
-              ) : null}
-            </div>
-          </section>
-
-          {batch.videoUrl ? (
-            <section className="border-b border-slate-100 p-4">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Video lô hàng</p>
-              <button onClick={() => openExternal(batch.videoUrl)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                <Video className="h-4 w-4 text-emerald-600" />
-                Xem video
-              </button>
-            </section>
-          ) : null}
-
-          {traceUrl ? (
-            <section className="border-b border-slate-100 p-4">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Truy xuất nguồn gốc</p>
-              <button
-                onClick={() => window.open(traceUrl, '_blank', 'noopener,noreferrer')}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                <QrCode className="h-4 w-4 text-emerald-600" />
-                Truy xuất nguồn gốc
-              </button>
-            </section>
-          ) : null}
-
-          <section className="p-4">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Ghi chú / mô tả</p>
-            <p className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-700">
-              {batch.notes || batch.description || '--'}
-            </p>
-          </section>
-        </div>
-
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3">
-          <button onClick={onClose} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100">
-            Đóng
-          </button>
-          <button onClick={onRfq} className="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50">
-            RFQ
-          </button>
-          <button onClick={onOrder} disabled={status === 'out-of-stock'} className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:from-slate-300 disabled:to-slate-300">
-            Đặt hàng ngay
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SummaryCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-slate-50 px-3 py-2.5">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-0.5 truncate text-sm font-bold text-slate-800">{value}</p>
-    </div>
   )
 }
 
