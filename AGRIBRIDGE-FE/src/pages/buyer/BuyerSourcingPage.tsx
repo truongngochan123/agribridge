@@ -274,51 +274,7 @@ export function BuyerSourcingPage() {
           </div>
         </BuyerPanel>
 
-        <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
-          <BuyerPanel title="Bộ lọc">
-            <div className="space-y-4 text-sm">
-              <div>
-                <p className="mb-2 font-semibold text-emerald-900">Danh mục</p>
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-2">
-                    <input type="radio" checked={categoryId === 'all'} onChange={() => setCategoryId('all')} className="accent-emerald-600" />
-                    Tất cả
-                  </label>
-                  {categoryOptions.map((item) => (
-                    <label key={item.id} className="flex items-center gap-2">
-                      <input type="radio" checked={categoryId === String(item.id)} onChange={() => setCategoryId(String(item.id))} className="accent-emerald-600" />
-                      {item.name}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="mb-2 font-semibold text-emerald-900">Khu vực</p>
-                <select value={region} onChange={(event) => setRegion(event.target.value)} className="h-10 w-full rounded-lg border border-emerald-200 bg-white px-3 text-sm">
-                  <option value="all">Tất cả khu vực</option>
-                  {regionOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </div>
-              <div>
-                <p className="mb-2 font-semibold text-emerald-900">Mức giá</p>
-                <div className="space-y-1.5">
-                  {priceFilters.map((item) => (
-                    <label key={item.value} className="flex items-center gap-2">
-                      <input type="radio" name="price" checked={priceFilter === item.value} onChange={() => setPriceFilter(item.value)} className="accent-emerald-600" />
-                      {item.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="mb-2 font-semibold text-emerald-900">Phân loại</p>
-                <select value={gradeFilter} onChange={(event) => setGradeFilter(event.target.value)} className="h-10 w-full rounded-lg border border-emerald-200 bg-white px-3 text-sm">
-                  <option value="all">Tất cả</option>
-                  {gradeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </div>
-            </div>
-          </BuyerPanel>
+        <div>
 
           <div>
             <div className="mb-3 flex items-center justify-between text-sm text-emerald-800">
@@ -334,9 +290,9 @@ export function BuyerSourcingPage() {
                 Chưa có sản phẩm phù hợp với bộ lọc hiện tại.
               </div>
             ) : null}
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
               {filteredProducts.map((product) => (
-                <article key={product.productId} className="rounded-2xl border border-emerald-200 bg-white p-3 shadow-[0_4px_12px_rgba(16,120,74,0.08)]">
+                <article key={product.productId} className="flex h-full flex-col rounded-2xl border border-emerald-200 bg-white p-3 shadow-[0_4px_12px_rgba(16,120,74,0.08)]">
                   <div className="relative">
                     <img src={product.imageUrl || placeholderImage} alt={product.productName} className="h-40 w-full rounded-xl object-cover" />
                     <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2.5 py-1 text-xs font-bold text-emerald-800">
