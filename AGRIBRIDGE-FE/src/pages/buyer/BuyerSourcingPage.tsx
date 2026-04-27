@@ -1,7 +1,6 @@
-import { Bookmark, Eye, PackageSearch, Search, X } from 'lucide-react'
+import { Award, Bookmark, Eye, Flame, PackageSearch, Search, ShoppingBag, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { BuyerPanel } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import { useToast } from '../../hooks/useToast'
 import {
@@ -152,6 +151,10 @@ export function BuyerSourcingPage() {
     })
   }, [categoryId, gradeFilter, priceFilter, products, region, searchTerm])
 
+  const availableProductCount = useMemo(() => {
+    return products.filter((product) => product.hasAvailableStock).length
+  }, [products])
+
   const openRfqModal = (product: BuyerSourcingProduct) => {
     setRfqProduct(product)
     setRfqForm(createInitialRfqForm(product))
@@ -236,51 +239,68 @@ export function BuyerSourcingPage() {
 
   return (
     <BuyerShell activeKey="sourcing" title="Tìm nguồn hàng" subtitle="Tìm kiếm sản phẩm và nguồn cung theo nhu cầu mua hàng">
-      <div className="space-y-4">
-        <BuyerPanel>
-          <div className="grid gap-3 md:grid-cols-[1fr_220px]">
-            <label className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-400" />
+      <div className="flex h-full flex-col gap-3">
+        <div className="shrink-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm">
+              <PackageSearch className="h-3.5 w-3.5" />
+              <span>{filteredProducts.length}</span>
+              <span className="text-emerald-500">sản phẩm phù hợp</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm">
+              <ShoppingBag className="h-3.5 w-3.5 text-slate-400" />
+              <span>{products.length}</span>
+              <span className="text-slate-400">tổng sản phẩm</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm">
+              <Flame className="h-3.5 w-3.5" />
+              <span>{availableProductCount}</span>
+              <span className="text-emerald-500">còn hàng</span>
+            </div>
+          </div>
+
+          <div className="grid gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2.5 backdrop-blur-sm md:grid-cols-6">
+            <label className="relative md:col-span-2">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                className="h-11 w-full rounded-lg border border-emerald-200 bg-emerald-50/40 pl-10 pr-3 text-sm outline-none focus:border-emerald-500"
+                className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
                 placeholder="Tìm sản phẩm, nhà cung cấp, khu vực..."
               />
             </label>
             <select
               value={categoryId}
               onChange={(event) => setCategoryId(event.target.value)}
-              className="h-11 rounded-lg border border-emerald-200 bg-white px-3 text-sm"
+              className="h-9 appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white"
             >
               <option value="all">Tất cả danh mục</option>
               {categoryOptions.map((item) => (
                 <option key={item.id} value={item.id}>{item.name}</option>
               ))}
             </select>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <select value={region} onChange={(event) => setRegion(event.target.value)} className="h-9 rounded-lg border border-emerald-200 bg-white px-3 text-xs font-semibold text-emerald-700">
+            <select value={region} onChange={(event) => setRegion(event.target.value)} className="h-9 appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white">
               <option value="all">Tất cả khu vực</option>
               {regionOptions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
-            <select value={priceFilter} onChange={(event) => setPriceFilter(event.target.value as PriceFilter)} className="h-9 rounded-lg border border-emerald-200 bg-white px-3 text-xs font-semibold text-emerald-700">
+            <select value={priceFilter} onChange={(event) => setPriceFilter(event.target.value as PriceFilter)} className="h-9 appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white">
               {priceFilters.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
-            <select value={gradeFilter} onChange={(event) => setGradeFilter(event.target.value)} className="h-9 rounded-lg border border-emerald-200 bg-white px-3 text-xs font-semibold text-emerald-700">
+            <select value={gradeFilter} onChange={(event) => setGradeFilter(event.target.value)} className="h-9 appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white">
               <option value="all">Tất cả phân loại</option>
               {gradeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </div>
-        </BuyerPanel>
+        </div>
 
         <div>
 
           <div>
-            <div className="mb-3 flex items-center justify-between text-sm text-emerald-800">
-              <span>{filteredProducts.length} sản phẩm phù hợp</span>
-              {loading ? <span>Đang tải...</span> : null}
-            </div>
+            {loading ? (
+              <div className="mb-3 flex items-center gap-2 text-sm text-slate-500">
+                <span>Đang tải...</span>
+              </div>
+            ) : null}
             {error ? (
               <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>
             ) : null}
@@ -290,62 +310,68 @@ export function BuyerSourcingPage() {
                 Chưa có sản phẩm phù hợp với bộ lọc hiện tại.
               </div>
             ) : null}
-            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+            <div className="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {filteredProducts.map((product) => (
-                <article key={product.productId} className="flex h-full flex-col rounded-2xl border border-emerald-200 bg-white p-3 shadow-[0_4px_12px_rgba(16,120,74,0.08)]">
-                  <div className="relative">
-                    <img src={product.imageUrl || placeholderImage} alt={product.productName} className="h-40 w-full rounded-xl object-cover" />
-                    <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2.5 py-1 text-xs font-bold text-emerald-800">
+                <article key={product.productId} className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-[0_8px_30px_rgba(16,185,129,0.15)]">
+                  <div className="relative h-28 shrink-0 overflow-hidden bg-slate-100">
+                    <img
+                      src={product.imageUrl || placeholderImage}
+                      alt={product.productName}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                    <span className="absolute left-2 top-2 rounded-full bg-black/40 px-2 py-1 text-[10px] font-bold text-white backdrop-blur-sm">
                       {product.availableBatchCount} lô
                     </span>
-                    <span className={`absolute right-2 top-2 rounded-full px-2.5 py-1 text-xs font-bold ${product.hasAvailableStock ? 'bg-emerald-600 text-white' : 'bg-slate-600 text-white'}`}>
+                    <span className={`absolute right-2 top-2 rounded-full px-2 py-1 text-[10px] font-bold backdrop-blur-sm ${product.hasAvailableStock ? 'border border-emerald-300/50 bg-emerald-500/15 text-emerald-700' : 'border border-rose-300/50 bg-rose-500/15 text-rose-700'}`}>
                       {product.hasAvailableStock ? 'Còn hàng' : 'Hết hàng'}
                     </span>
                     {product.certificationCount > 0 ? (
-                      <span className="absolute bottom-2 left-2 rounded-full bg-white/95 px-2.5 py-1 text-xs font-bold text-emerald-800">
+                      <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-emerald-700 shadow backdrop-blur-sm">
+                        <Award className="h-3 w-3" />
                         {product.certificationCount} chứng chỉ
                       </span>
                     ) : null}
                   </div>
-                  <div className="mt-3 min-h-[112px]">
-                    <h3 className="line-clamp-2 text-lg font-bold text-emerald-950">{product.productName}</h3>
-                    <p className="mt-1 text-xs font-semibold text-emerald-700/80">{product.supplierName || 'Nhà cung cấp'}</p>
-                    <p className="text-xs text-emerald-700/80">{product.originRegion || '--'} · {product.categoryName || '--'}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <SummaryCell label="GRADE" value={product.gradeSummary || '--'} />
-                    <SummaryCell label="SIZE" value={product.sizeSummary || '--'} />
-                    <SummaryCell label="TỒN KHO" value={formatQuantity(product.totalAvailableQuantity, product.unit)} />
-                    <SummaryCell label="MOQ" value={formatQuantity(product.minMoq, product.unit)} />
-                  </div>
-                  <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700">Giá bán</p>
-                    <p className="mt-1 text-xl font-extrabold text-emerald-700">{formatPrice(product)}</p>
-                  </div>
-                  <div className="mt-3 grid grid-cols-[1fr_auto_auto] gap-2">
-                    <button
-                      onClick={() => handleOrderNow(product)}
-                      disabled={!product.hasAvailableStock}
-                      className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-                    >
-                      Đặt hàng ngay
-                    </button>
-                    <button onClick={() => openRfqModal(product)} className="rounded-lg border border-emerald-300 px-3 py-2 text-xs font-semibold text-emerald-700">RFQ</button>
-                    <button title="Xem chi tiết sản phẩm" onClick={() => openDetail(product)} className="rounded-lg border border-emerald-200 px-2.5 py-2 text-emerald-700 hover:bg-emerald-50">
-                      <Eye className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
-                    <Link to={`/buyer/sourcing/products/${product.productId}/batches`} className="rounded-lg border border-emerald-200 py-2 text-center text-xs font-semibold text-emerald-700">
-                      Xem lô hàng
-                    </Link>
-                    <button
-                      title="Lưu sản phẩm"
-                      onClick={() => toggleSaved(product.productId)}
-                      className={`rounded-lg border px-2.5 py-2 ${savedIds.has(product.productId) ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-emerald-200 text-emerald-700'}`}
-                    >
-                      <Bookmark className={`h-4 w-4 ${savedIds.has(product.productId) ? 'fill-current' : ''}`} />
-                    </button>
+
+                  <div className="flex flex-1 flex-col gap-2 p-3">
+                    <div>
+                      <h3 className="truncate text-[15px] font-bold text-slate-900">{product.productName}</h3>
+                      <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-600">{product.supplierName || 'Nhà cung cấp'}</p>
+                      <p className="mt-0.5 truncate text-[11px] text-slate-500">{product.originRegion || '--'} · {product.categoryName || '--'}</p>
+                    </div>
+
+                    <div className="flex flex-1 flex-col gap-2">
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                        <BuyerInfoChip label="Grade" value={product.gradeSummary || '--'} />
+                        <BuyerInfoChip label="Size" value={product.sizeSummary || '--'} />
+                        <BuyerInfoChip label="Tồn kho" value={formatQuantity(product.totalAvailableQuantity, product.unit)} highlight />
+                        <BuyerInfoChip label="MOQ" value={formatQuantity(product.minMoq, product.unit)} />
+                      </div>
+                      <div className="mt-auto rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Giá bán</p>
+                        <p className="text-lg font-black text-emerald-700">{formatPrice(product)}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-auto grid grid-cols-[1fr_auto_auto] gap-1.5 border-t border-slate-100 pt-2">
+                      <button
+                        onClick={() => handleOrderNow(product)}
+                        disabled={!product.hasAvailableStock}
+                        className="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-500 px-2 py-1.5 text-xs font-bold text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:from-slate-300 disabled:to-slate-300 disabled:opacity-80"
+                      >
+                        Đặt hàng ngay
+                      </button>
+                      <button onClick={() => openRfqModal(product)} className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 active:scale-95">RFQ</button>
+                      <button title="Xem chi tiết sản phẩm" onClick={() => openDetail(product)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 active:scale-95">
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-[1fr_auto] gap-1.5">
+                      <Link to={`/buyer/sourcing/products/${product.productId}/batches`} className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 text-center text-xs font-semibold text-slate-600 transition hover:bg-slate-100 active:scale-95">
+                        Xem lô hàng
+                      </Link>
+                    </div>
                   </div>
                 </article>
               ))}
@@ -412,6 +438,15 @@ export function BuyerSourcingPage() {
         </div>
       ) : null}
     </BuyerShell>
+  )
+}
+
+function BuyerInfoChip({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={`truncate text-xs font-bold ${highlight ? 'text-emerald-700' : 'text-slate-800'}`}>{value}</p>
+    </div>
   )
 }
 
