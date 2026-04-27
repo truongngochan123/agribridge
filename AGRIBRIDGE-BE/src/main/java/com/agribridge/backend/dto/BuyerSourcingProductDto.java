@@ -1,6 +1,8 @@
 package com.agribridge.backend.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
 
 public record BuyerSourcingProductDto(
         Long productId,
@@ -22,5 +24,27 @@ public record BuyerSourcingProductDto(
         String sizeSummary,
         long certificationCount,
         boolean hasAvailableStock,
-        boolean isSaved) {
+        boolean isSaved,
+        List<String> imageUrls,
+        List<CertificationPreviewDto> certifications,
+        List<BatchPreviewDto> batches) {
+
+    public record CertificationPreviewDto(
+            Long id,
+            String name,
+            String documentUrl,
+            String issuedBy,
+            LocalDate issuedDate,
+            LocalDate expiryDate) {
+    }
+
+    public record BatchPreviewDto(
+            Long id,
+            String batchCode,
+            String grade,
+            String size,
+            BigDecimal quantity,
+            BigDecimal price,
+            String status) {
+    }
 }

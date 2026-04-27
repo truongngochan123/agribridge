@@ -21,6 +21,28 @@ export type BuyerSourcingProduct = {
   certificationCount: number
   hasAvailableStock: boolean
   isSaved: boolean
+  imageUrls?: string[]
+  certifications?: BuyerCertificationPreview[]
+  batches?: BuyerBatchPreview[]
+}
+
+export type BuyerCertificationPreview = {
+  id?: number
+  name: string
+  documentUrl?: string | null
+  issuedBy?: string | null
+  issuedDate?: string | null
+  expiryDate?: string | null
+}
+
+export type BuyerBatchPreview = {
+  id?: number
+  batchCode?: string | null
+  grade?: string | null
+  size?: string | null
+  quantity?: number | null
+  price?: number | null
+  status?: string | null
 }
 
 export type CreateBuyerRfqRequest = {

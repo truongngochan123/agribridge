@@ -100,12 +100,20 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                 .filter(batch -> BatchStatusEnum.AVAILABLE.equals(batch.getStatus()))
                 .collect(Collectors.groupingBy(BatchEntity::getProductId, LinkedHashMap::new, Collectors.toList()));
 
-        Map<Long, String> productImageByProduct = firstProductImages(productIds);
+        Map<Long, List<String>> productImagesByProduct = productImages(productIds);
+        Map<Long, String> productImageByProduct = productImagesByProduct.entrySet().stream()
+                .filter(entry -> !entry.getValue().isEmpty())
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().get(0), (left, right) -> left));
         Map<Long, String> batchImageByProduct = firstBatchImages(availableBatchesByProduct.values().stream()
                 .flatMap(Collection::stream)
                 .toList());
-        Map<Long, Long> certificationCountByProduct = productCertificationRepository.findByProduct_IdIn(productIds)
+        Map<Long, List<ProductCertificationEntity>> certificationsByProduct = productCertificationRepository.findByProduct_IdIn(productIds)
                 .stream()
+                .filter(certification -> certification.getProduct() != null && certification.getProduct().getId() != null)
+                .collect(Collectors.groupingBy(certification -> certification.getProduct().getId(), LinkedHashMap::new, Collectors.toList()));
+        Map<Long, Long> certificationCountByProduct = certificationsByProduct.values()
+                .stream()
+                .flatMap(Collection::stream)
                 .map(ProductCertificationEntity::getProduct)
                 .filter(Objects::nonNull)
                 .map(ProductEntity::getId)
@@ -133,7 +141,9 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                         categoryById.get(product.getCategoryId()),
                         productImageByProduct.get(product.getId()),
                         batchImageByProduct.get(product.getId()),
-                        certificationCountByProduct.getOrDefault(product.getId(), 0L)))
+                        certificationCountByProduct.getOrDefault(product.getId(), 0L),
+                        productImagesByProduct.getOrDefault(product.getId(), List.of()),
+                        certificationsByProduct.getOrDefault(product.getId(), List.of())))
                 .toList();
     }
 
@@ -144,7 +154,9 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
             CategoryEntity category,
             String productImage,
             String batchImage,
-            long certificationCount) {
+            long certificationCount,
+            List<String> productImages,
+            List<ProductCertificationEntity> certifications) {
         BigDecimal totalQuantity = batches.stream()
                 .map(BatchEntity::getQuantity)
                 .filter(Objects::nonNull)
@@ -185,7 +197,35 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                 summarizeDistinct(batches.stream().map(BatchEntity::getSize).toList()),
                 certificationCount,
                 !batches.isEmpty() && totalQuantity.compareTo(BigDecimal.ZERO) > 0,
-                false);
+                false,
+                productImages,
+                certifications.stream()
+                        .map(certification -> new BuyerSourcingProductDto.CertificationPreviewDto(
+                                certification.getId(),
+                                safeText(certification.getName()),
+                                certification.getDocumentUrl(),
+                                certification.getIssuedBy(),
+                                certification.getIssuedDate(),
+                                certification.getExpiryDate()))
+                        .toList(),
+                batches.stream()
+                        .map(batch -> new BuyerSourcingProductDto.BatchPreviewDto(
+                                batch.getId(),
+                                safeText(batch.getQrCode()),
+                                safeText(batch.getGrade()),
+                                safeText(batch.getSize()),
+                                batch.getQuantity(),
+                                batch.getPrice(),
+                                batch.getStatus() == null ? "N/A" : batch.getStatus().name()))
+                        .toList());
+    }
+
+    private Map<Long, List<String>> productImages(Collection<Long> productIds) {
+        return productImageRepository.findByProductIdIn(productIds).stream()
+                .collect(Collectors.groupingBy(
+                        ProductImageEntity::getProductId,
+                        LinkedHashMap::new,
+                        Collectors.mapping(ProductImageEntity::getImageUrl, Collectors.toList())));
     }
 
     private Map<Long, String> firstProductImages(Collection<Long> productIds) {

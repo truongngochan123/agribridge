@@ -1,4 +1,4 @@
-import { Award, Bookmark, ExternalLink, Eye, Flame, Layers, MapPin, Package2, PackageSearch, Search, ShoppingBag, X } from 'lucide-react'
+import { Award, Bookmark, ExternalLink, Eye, Flame, Layers, MapPin, PackageSearch, Search, ShoppingBag, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
@@ -7,11 +7,21 @@ import {
   createBuyerSourcingRfq,
   fetchBuyerSourcingProduct,
   fetchBuyerSourcingProducts,
+  type BuyerBatchPreview,
+  type BuyerCertificationPreview,
   type BuyerSourcingProduct,
 } from '../../services/buyerSourcingService'
+import { fetchCategories, fetchMetadataProvinces } from '../../services/supplierService'
+import { resolveUploadedFileUrl } from '../../services/uploadService'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
 
 type PriceFilter = 'all' | 'under-50000' | '50000-100000' | '100000-200000' | 'over-200000'
+type BuyerSortBy = 'newest' | 'price-asc' | 'price-desc' | 'stock-desc'
+
+type CategoryOption = {
+  id: number
+  name: string
+}
 
 type RfqFormState = {
   quantity: string
@@ -22,29 +32,16 @@ type RfqFormState = {
   expiredDate: string
 }
 
-type BuyerCertificationPreview = {
-  id?: number
-  name: string
-  documentUrl?: string | null
-  issuedBy?: string | null
-  issuedDate?: string | null
-  expiryDate?: string | null
-}
-
-type BuyerBatchPreview = {
-  id?: number
-  batchCode?: string | null
-  grade?: string | null
-  size?: string | null
-  quantity?: number | null
-  price?: number | null
-  status?: string | null
-}
-
 type BuyerSourcingProductDetail = BuyerSourcingProduct & {
   certifications?: BuyerCertificationPreview[]
+  certificationList?: BuyerCertificationPreview[]
+  productCertifications?: BuyerCertificationPreview[]
+  certificates?: BuyerCertificationPreview[]
+  certificationDetails?: BuyerCertificationPreview[]
   imageUrls?: string[]
   batches?: BuyerBatchPreview[]
+  batchList?: BuyerBatchPreview[]
+  availableBatches?: BuyerBatchPreview[]
 }
 
 const priceFilters: Array<{ value: PriceFilter; label: string }> = [
@@ -55,6 +52,12 @@ const priceFilters: Array<{ value: PriceFilter; label: string }> = [
   { value: 'over-200000', label: 'Trên 200.000đ' },
 ]
 
+const sortOptions: Array<{ value: BuyerSortBy; label: string }> = [
+  { value: 'newest', label: 'Mới nhất' },
+  { value: 'price-asc', label: 'Giá tăng dần' },
+  { value: 'price-desc', label: 'Giá giảm dần' },
+  { value: 'stock-desc', label: 'Tồn kho nhiều' },
+]
 const placeholderImage = '/images/seafood-market.jpg'
 
 function formatNumber(value?: number | null) {
@@ -91,11 +94,18 @@ function formatPrice(product: BuyerSourcingProduct) {
 
 function productMatchesPrice(product: BuyerSourcingProduct, filter: PriceFilter) {
   if (filter === 'all') return true
-  const minPrice = product.minPrice ?? product.maxPrice ?? 0
-  if (filter === 'under-50000') return minPrice < 50000
-  if (filter === '50000-100000') return minPrice >= 50000 && minPrice <= 100000
-  if (filter === '100000-200000') return minPrice >= 100000 && minPrice <= 200000
-  return minPrice > 200000
+  const productMin = product.minPrice ?? product.maxPrice
+  const productMax = product.maxPrice ?? product.minPrice
+  if (productMin == null || productMax == null) return false
+
+  const ranges: Record<Exclude<PriceFilter, 'all'>, { min: number; max: number }> = {
+    'under-50000': { min: 0, max: 49999 },
+    '50000-100000': { min: 50000, max: 100000 },
+    '100000-200000': { min: 100000, max: 200000 },
+    'over-200000': { min: 200001, max: Number.POSITIVE_INFINITY },
+  }
+  const range = ranges[filter]
+  return productMin <= range.max && productMax >= range.min
 }
 
 function createInitialRfqForm(product: BuyerSourcingProduct): RfqFormState {
@@ -111,9 +121,38 @@ function createInitialRfqForm(product: BuyerSourcingProduct): RfqFormState {
 
 function getProductImages(product: BuyerSourcingProductDetail) {
   const images = [product.imageUrl, ...(product.imageUrls ?? [])]
-    .map((url) => url?.trim())
+    .map((url) => {
+      const trimmed = url?.trim()
+      return trimmed ? resolveUploadedFileUrl(trimmed) || trimmed : undefined
+    })
     .filter((url): url is string => Boolean(url))
   return Array.from(new Set(images))
+}
+
+function getProductCertifications(product: BuyerSourcingProductDetail): BuyerCertificationPreview[] {
+  return (
+    product.certifications ??
+    product.certificationList ??
+    product.productCertifications ??
+    product.certificates ??
+    product.certificationDetails ??
+    []
+  )
+}
+
+function getProductBatches(product: BuyerSourcingProductDetail): BuyerBatchPreview[] {
+  return product.batches ?? product.batchList ?? product.availableBatches ?? []
+}
+
+function batchStatusClass(status?: string | null) {
+  const normalized = (status || '').toUpperCase()
+  if (normalized === 'OUT_OF_STOCK' || normalized === 'SOLD_OUT' || normalized === 'UNAVAILABLE') {
+    return 'bg-rose-100 text-rose-700'
+  }
+  if (normalized === 'AVAILABLE' || normalized === 'ACTIVE') {
+    return 'bg-emerald-100 text-emerald-700'
+  }
+  return 'bg-slate-100 text-slate-600'
 }
 
 function openDocumentUrl(url?: string | null) {
@@ -132,6 +171,9 @@ export function BuyerSourcingPage() {
   const [region, setRegion] = useState('all')
   const [priceFilter, setPriceFilter] = useState<PriceFilter>('all')
   const [gradeFilter, setGradeFilter] = useState('all')
+  const [sortBy, setSortBy] = useState<BuyerSortBy>('newest')
+  const [categories, setCategories] = useState<CategoryOption[]>([])
+  const [provinces, setProvinces] = useState<string[]>([])
   const [savedIds, setSavedIds] = useState<Set<number>>(() => new Set())
   const [detailProduct, setDetailProduct] = useState<BuyerSourcingProduct | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -149,9 +191,15 @@ export function BuyerSourcingPage() {
       setLoading(true)
       setError(null)
       try {
-        const rows = await fetchBuyerSourcingProducts()
+        const [rows, categoryRows, provinceRows] = await Promise.all([
+          fetchBuyerSourcingProducts(),
+          fetchCategories(),
+          fetchMetadataProvinces(),
+        ])
         if (!ignore) {
           setProducts(rows)
+          setCategories(categoryRows)
+          setProvinces(provinceRows)
           setSavedIds(new Set(rows.filter((item) => item.isSaved).map((item) => item.productId)))
         }
       } catch (requestError) {
@@ -167,16 +215,12 @@ export function BuyerSourcingPage() {
   }, [])
 
   const categoryOptions = useMemo(() => {
-    const map = new Map<number, string>()
-    products.forEach((product) => {
-      if (product.categoryId && product.categoryName) map.set(product.categoryId, product.categoryName)
-    })
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name }))
-  }, [products])
+    return categories
+  }, [categories])
 
   const regionOptions = useMemo(() => {
-    return Array.from(new Set(products.map((product) => product.originRegion).filter(Boolean) as string[])).sort()
-  }, [products])
+    return provinces
+  }, [provinces])
 
   const gradeOptions = useMemo(() => {
     const grades = new Set<string>()
@@ -192,7 +236,7 @@ export function BuyerSourcingPage() {
 
   const filteredProducts = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase()
-    return products.filter((product) => {
+    const next = products.filter((product) => {
       const searchable = [product.productName, product.supplierName, product.originRegion].join(' ').toLowerCase()
       const matchSearch = !keyword || searchable.includes(keyword)
       const matchCategory = categoryId === 'all' || String(product.categoryId) === categoryId
@@ -201,11 +245,39 @@ export function BuyerSourcingPage() {
       const matchGrade = gradeFilter === 'all' || (product.gradeSummary || '').toLowerCase().includes(gradeFilter.toLowerCase())
       return matchSearch && matchCategory && matchRegion && matchPrice && matchGrade
     })
-  }, [categoryId, gradeFilter, priceFilter, products, region, searchTerm])
+    if (sortBy === 'newest') {
+      next.sort((a, b) => b.productId - a.productId)
+    }
+    if (sortBy === 'price-asc') {
+      next.sort((a, b) => (a.minPrice ?? a.maxPrice ?? Number.MAX_SAFE_INTEGER) - (b.minPrice ?? b.maxPrice ?? Number.MAX_SAFE_INTEGER))
+    }
+    if (sortBy === 'price-desc') {
+      next.sort((a, b) => (b.maxPrice ?? b.minPrice ?? 0) - (a.maxPrice ?? a.minPrice ?? 0))
+    }
+    if (sortBy === 'stock-desc') {
+      next.sort((a, b) => (b.totalAvailableQuantity ?? 0) - (a.totalAvailableQuantity ?? 0))
+    }
+    return next
+  }, [categoryId, gradeFilter, priceFilter, products, region, searchTerm, sortBy])
 
   const availableProductCount = useMemo(() => {
     return products.filter((product) => product.hasAvailableStock).length
   }, [products])
+
+  const hasActiveFilters =
+    searchTerm.trim() !== '' ||
+    categoryId !== 'all' ||
+    region !== 'all' ||
+    priceFilter !== 'all' ||
+    gradeFilter !== 'all'
+
+  const resetFilters = () => {
+    setSearchTerm('')
+    setCategoryId('all')
+    setRegion('all')
+    setPriceFilter('all')
+    setGradeFilter('all')
+  }
 
   const openRfqModal = (product: BuyerSourcingProduct) => {
     setRfqProduct(product)
@@ -227,9 +299,13 @@ export function BuyerSourcingPage() {
   const openCertificationPreview = async (product: BuyerSourcingProduct) => {
     try {
       const detail = (await fetchBuyerSourcingProduct(product.productId)) as BuyerSourcingProductDetail
+      const certifications = getProductCertifications(detail)
+      if (certifications.length === 0 && product.certificationCount > 0) {
+        showToast('API chi tiết sản phẩm chưa trả danh sách chứng chỉ, chỉ trả số lượng chứng chỉ.', 'info')
+      }
       setCertPreviewProduct({
         name: detail.productName,
-        certifications: detail.certifications ?? [],
+        certifications,
       })
     } catch (requestError) {
       showToast(readApiErrorMessage(requestError) || 'Không thể tải chứng chỉ sản phẩm.', 'error')
@@ -323,7 +399,7 @@ export function BuyerSourcingPage() {
             </div>
           </div>
 
-          <div className="grid gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2.5 backdrop-blur-sm md:grid-cols-6">
+          <div className="grid gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2.5 backdrop-blur-sm md:grid-cols-7">
             <label className="relative md:col-span-2">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
@@ -354,6 +430,18 @@ export function BuyerSourcingPage() {
               <option value="all">Tất cả phân loại</option>
               {gradeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
+            <select value={sortBy} onChange={(event) => setSortBy(event.target.value as BuyerSortBy)} className="h-9 appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white">
+              {sortOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 active:scale-95"
+              >
+                Xóa bộ lọc
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -379,7 +467,7 @@ export function BuyerSourcingPage() {
                 <article key={product.productId} className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-[0_8px_30px_rgba(16,185,129,0.15)]">
                   <div className="relative h-28 shrink-0 overflow-hidden bg-slate-100">
                     <img
-                      src={product.imageUrl || placeholderImage}
+                      src={resolveUploadedFileUrl(product.imageUrl || '') || placeholderImage}
                       alt={product.productName}
                       className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     />
@@ -621,8 +709,17 @@ function ProductDetailModal({
 }) {
   const detail = product as BuyerSourcingProductDetail
   const images = getProductImages(detail)
-  const certifications = detail.certifications ?? []
-  const batches = detail.batches ?? []
+  const certifications = getProductCertifications(detail)
+  const batches = getProductBatches(detail)
+  const batchRows: BuyerBatchPreview[] = batches.length > 0
+    ? batches
+    : [{
+        batchCode: 'Tổng hợp',
+        grade: product.gradeSummary || '--',
+        quantity: product.totalAvailableQuantity,
+        price: product.minPrice ?? product.maxPrice,
+        status: product.hasAvailableStock ? 'AVAILABLE' : 'OUT_OF_STOCK',
+      }]
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm">
@@ -745,51 +842,38 @@ function ProductDetailModal({
             )}
           </div>
 
+
           <div className="p-4">
             <p className="mb-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Tóm tắt lô hàng</p>
-            {batches.length > 0 ? (
-              <div className="overflow-hidden rounded-xl border border-slate-200">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50">
-                      <th className="px-3 py-2 text-left font-bold text-slate-500">Mã lô</th>
-                      <th className="px-3 py-2 text-left font-bold text-slate-500">Grade</th>
-                      <th className="px-3 py-2 text-left font-bold text-slate-500">Tồn kho</th>
-                      <th className="px-3 py-2 text-left font-bold text-slate-500">Giá</th>
-                      <th className="px-3 py-2 text-left font-bold text-slate-500">Trạng thái</th>
+            <div className="overflow-hidden rounded-xl border border-slate-200">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="px-3 py-2 text-left font-bold text-slate-500">Mã lô</th>
+                    <th className="px-3 py-2 text-left font-bold text-slate-500">Grade</th>
+                    <th className="px-3 py-2 text-left font-bold text-slate-500">Tồn kho</th>
+                    <th className="px-3 py-2 text-left font-bold text-slate-500">Giá</th>
+                    <th className="px-3 py-2 text-left font-bold text-slate-500">Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {batchRows.map((batch, index) => (
+                    <tr key={batch.id ?? `${batch.batchCode}-${index}`} className={`border-b border-slate-100 transition hover:bg-emerald-50/40 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                      <td className="px-3 py-2 font-bold text-slate-800">{batch.batchCode || `#${batch.id ?? index + 1}`}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-700">{batch.grade || '--'}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-700">{formatQuantity(batch.quantity, product.unit)}</td>
+                      <td className="px-3 py-2 font-bold text-emerald-700">{batches.length > 0 ? (batch.price ? `${compactCurrency(batch.price)} /${product.unit || ''}` : '--') : formatPrice(product)}</td>
+                      <td className="px-3 py-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${batchStatusClass(batch.status)}`}>
+                          {batch.status || '--'}
+                        </span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {batches.map((batch, index) => (
-                      <tr key={batch.id ?? `${batch.batchCode}-${index}`} className={`border-b border-slate-100 transition hover:bg-emerald-50/40 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
-                        <td className="px-3 py-2 font-bold text-slate-800">{batch.batchCode || `#${batch.id ?? index + 1}`}</td>
-                        <td className="px-3 py-2 font-semibold text-slate-700">{batch.grade || '--'}</td>
-                        <td className="px-3 py-2 font-semibold text-slate-700">{formatQuantity(batch.quantity, product.unit)}</td>
-                        <td className="px-3 py-2 font-bold text-emerald-700">{batch.price ? `${compactCurrency(batch.price)} /${product.unit || ''}` : '--'}</td>
-                        <td className="px-3 py-2 font-semibold text-slate-700">{batch.status || '--'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <SummaryCell label="Grade" value={product.gradeSummary || '--'} />
-                <SummaryCell label="Size" value={product.sizeSummary || '--'} />
-                <SummaryCell label="Tồn kho" value={formatQuantity(product.totalAvailableQuantity, product.unit)} />
-                <SummaryCell label="MOQ" value={formatQuantity(product.minMoq, product.unit)} />
-                <SummaryCell label="Giá bán" value={formatPrice(product)} />
-                <SummaryCell label="Lô khả dụng" value={`${product.availableBatchCount} lô`} />
-              </div>
-            )}
-          </div>
-
-          {!batches.length && product.availableBatchCount === 0 ? (
-            <div className="px-4 pb-4 text-center">
-              <Package2 className="mx-auto mb-2 h-8 w-8 text-slate-200" />
-              <p className="text-sm text-slate-400">Chưa có lô hàng nào</p>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ) : null}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3">
