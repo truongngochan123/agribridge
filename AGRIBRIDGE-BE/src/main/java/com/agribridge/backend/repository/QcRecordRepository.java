@@ -1,6 +1,7 @@
 package com.agribridge.backend.repository;
 
 import com.agribridge.backend.entity.QcRecordEntity;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 public interface QcRecordRepository extends JpaRepository<QcRecordEntity, Long> {
 
 	Optional<QcRecordEntity> findTopByBatchIdOrderByCreatedAtDesc(Long batchId);
+
+	List<QcRecordEntity> findByBatchIdInOrderByCreatedAtDesc(Collection<Long> batchIds);
 
 	List<QcRecordEntity> findByBatchIdOrderByCreatedAtDesc(Long batchId);
 

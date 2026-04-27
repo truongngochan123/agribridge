@@ -7,6 +7,7 @@ import {
   Layers,
   Package2,
   PackageSearch,
+  QrCode,
   Search,
   ShieldCheck,
   Video,
@@ -17,6 +18,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import { useToast } from '../../hooks/useToast'
 import {
+  fetchBuyerSourcingProductBatches,
   fetchBuyerSourcingProduct,
   type BuyerBatchPreview,
   type BuyerSourcingProduct,
@@ -31,6 +33,9 @@ type GradeFilter = 'all' | 'A' | 'B' | 'C'
 type BuyerSourcingProductDetail = BuyerSourcingProduct & {
   batchList?: BuyerBatchPreview[]
   availableBatches?: BuyerBatchPreview[]
+  lots?: BuyerBatchPreview[]
+  productBatches?: BuyerBatchPreview[]
+  supplierBatches?: BuyerBatchPreview[]
 }
 
 const placeholderImage = '/images/seafood-market.jpg'
@@ -66,8 +71,37 @@ function formatDateLabel(value?: string | null) {
   return parsed.toLocaleDateString('vi-VN')
 }
 
+function isUrl(value?: string | null) {
+  if (!value) return false
+  const trimmed = value.trim()
+  if (!trimmed) return false
+  if (/^https?:\/\//i.test(trimmed)) return true
+  return /^\/public\/batch\/\d+/i.test(trimmed)
+}
+
 function getBatchCode(batch: BuyerBatchPreview, index = 0) {
-  return batch.batchCode || batch.code || `BATCH-${String(batch.id ?? index + 1).padStart(6, '0')}`
+  const candidate = [batch.batchCode, batch.batchNo, batch.lotCode, batch.code]
+    .map((value) => value?.trim())
+    .find((value) => value && !isUrl(value))
+
+  if (candidate) return candidate
+  return `BATCH-${String(batch.id ?? index + 1).padStart(6, '0')}`
+}
+
+function getBatchTraceabilityUrl(batch: BuyerBatchPreview) {
+  const candidates = [
+    batch.traceabilityUrl,
+    batch.qrCodeUrl,
+    batch.publicUrl,
+    batch.publicTraceUrl,
+    batch.publicBatchUrl,
+    batch.code,
+    batch.batchCode,
+  ]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+
+  return candidates.find((value) => isUrl(value)) || null
 }
 
 function getBatchQuantity(batch: BuyerBatchPreview) {
@@ -76,10 +110,6 @@ function getBatchQuantity(batch: BuyerBatchPreview) {
 
 function getBatchMoq(batch: BuyerBatchPreview) {
   return batch.moq ?? batch.minMoq
-}
-
-function getProductBatches(product?: BuyerSourcingProductDetail | null) {
-  return product?.batches ?? product?.batchList ?? product?.availableBatches ?? []
 }
 
 function getProductImage(product?: BuyerSourcingProductDetail | null) {
@@ -127,14 +157,16 @@ function openExternal(url?: string | null) {
   window.open(resolveUploadedFileUrl(url) || url, '_blank', 'noopener,noreferrer')
 }
 
-export function BuyerProductBatchesPlaceholderPage() {
+export function BuyerProductBatchesPage() {
   const { productId } = useParams<{ productId: string }>()
   const navigate = useNavigate()
   const { showToast } = useToast()
 
   const [product, setProduct] = useState<BuyerSourcingProductDetail | null>(null)
+  const [batches, setBatches] = useState<BuyerBatchPreview[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [batchError, setBatchError] = useState<string | null>(null)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
   const [stockFilter, setStockFilter] = useState<StockFilter>('all')
@@ -142,7 +174,6 @@ export function BuyerProductBatchesPlaceholderPage() {
   const [detailBatch, setDetailBatch] = useState<BuyerBatchPreview | null>(null)
 
   const parsedProductId = Number(productId)
-  const batches = useMemo(() => getProductBatches(product), [product])
   const unit = product?.unit || 'kg'
 
   useEffect(() => {
@@ -156,11 +187,30 @@ export function BuyerProductBatchesPlaceholderPage() {
 
       setLoading(true)
       setError(null)
+      setBatchError(null)
+      setBatches([])
       try {
-        const detail = (await fetchBuyerSourcingProduct(parsedProductId)) as BuyerSourcingProductDetail
-        if (!ignore) setProduct(detail)
+        const [productResult, batchResult] = await Promise.allSettled([
+          fetchBuyerSourcingProduct(parsedProductId),
+          fetchBuyerSourcingProductBatches(parsedProductId),
+        ])
+
+        if (!ignore) {
+          if (productResult.status === 'fulfilled') {
+            setProduct(productResult.value as BuyerSourcingProductDetail)
+          } else {
+            setProduct(null)
+            setError(readApiErrorMessage(productResult.reason) || 'Không thể tải thông tin sản phẩm.')
+          }
+
+          if (batchResult.status === 'fulfilled') {
+            setBatches(batchResult.value)
+          } else {
+            setBatchError(readApiErrorMessage(batchResult.reason) || 'Không thể tải danh sách lô hàng.')
+          }
+        }
       } catch (requestError) {
-        if (!ignore) setError(readApiErrorMessage(requestError) || 'Không thể tải lô hàng.')
+        if (!ignore) setError(readApiErrorMessage(requestError) || 'Không thể tải thông tin sản phẩm.')
       } finally {
         if (!ignore) setLoading(false)
       }
@@ -261,7 +311,7 @@ export function BuyerProductBatchesPlaceholderPage() {
           </div>
 
           <div className="rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2.5 shadow-sm backdrop-blur-sm">
-            <div className="grid gap-2 lg:grid-cols-[minmax(180px,1fr)_150px_150px_130px]">
+            <div className="grid gap-2 md:grid-cols-4 lg:grid-cols-[minmax(260px,1fr)_170px_170px_150px]">
               <label className="relative">
                 <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                 <input
@@ -280,12 +330,12 @@ export function BuyerProductBatchesPlaceholderPage() {
                   <option value="90d">90 ngày</option>
                 </select>
               </label>
-              <select value={stockFilter} onChange={(event) => setStockFilter(event.target.value as StockFilter)} className="h-9 appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white">
+              <select value={stockFilter} onChange={(event) => setStockFilter(event.target.value as StockFilter)} className="h-9 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white">
                 <option value="all">Tất cả trạng thái</option>
                 <option value="available">Còn hàng</option>
                 <option value="out-of-stock">Hết hàng</option>
               </select>
-              <select value={gradeFilter} onChange={(event) => setGradeFilter(event.target.value as GradeFilter)} className="h-9 appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white">
+              <select value={gradeFilter} onChange={(event) => setGradeFilter(event.target.value as GradeFilter)} className="h-9 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white">
                 <option value="all">Grade: Tất cả</option>
                 <option value="A">Grade A</option>
                 <option value="B">Grade B</option>
@@ -307,6 +357,10 @@ export function BuyerProductBatchesPlaceholderPage() {
 
         {error ? (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>
+        ) : null}
+
+        {!error && batchError ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-700">{batchError}</div>
         ) : null}
 
         {!loading && !error && filteredBatches.length === 0 ? (
@@ -346,6 +400,8 @@ export function BuyerProductBatchesPlaceholderPage() {
     </BuyerShell>
   )
 }
+
+export const BuyerProductBatchesPlaceholderPage = BuyerProductBatchesPage
 
 function StatChip({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: 'white' | 'emerald' | 'rose' }) {
   const colorClass =
@@ -393,6 +449,7 @@ function BatchCard({
   const status = deriveBatchStatus(batch)
   const images = getBatchImages(batch, product)
   const qcPass = (batch.qcResult || '').toUpperCase() === 'PASS'
+  const traceUrl = getBatchTraceabilityUrl(batch)
 
   return (
     <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-[0_8px_30px_rgba(16,185,129,0.15)]">
@@ -409,12 +466,27 @@ function BatchCard({
             QC PASS
           </span>
         ) : null}
-        {batch.videoUrl ? (
-          <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-slate-700 shadow backdrop-blur-sm">
-            <Video className="h-3 w-3" />
-            Video
-          </span>
-        ) : null}
+        <div className="absolute bottom-2 right-2 flex items-center gap-1">
+          {traceUrl ? (
+            <button
+              type="button"
+              title="Truy xuất nguồn gốc"
+              onClick={(event) => {
+                event.stopPropagation()
+                window.open(traceUrl, '_blank', 'noopener,noreferrer')
+              }}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow backdrop-blur-sm transition hover:bg-white"
+            >
+              <QrCode className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+          {batch.videoUrl ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-slate-700 shadow backdrop-blur-sm">
+              <Video className="h-3 w-3" />
+              Video
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
@@ -474,6 +546,7 @@ function BatchDetailModal({
   const status = deriveBatchStatus(batch)
   const images = getBatchImages(batch, product)
   const qcResult = batch.qcResult || 'N/A'
+  const traceUrl = getBatchTraceabilityUrl(batch)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/50 p-4 backdrop-blur-sm">
@@ -546,6 +619,19 @@ function BatchDetailModal({
               <button onClick={() => openExternal(batch.videoUrl)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                 <Video className="h-4 w-4 text-emerald-600" />
                 Xem video
+              </button>
+            </section>
+          ) : null}
+
+          {traceUrl ? (
+            <section className="border-b border-slate-100 p-4">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Truy xuất nguồn gốc</p>
+              <button
+                onClick={() => window.open(traceUrl, '_blank', 'noopener,noreferrer')}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <QrCode className="h-4 w-4 text-emerald-600" />
+                Truy xuất nguồn gốc
               </button>
             </section>
           ) : null}

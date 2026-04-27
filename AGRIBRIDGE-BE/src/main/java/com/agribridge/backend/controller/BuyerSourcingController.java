@@ -1,5 +1,6 @@
 package com.agribridge.backend.controller;
 
+import com.agribridge.backend.dto.BuyerBatchPreviewDto;
 import com.agribridge.backend.dto.BuyerSourcingProductDto;
 import com.agribridge.backend.dto.CreateBuyerRfqDto;
 import com.agribridge.backend.service.BuyerSourcingService;
@@ -29,6 +30,11 @@ public class BuyerSourcingController {
     @GetMapping("/products/{productId}")
     public BuyerSourcingProductDto getProduct(@PathVariable Long productId) {
         return buyerSourcingService.getProduct(productId);
+    }
+
+    @GetMapping("/products/{productId}/batches")
+    public List<BuyerBatchPreviewDto> getProductBatches(@PathVariable Long productId) {
+        return buyerSourcingService.getProductBatches(productId);
     }
 
     @PostMapping("/rfqs")

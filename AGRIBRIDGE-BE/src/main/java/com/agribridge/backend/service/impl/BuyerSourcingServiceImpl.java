@@ -1,5 +1,6 @@
 package com.agribridge.backend.service.impl;
 
+import com.agribridge.backend.dto.BuyerBatchPreviewDto;
 import com.agribridge.backend.dto.BuyerSourcingProductDto;
 import com.agribridge.backend.dto.CreateBuyerRfqDto;
 import com.agribridge.backend.entity.BatchEntity;
@@ -9,6 +10,7 @@ import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.ProductCertificationEntity;
 import com.agribridge.backend.entity.ProductEntity;
 import com.agribridge.backend.entity.ProductImageEntity;
+import com.agribridge.backend.entity.QcRecordEntity;
 import com.agribridge.backend.entity.RfqEntity;
 import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.RfqStatusEnum;
@@ -19,6 +21,7 @@ import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.ProductCertificationRepository;
 import com.agribridge.backend.repository.ProductImageRepository;
 import com.agribridge.backend.repository.ProductRepository;
+import com.agribridge.backend.repository.QcRecordRepository;
 import com.agribridge.backend.repository.RfqRepository;
 import com.agribridge.backend.service.BuyerSourcingService;
 import java.math.BigDecimal;
@@ -36,6 +39,8 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 @Service
 @RequiredArgsConstructor
@@ -50,6 +55,7 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
     private final ProductCertificationRepository productCertificationRepository;
     private final CompanyRepository companyRepository;
     private final CategoryRepository categoryRepository;
+        private final QcRecordRepository qcRecordRepository;
     private final RfqRepository rfqRepository;
 
     @Override
@@ -65,6 +71,78 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
         ProductEntity product = productRepository.findById(productId)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
         return buildProductDtos(List.of(product)).get(0);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BuyerBatchPreviewDto> getProductBatches(Long productId) {
+        if (productId == null || !productRepository.existsById(productId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found");
+        }
+
+        List<BatchEntity> batches = batchRepository.findByProductIdOrderByCreatedAtDesc(productId);
+        if (batches.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> batchIds = batches.stream()
+                .map(BatchEntity::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        Map<Long, List<String>> imageUrlsByBatchId = batchImageRepository
+                .findByBatchIdInOrderByUploadedAtDesc(batchIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        BatchImageEntity::getBatchId,
+                        LinkedHashMap::new,
+                        Collectors.mapping(BatchImageEntity::getImageUrl, Collectors.toList())));
+
+        Map<Long, QcRecordEntity> latestQcByBatchId = qcRecordRepository
+                .findByBatchIdInOrderByCreatedAtDesc(batchIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        QcRecordEntity::getBatchId,
+                        record -> record,
+                        (existing, ignored) -> existing,
+                        LinkedHashMap::new));
+
+        String productImageFallback = productImageRepository.findTopByProductIdOrderByUploadedAtDesc(productId)
+                .map(ProductImageEntity::getImageUrl)
+                .orElse(null);
+
+        return batches.stream()
+                .map(batch -> {
+                    List<String> imageUrls = imageUrlsByBatchId.getOrDefault(batch.getId(), List.of());
+                    String imageUrl = imageUrls.isEmpty() ? productImageFallback : imageUrls.get(0);
+                    QcRecordEntity qc = latestQcByBatchId.get(batch.getId());
+                    String status = batch.getStatus() == null ? BatchStatusEnum.AVAILABLE.name() : batch.getStatus().name();
+
+                    return new BuyerBatchPreviewDto(
+                            batch.getId(),
+                            formatBatchCode(batch),
+                            batch.getQrCode(),
+                            batch.getGrade(),
+                            batch.getSize(),
+                            batch.getQuantity(),
+                            batch.getQuantity(),
+                            batch.getPrice(),
+                            batch.getMoq(),
+                            batch.getMoq(),
+                            batch.getHarvestDate(),
+                            batch.getExpiryDate(),
+                            status,
+                            imageUrl,
+                            imageUrls,
+                            qc == null || qc.getResult() == null ? null : qc.getResult().name(),
+                            qc == null ? null : qc.getDocumentUrl(),
+                            qc == null ? null : qc.getNotes(),
+                            batch.getVideoUrl(),
+                            batch.getStorageTemp(),
+                            null,
+                            null);
+                })
+                .toList();
     }
 
     @Override
@@ -276,4 +354,12 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
     private String safeText(String value) {
         return value == null || value.isBlank() ? "N/A" : value;
     }
+
+        private String formatBatchCode(BatchEntity batch) {
+                if (batch.getQrCode() != null && !batch.getQrCode().isBlank()) {
+                        return batch.getQrCode();
+                }
+                long idValue = batch.getId() == null ? 0L : batch.getId();
+                return "BATCH-" + String.format("%06d", idValue);
+        }
 }
