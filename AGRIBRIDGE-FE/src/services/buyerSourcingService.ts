@@ -40,6 +40,81 @@ export type BuyerCertificationPreview = {
   expiryDate?: string | null
 }
 
+export type BuyerLotDetail = {
+  id?: number
+  batchId?: number
+  batchCode?: string | null
+  batchNo?: string | null
+  lotCode?: string | null
+  code?: string | null
+  productId?: number | null
+  productName?: string | null
+  categoryName?: string | null
+  supplierId?: number | null
+  supplierName?: string | null
+  supplierPhone?: string | null
+  supplierEmail?: string | null
+  supplierProvince?: string | null
+  originRegion?: string | null
+  originProvince?: string | null
+  unit?: string | null
+  price?: number | null
+  grade?: string | null
+  size?: string | null
+  quantity?: number | null
+  availableQuantity?: number | null
+  moq?: number | null
+  minMoq?: number | null
+  harvestDate?: string | null
+  packingDate?: string | null
+  expiryDate?: string | null
+  status?: string | null
+  storageTemp?: string | null
+  imageUrl?: string | null
+  imageUrls?: string[]
+  videoUrl?: string | null
+  qcResult?: string | null
+  qcDocumentUrl?: string | null
+  qcNotes?: string | null
+  traceabilityUrl?: string | null
+  qrCodeUrl?: string | null
+  publicUrl?: string | null
+  publicTraceUrl?: string | null
+  publicBatchUrl?: string | null
+  certifications?: BuyerCertificationPreview[]
+  supplier?: {
+    id?: number
+    name?: string | null
+    phone?: string | null
+    email?: string | null
+    province?: string | null
+    verified?: boolean | null
+    responseRate?: number | null
+    deliveryRate?: number | null
+  } | null
+  product?: {
+    id?: number
+    name?: string | null
+    categoryName?: string | null
+    category?: string | null
+    originProvince?: string | null
+    originRegion?: string | null
+    description?: string | null
+    unit?: string | null
+    imageUrl?: string | null
+    imageUrls?: string[]
+  } | null
+  transactionHistory?: Array<{
+    id?: number | string
+    buyer?: string | null
+    buyerName?: string | null
+    date?: string | null
+    quantity?: number | string | null
+    unit?: string | null
+    status?: string | null
+  }>
+}
+
 export type BuyerBatchPreview = {
   id?: number
   batchId?: number
@@ -90,6 +165,19 @@ type CreateBuyerRfqResponse = {
   rfqId: number
 }
 
+type BuyerLotDetailPayload = Partial<BuyerLotDetail> & {
+  data?: BuyerLotDetail
+  lot?: BuyerLotDetail
+  batch?: BuyerLotDetail
+  product?: BuyerLotDetail['product']
+  qc?: {
+    result?: string | null
+    documentUrl?: string | null
+    notes?: string | null
+  } | null
+  certifications?: BuyerCertificationPreview[]
+}
+
 type BuyerSourcingPayload =
   | BuyerSourcingProduct
   | {
@@ -134,6 +222,56 @@ function normalizeBatchPreview(batch: BuyerBatchPreview): BuyerBatchPreview {
 
 function normalizeBatchPreviewRows(rows: BuyerBatchPreview[]): BuyerBatchPreview[] {
   return rows.map(normalizeBatchPreview)
+}
+
+function toNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
+function normalizeBuyerLotDetail(payload: BuyerLotDetailPayload): BuyerLotDetail {
+  const wrapper = payload
+  const raw = (wrapper.data ?? wrapper.lot ?? wrapper.batch ?? payload) as BuyerLotDetail
+  const product = raw.product ?? wrapper.product ?? null
+  const qc = wrapper.qc
+  const supplier = raw.supplier ?? null
+
+  const lot: BuyerLotDetail = {
+    ...raw,
+    id: raw.id ?? raw.batchId,
+    batchId: raw.batchId ?? raw.id,
+    productId: raw.productId ?? product?.id,
+    productName: raw.productName ?? product?.name,
+    categoryName: raw.categoryName ?? product?.categoryName ?? product?.category,
+    originProvince: raw.originProvince ?? product?.originProvince,
+    originRegion: raw.originRegion ?? product?.originRegion ?? product?.originProvince,
+    unit: raw.unit ?? product?.unit,
+    imageUrl: raw.imageUrl ?? product?.imageUrl,
+    imageUrls: raw.imageUrls ?? product?.imageUrls ?? [],
+    supplierId: raw.supplierId ?? supplier?.id,
+    supplierName: raw.supplierName ?? supplier?.name,
+    supplierPhone: raw.supplierPhone ?? supplier?.phone,
+    supplierEmail: raw.supplierEmail ?? supplier?.email,
+    supplierProvince: raw.supplierProvince ?? supplier?.province,
+    qcResult: raw.qcResult ?? qc?.result,
+    qcDocumentUrl: raw.qcDocumentUrl ?? qc?.documentUrl,
+    qcNotes: raw.qcNotes ?? qc?.notes,
+    certifications: raw.certifications ?? wrapper.certifications ?? [],
+    traceabilityUrl: raw.traceabilityUrl ?? raw.qrCodeUrl ?? raw.publicUrl ?? raw.publicTraceUrl ?? raw.publicBatchUrl,
+  }
+
+  return {
+    ...lot,
+    price: toNumber(lot.price) ?? null,
+    quantity: toNumber(lot.quantity) ?? null,
+    availableQuantity: toNumber(lot.availableQuantity) ?? null,
+    moq: toNumber(lot.moq) ?? null,
+    minMoq: toNumber(lot.minMoq) ?? null,
+  }
 }
 
 function pickBatchRows(value: unknown): BuyerBatchPreview[] {
@@ -202,6 +340,16 @@ export async function fetchBuyerSourcingProductBatches(productId: number): Promi
   if (Array.isArray(payload?.availableBatches)) return normalizeBatchPreviewRows(payload.availableBatches as BuyerBatchPreview[])
 
   return []
+}
+
+export async function fetchBuyerLotDetail(lotId: number): Promise<BuyerLotDetail> {
+  try {
+    const response = await apiClient.get<BuyerLotDetailPayload>(`/api/buyer/lots/${lotId}`)
+    return normalizeBuyerLotDetail(response.data)
+  } catch (error) {
+    const response = await apiClient.get<BuyerLotDetailPayload>(`/api/public/batch/${lotId}`)
+    return normalizeBuyerLotDetail(response.data)
+  }
 }
 
 export async function createBuyerSourcingRfq(payload: CreateBuyerRfqRequest) {
