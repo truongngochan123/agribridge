@@ -38,11 +38,26 @@ export type BuyerCertificationPreview = {
 export type BuyerBatchPreview = {
   id?: number
   batchCode?: string | null
+  code?: string | null
   grade?: string | null
   size?: string | null
   quantity?: number | null
+  availableQuantity?: number | null
   price?: number | null
+  moq?: number | null
+  minMoq?: number | null
+  harvestDate?: string | null
+  expiryDate?: string | null
   status?: string | null
+  imageUrl?: string | null
+  imageUrls?: string[]
+  qcResult?: string | null
+  qcDocumentUrl?: string | null
+  qcNotes?: string | null
+  videoUrl?: string | null
+  storageTemp?: string | null
+  notes?: string | null
+  description?: string | null
 }
 
 export type CreateBuyerRfqRequest = {
