@@ -11,6 +11,7 @@ import {
   type BuyerCertificationPreview,
   type BuyerSourcingProduct,
 } from '../../services/buyerSourcingService'
+import { fetchCurrentUserProfile } from '../../services/currentUserService'
 import { fetchCategories, fetchMetadataProvinces } from '../../services/supplierService'
 import { resolveUploadedFileUrl } from '../../services/uploadService'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
@@ -110,21 +111,27 @@ function productMatchesPrice(product: BuyerSourcingProduct, filter: PriceFilter)
   return productMin <= range.max && productMax >= range.min
 }
 
-function getBuyerDefaultProvince() {
+function normalizeDefaultProvince(value?: string | null) {
+  const trimmed = value?.trim()
+  if (!trimmed || trimmed === '--' || trimmed.toUpperCase() === 'N/A') return ''
+  return trimmed
+}
+
+function getBuyerDefaultDeliveryProvince() {
   return (
-    sessionStorage.getItem('agribridge.auth.province') ||
-    sessionStorage.getItem('agribridge.auth.branchProvince') ||
-    sessionStorage.getItem('agribridge.auth.companyProvince') ||
+    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.branchProvince')) ||
+    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.companyProvince')) ||
+    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.province')) ||
     ''
   )
 }
 
-function createInitialRfqForm(product: BuyerSourcingProduct): RfqFormState {
+function createInitialRfqForm(product: BuyerSourcingProduct, defaultDeliveryProvince = getBuyerDefaultDeliveryProvince()): RfqFormState {
   return {
     quantity: '',
     unit: product.unit || '',
     deliveryDate: '',
-    province: getBuyerDefaultProvince(),
+    province: defaultDeliveryProvince,
     description: '',
     expiredDate: '',
   }
@@ -195,6 +202,7 @@ export function BuyerSourcingPage() {
   const [sortBy, setSortBy] = useState<BuyerSortBy>('newest')
   const [categories, setCategories] = useState<CategoryOption[]>([])
   const [provinces, setProvinces] = useState<string[]>([])
+  const [buyerDefaultProvince, setBuyerDefaultProvince] = useState(getBuyerDefaultDeliveryProvince)
   const [savedIds, setSavedIds] = useState<Set<number>>(() => new Set())
   const [detailProduct, setDetailProduct] = useState<BuyerSourcingProduct | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -234,6 +242,41 @@ export function BuyerSourcingPage() {
       ignore = true
     }
   }, [])
+
+  useEffect(() => {
+    let ignore = false
+    async function loadBuyerDefaultProvince() {
+      const branchProvince = normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.branchProvince'))
+      const sessionProvince = getBuyerDefaultDeliveryProvince()
+      if (sessionProvince) {
+        setBuyerDefaultProvince(sessionProvince)
+      }
+
+      try {
+        const profile = await fetchCurrentUserProfile()
+        const profileProvince = normalizeDefaultProvince(profile?.province) || normalizeDefaultProvince(profile?.address)
+        if (!ignore && profileProvince && !branchProvince) {
+          sessionStorage.setItem('agribridge.auth.companyProvince', profileProvince)
+          setBuyerDefaultProvince(profileProvince)
+        }
+      } catch {
+        // Keep the RFQ form usable even if profile lookup is unavailable.
+      }
+    }
+
+    void loadBuyerDefaultProvince()
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!buyerDefaultProvince) return
+    setRfqForm((current) => {
+      if (!current || current.province.trim()) return current
+      return { ...current, province: buyerDefaultProvince }
+    })
+  }, [buyerDefaultProvince])
 
   const categoryOptions = useMemo(() => {
     return categories
@@ -291,6 +334,10 @@ export function BuyerSourcingPage() {
     region !== 'all' ||
     priceFilter !== 'all' ||
     gradeFilter !== 'all'
+  const isRfqProvinceAutoFilled =
+    Boolean(rfqForm?.province.trim()) &&
+    Boolean(buyerDefaultProvince) &&
+    rfqForm?.province.trim() === buyerDefaultProvince.trim()
 
   const resetFilters = () => {
     setSearchTerm('')
@@ -302,7 +349,7 @@ export function BuyerSourcingPage() {
 
   const openRfqModal = (product: BuyerSourcingProduct) => {
     setRfqProduct(product)
-    setRfqForm(createInitialRfqForm(product))
+    setRfqForm(createInitialRfqForm(product, buyerDefaultProvince || getBuyerDefaultDeliveryProvince()))
   }
 
   const openDetail = async (product: BuyerSourcingProduct) => {
@@ -600,9 +647,9 @@ export function BuyerSourcingPage() {
       ) : null}
 
       {rfqProduct && rfqForm ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/35 p-4">
-          <div className="mx-auto mt-10 w-full max-w-2xl rounded-2xl bg-white p-5 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/50 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 bg-white px-5 py-4">
               <div>
                 <h3 className="text-xl font-extrabold text-emerald-950">Tạo RFQ theo sản phẩm</h3>
                 <p className="text-sm text-emerald-700/70">{rfqProduct.productName} · {rfqProduct.categoryName || '--'}</p>
@@ -610,7 +657,8 @@ export function BuyerSourcingPage() {
               <button onClick={() => setRfqProduct(null)} className="rounded-lg p-1 text-emerald-700 hover:bg-emerald-50"><X className="h-5 w-5" /></button>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
               <div className="flex items-start gap-3">
                 <img
                   src={resolveUploadedFileUrl(rfqProduct.imageUrl || '') || placeholderImage}
@@ -684,6 +732,11 @@ export function BuyerSourcingPage() {
                   className="h-11 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm"
                   placeholder="Nhập tỉnh/khu vực nhận hàng, ví dụ: TP. Hồ Chí Minh"
                 />
+                {isRfqProvinceAutoFilled ? (
+                  <p className="mt-1 text-xs font-medium text-slate-500">
+                    Mặc định lấy từ địa chỉ/chi nhánh của bạn, có thể chỉnh nếu muốn giao nơi khác.
+                  </p>
+                ) : null}
               </div>
               <div className="md:col-span-2">
                 <label className="mb-1 block text-sm font-semibold text-emerald-950">Mô tả nhu cầu</label>
@@ -715,7 +768,9 @@ export function BuyerSourcingPage() {
               Bạn sắp gửi RFQ: Cần mua <span className="font-bold">{rfqForm.quantity || '--'} {rfqForm.unit || rfqProduct.unit || ''}</span> {rfqProduct.productName}, giao tại <span className="font-bold">{rfqForm.province || '--'}</span>, hạn báo giá <span className="font-bold">{rfqForm.expiredDate || '--'}</span>, ngày giao <span className="font-bold">{rfqForm.deliveryDate || '--'}</span>.
             </div>
 
-            <div className="mt-4 flex justify-end gap-2">
+            </div>
+
+            <div className="flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
               <button onClick={() => setRfqProduct(null)} className="rounded-lg border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700">Hủy</button>
               <button disabled={submittingRfq} onClick={submitRfq} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-wait disabled:bg-emerald-300">
                 {submittingRfq ? 'Đang gửi...' : 'Gửi RFQ'}
@@ -756,9 +811,9 @@ function CertificationPreviewModal({
   onClose: () => void
 }) {
   return (
-    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm">
-      <div className="my-4 w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(0,0,0,0.2)]">
-        <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-emerald-600 to-teal-500 px-5 py-4">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-hidden bg-black/50 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(0,0,0,0.2)]">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-gradient-to-r from-emerald-600 to-teal-500 px-5 py-4">
           <div>
             <h3 className="text-base font-bold text-white">Chứng chỉ sản phẩm</h3>
             <p className="text-xs text-white/70">{productName}</p>
@@ -771,7 +826,7 @@ function CertificationPreviewModal({
           </button>
         </div>
 
-        <div className="p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
           {certifications.length === 0 ? (
             <p className="text-center text-sm text-slate-500">Chưa có chứng chỉ</p>
           ) : (
@@ -836,9 +891,9 @@ function ProductDetailModal({
       }]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm">
-      <div className="my-4 w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(0,0,0,0.25)]">
-        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 px-5 py-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/50 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(0,0,0,0.25)]">
+        <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 px-5 py-4">
           <div
             className="pointer-events-none absolute inset-0 opacity-10"
             style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, rgba(255,255,255,0.7) 0%, transparent 55%)' }}
@@ -891,7 +946,7 @@ function ProductDetailModal({
           </div>
         </div>
 
-        <div className="max-h-[70vh] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {images.length > 0 ? (
             <div className="border-b border-slate-100 p-4">
               <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Hình ảnh sản phẩm</p>
@@ -990,7 +1045,7 @@ function ProductDetailModal({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3">
           <button onClick={onClose} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100">
             Đóng
           </button>
