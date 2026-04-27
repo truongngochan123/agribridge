@@ -54,10 +54,25 @@ export interface RfqItem {
   id: string
   customer: string
   product: string
+  category: string
   quantity: string
+  unit: string
   targetPrice: string
+  supplierQuotedPrice: string
+  supplierQuotedQuantity: string
   dueDate: string
-  status: 'Chờ báo giá' | 'Đã báo giá' | 'Chấp nhận'
+  deliveryDate: string
+  province: string
+  description: string
+  quoteCount: number
+  supplierQuoteStatus: 'Chờ báo giá' | 'Đã báo giá' | 'Chấp nhận' | 'Từ chối' | 'Đã hủy'
+  supplierDeliveryDays: number | null
+  supplierQuoteNote: string
+  hasExistingQuote: boolean
+  quoteId?: number | null
+  quoteStatus?: 'PENDING' | 'ACCEPTED' | 'APPROVED' | 'REJECTED' | 'SENT' | 'DRAFT' | string | null
+  orderId?: number | null
+  status: 'Chờ báo giá' | 'Đã báo giá' | 'Chấp nhận' | 'Từ chối' | 'Đã hủy'
 }
 
 export interface OrderItem {

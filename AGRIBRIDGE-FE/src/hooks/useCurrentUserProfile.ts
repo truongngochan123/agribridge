@@ -1,37 +1,34 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { fetchCurrentUserProfile, type CurrentUserProfile } from '../services/currentUserService'
 
 export function useCurrentUserProfile() {
   const [profile, setProfile] = useState<CurrentUserProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let active = true
-
-    const load = async () => {
-      try {
-        setLoading(true)
-        const value = await fetchCurrentUserProfile()
-        if (active) {
-          setProfile(value)
-        }
-      } catch {
-        if (active) {
-          setProfile(null)
-        }
-      } finally {
-        if (active) {
-          setLoading(false)
-        }
+  const loadProfile = useCallback(async (forceRefresh = false) => {
+    try {
+      setLoading(true)
+      const value = await fetchCurrentUserProfile(forceRefresh)
+      if (value) {
+        setProfile(value)
+      } else {
+        setProfile(null)
       }
-    }
-
-    load()
-
-    return () => {
-      active = false
+    } catch (error) {
+      console.error('load profile error:', error)
+      setProfile(null)
+    } finally {
+      setLoading(false)
     }
   }, [])
 
-  return { profile, loading }
+  const reloadProfile = useCallback(async () => {
+    await loadProfile(true)
+  }, [loadProfile])
+
+  useEffect(() => {
+    void loadProfile(false)
+  }, [loadProfile])
+
+  return { profile, loading, reloadProfile }
 }

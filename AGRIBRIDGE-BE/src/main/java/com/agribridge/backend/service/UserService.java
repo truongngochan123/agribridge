@@ -1,6 +1,7 @@
 package com.agribridge.backend.service;
 
 import com.agribridge.backend.dto.AdminUserAccountDto;
+import com.agribridge.backend.dto.UpdateUserPersonalProfileDto;
 import com.agribridge.backend.entity.UserEntity;
 import java.util.List;
 
@@ -12,6 +13,8 @@ public interface UserService {
     UserEntity create(UserEntity user);
 
     UserEntity update(Long id, UserEntity user);
+
+    UserEntity updatePersonalProfile(Long id, UpdateUserPersonalProfileDto request);
 
     void delete(Long id);
 

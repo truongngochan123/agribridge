@@ -1,7 +1,7 @@
-package com.agribridge.backend.entity.enums;
+    package com.agribridge.backend.entity.enums;
 
-public enum RfqStatusEnum {
-    OPEN,
-    CLOSED,
-    CANCELLED
-}
+    public enum RfqStatusEnum {
+        OPEN,
+        CLOSED,
+        CANCELLED
+    }

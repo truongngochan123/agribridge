@@ -56,6 +56,15 @@ public class CompanyEntity {
     @Column(name = "tax_code")
     private String taxCode;
 
+    @Column(name = "registration_number")
+    private String registrationNumber;
+
+    @Column(name = "established_year")
+    private Integer establishedYear;
+
+    @Column(name = "website")
+    private String website;
+
     @Column(nullable = false)
     private String phone;
 

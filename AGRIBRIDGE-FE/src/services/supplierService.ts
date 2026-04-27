@@ -16,6 +16,172 @@ import type {
 } from '../types/supplierCreateFlow'
 import type { PublicBatchTraceResponse } from '../types/supplierTrace'
 
+export interface CreateSupplierQuoteRequest {
+  supplierCompanyId: number
+  batchId?: number | null
+  price: number
+  quantity: number
+  deliveryDays?: number
+  note?: string
+  status?: 'PENDING'
+}
+
+export interface SupplierQuoteContextBatch {
+  id: number
+  productId: number
+  quantity: number
+  unit: string | null
+  price: number
+  grade: string | null
+  size: string | null
+  harvestDate: string | null
+  expiryDate: string | null
+  storageTemp: string | null
+  status: string | null
+}
+
+export interface SupplierQuoteContext {
+  rfq: {
+    id: number
+    buyerCompanyId: number
+    productId: number | null
+    categoryId: number | null
+    quantity: number
+    unit: string | null
+    deliveryDate: string | null
+    province: string | null
+    description: string | null
+    expiredAt: string | null
+    status: string | null
+  }
+  product: {
+    id: number
+    name: string
+    categoryId: number | null
+    unit: string | null
+  } | null
+  batches: SupplierQuoteContextBatch[]
+}
+
+export interface RejectSupplierRfqRequest {
+  supplierCompanyId: number
+  note?: string
+}
+
+export type SupplierOrderStatusCode = 'PENDING' | 'CONFIRMED' | 'SHIPPING' | 'DELIVERED' | 'CANCELLED'
+export type SupplierShipmentStatusCode =
+  | 'PENDING'
+  | 'SHIPPED'
+  | 'IN_TRANSIT'
+  | 'WAITING_CONFIRMATION'
+  | 'DELIVERED'
+  | 'CANCELLED'
+  | 'FAILED'
+  | 'PREPARING'
+  | 'SHIPPING'
+
+export type SupplierOrderAction =
+  | 'VIEW_DETAIL'
+  | 'CONFIRM_ORDER'
+  | 'CANCEL_ORDER'
+  | 'CREATE_SHIPMENT'
+  | 'START_SHIPPING'
+  | 'MARK_IN_TRANSIT'
+  | 'MARK_ARRIVED'
+  | 'REPORT_INCIDENT'
+  | 'VIEW_SHIPMENT'
+
+export interface SupplierOrderRow {
+  id: string
+  rawId: number
+  customer: string
+  branch: string
+  product: string
+  items: SupplierOrderItemSummary[]
+  quantity: string
+  value: string
+  status: string
+  statusCode: SupplierOrderStatusCode
+  shipment: SupplierShipmentSummary | null
+  shipmentStatus: string
+  shipmentStatusCode: SupplierShipmentStatusCode | null
+  availableActions: SupplierOrderAction[]
+  orderDate: string
+}
+
+export interface SupplierOrderItemSummary {
+  id: number
+  batchId: number | null
+  batchCode: string
+  product: string
+  quantity: string
+  unit: string
+  grade: string
+  size: string
+  price: string
+  harvestDate: string
+  expiryDate: string
+}
+
+export interface SupplierShipmentSummary {
+  id: number
+  status: string
+  statusCode: SupplierShipmentStatusCode
+  trackingCode: string
+  carrierName: string
+  shippingMethod: string
+  driverName: string
+  driverPhone: string
+  vehicleInfo: string
+  shippingFee: string
+  shippedAt: string
+  deliveredAt: string
+}
+
+export interface SupplierOrderDetailItem {
+  id: number
+  batchId: number | null
+  batchCode: string
+  product: string
+  quantity: string
+  unit: string
+  grade: string
+  size: string
+  harvestDate: string
+  expiryDate: string
+  price: string
+  lineTotal: string
+}
+
+export interface SupplierShipmentEvent {
+  id: number
+  status: string
+  description: string
+  location: string
+  eventTime: string
+}
+
+export interface SupplierOrderDetail extends SupplierOrderRow {
+  customerPhone: string
+  customerEmail: string
+  deliveryAddress: string
+  deliveryProvince: string
+  note: string
+  shipmentEvents: SupplierShipmentEvent[]
+  items: SupplierOrderDetailItem[]
+}
+
+export interface CreateSupplierShipmentRequest {
+  carrierName?: string
+  shippingMethod?: string
+  driverName?: string
+  driverPhone?: string
+  vehicleInfo?: string
+  shippingFee?: number
+  trackingCode?: string
+  note?: string
+}
+
 let dashboardCache: SupplierDashboardPayload | null = null
 
 const EMPTY_DASHBOARD: SupplierDashboardPayload = {
@@ -51,6 +217,77 @@ export async function fetchSupplierDashboard(forceRefresh = false): Promise<Supp
 
 export function clearSupplierDashboardCache(): void {
   dashboardCache = null
+}
+
+export async function createSupplierQuote(rfqId: number, payload: CreateSupplierQuoteRequest): Promise<void> {
+  await apiClient.post(`/api/supplier/rfqs/${rfqId}/quote`, payload)
+  clearSupplierDashboardCache()
+}
+
+export async function fetchSupplierQuoteContext(rfqId: number): Promise<SupplierQuoteContext> {
+  const response = await apiClient.get<SupplierQuoteContext>(`/api/supplier/rfqs/${rfqId}/quote-context`)
+  return response.data
+}
+
+export async function rejectSupplierRfq(rfqId: number, payload: RejectSupplierRfqRequest): Promise<void> {
+  await apiClient.post(`/api/supplier/rfqs/${rfqId}/reject`, payload)
+  clearSupplierDashboardCache()
+}
+
+export async function fetchSupplierOrders(companyId: number): Promise<SupplierOrderRow[]> {
+  const response = await apiClient.get<SupplierOrderRow[]>('/api/supplier/orders', {
+    params: { companyId },
+  })
+  return response.data
+}
+
+export async function getSupplierOrderDetail(companyId: number, orderId: number): Promise<SupplierOrderDetail> {
+  const response = await apiClient.get<SupplierOrderDetail>(`/api/supplier/orders/${orderId}`, {
+    params: { companyId },
+  })
+  return response.data
+}
+
+export async function updateSupplierOrderStatus(
+  companyId: number,
+  orderId: number,
+  status: SupplierOrderStatusCode,
+): Promise<SupplierOrderRow> {
+  const response = await apiClient.patch<SupplierOrderRow>(
+    `/api/supplier/orders/${orderId}/status`,
+    { status },
+    { params: { companyId } },
+  )
+  clearSupplierDashboardCache()
+  return response.data
+}
+
+export async function createSupplierShipment(
+  companyId: number,
+  orderId: number,
+  payload: CreateSupplierShipmentRequest,
+): Promise<SupplierOrderRow> {
+  const response = await apiClient.post<SupplierOrderRow>(
+    `/api/supplier/orders/${orderId}/shipments`,
+    payload,
+    { params: { companyId } },
+  )
+  clearSupplierDashboardCache()
+  return response.data
+}
+
+export async function updateSupplierShipmentStatus(
+  companyId: number,
+  orderId: number,
+  status: SupplierShipmentStatusCode,
+): Promise<SupplierOrderRow> {
+  const response = await apiClient.patch<SupplierOrderRow>(
+    `/api/supplier/orders/${orderId}/shipment/status`,
+    { status },
+    { params: { companyId } },
+  )
+  clearSupplierDashboardCache()
+  return response.data
 }
 
 export async function fetchSupplierProducts(companyId: number): Promise<SupplierProductOption[]> {

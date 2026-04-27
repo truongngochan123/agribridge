@@ -1,6 +1,7 @@
 package com.agribridge.backend.service.impl;
 
 import com.agribridge.backend.dto.AdminUserAccountDto;
+import com.agribridge.backend.dto.UpdateUserPersonalProfileDto;
 import com.agribridge.backend.entity.UserEntity;
 import com.agribridge.backend.entity.enums.CompanyTypeEnum;
 import com.agribridge.backend.entity.enums.UserStatusEnum;
@@ -91,6 +92,32 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    public UserEntity updatePersonalProfile(Long id, UpdateUserPersonalProfileDto request) {
+        log.info("Updating user personal profile id={}", id);
+        UserEntity existing = findById(id);
+
+        String fullName = normalizeRequired(request.getFullName(), "Họ và tên là bắt buộc.");
+        String phone = normalizeRequired(request.getPhone(), "Số điện thoại là bắt buộc.");
+        String email = normalizeOptional(request.getEmail());
+
+        if (userRepository.existsByPhoneAndIdNot(phone, id)) {
+            throw new IllegalArgumentException("Số điện thoại đã tồn tại trong hệ thống.");
+        }
+        if (email != null && userRepository.existsByEmailIgnoreCaseAndIdNot(email, id)) {
+            throw new IllegalArgumentException("Email đã tồn tại trong hệ thống.");
+        }
+
+        existing.setFullName(fullName);
+        existing.setPhone(phone);
+        existing.setEmail(email);
+
+        UserEntity updatedUser = Objects.requireNonNull(userRepository.save(existing));
+        log.info("Updated user personal profile id={}", updatedUser.getId());
+        return updatedUser;
+    }
+
+    @Override
     public void delete(Long id) {
         log.info("Deleting user id={}", id);
         UserEntity existing = findById(id);
@@ -121,21 +148,23 @@ public class UserServiceImpl implements UserService {
         }
 
         sql.append(" ORDER BY u.created_at DESC");
-        List<AdminUserAccountDto> users = jdbcTemplate.query(sql.toString(), (rs, rowNum) -> mapToAdminUser(new AdminUserRowSnapshot(
-                rs.getLong("user_id"),
-                rs.getLong("company_id"),
-                rs.getString("company_name"),
-                rs.getString("user_email"),
-                rs.getString("company_email"),
-                rs.getString("user_phone"),
-                rs.getString("company_phone"),
-                rs.getString("company_type"),
-                rs.getString("user_status"),
-                toLocalDateTime(rs.getTimestamp("created_at")),
-                rs.getString("owner_name"),
-                rs.getString("address"),
-                rs.getString("province"),
-                rs.getString("tax_code"))), params.toArray());
+        List<AdminUserAccountDto> users = jdbcTemplate.query(sql.toString(),
+                (rs, rowNum) -> mapToAdminUser(new AdminUserRowSnapshot(
+                        rs.getLong("user_id"),
+                        rs.getLong("company_id"),
+                        rs.getString("company_name"),
+                        rs.getString("user_email"),
+                        rs.getString("company_email"),
+                        rs.getString("user_phone"),
+                        rs.getString("company_phone"),
+                        rs.getString("company_type"),
+                        rs.getString("user_status"),
+                        toLocalDateTime(rs.getTimestamp("created_at")),
+                        rs.getString("owner_name"),
+                        rs.getString("address"),
+                        rs.getString("province"),
+                        rs.getString("tax_code"))),
+                params.toArray());
         log.info("Fetched {} approved users", users.size());
         return users;
     }
@@ -284,6 +313,22 @@ public class UserServiceImpl implements UserService {
             return "Bị khóa";
         }
         return "Hoạt động";
+    }
+
+    private String normalizeRequired(String value, String errorMessage) {
+        String normalized = normalizeOptional(value);
+        if (normalized == null) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return normalized;
+    }
+
+    private String normalizeOptional(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private record AdminUserRowSnapshot(

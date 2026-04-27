@@ -3,6 +3,7 @@ package com.agribridge.backend.service.impl;
 import com.agribridge.backend.dto.SupplierDashboardResponseDto;
 import com.agribridge.backend.entity.BatchEntity;
 import com.agribridge.backend.entity.BranchEntity;
+import com.agribridge.backend.entity.CategoryEntity;
 import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.InvoiceEntity;
 import com.agribridge.backend.entity.OrderEntity;
@@ -15,9 +16,11 @@ import com.agribridge.backend.entity.RfqEntity;
 import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
+import com.agribridge.backend.entity.enums.RfqStatusEnum;
 import com.agribridge.backend.entity.enums.ShipmentStatusEnum;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.BranchRepository;
+import com.agribridge.backend.repository.CategoryRepository;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.InvoiceRepository;
 import com.agribridge.backend.repository.OrderItemRepository;
@@ -60,6 +63,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
     private static final DecimalFormat MONEY_FORMAT = new DecimalFormat("#,###");
 
     private final CompanyRepository companyRepository;
+    private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
     private final BatchRepository batchRepository;
@@ -85,6 +89,22 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
         List<ProductEntity> products = productRepository
                 .findBySupplierCompanyIdOrderByCreatedAtDesc(resolvedSupplierId);
         List<Long> productIds = products.stream().map(ProductEntity::getId).toList();
+        Set<Long> supplierProductIds = productIds.stream().collect(Collectors.toSet());
+        Set<Long> supplierCategoryIds = products.stream()
+                .map(ProductEntity::getCategoryId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<String> supplierProvinces = new java.util.LinkedHashSet<>();
+        companyRepository.findById(resolvedSupplierId)
+                .map(CompanyEntity::getProvince)
+                .map(this::normalizeKeyword)
+                .filter(Objects::nonNull)
+                .ifPresent(supplierProvinces::add);
+        products.stream()
+                .map(ProductEntity::getOriginProvince)
+                .map(this::normalizeKeyword)
+                .filter(Objects::nonNull)
+                .forEach(supplierProvinces::add);
 
         List<BatchEntity> batches = productIds.isEmpty()
                 ? Collections.emptyList()
@@ -121,6 +141,10 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
         for (ProductEntity product : products) {
             productById.put(product.getId(), product);
         }
+        Map<Long, CategoryEntity> categoryById = new LinkedHashMap<>();
+        for (CategoryEntity category : categoryRepository.findAllById(supplierCategoryIds)) {
+            categoryById.put(category.getId(), category);
+        }
 
         Set<Long> missingProductIds = batchById.values().stream()
                 .map(BatchEntity::getProductId)
@@ -136,17 +160,6 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
                 .map(OrderEntity::getBuyerCompanyId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        Map<Long, CompanyEntity> buyerByCompanyId = companyRepository.findAllById(Objects.requireNonNull(buyerCompanyIds))
-                .stream()
-                .collect(Collectors.toMap(CompanyEntity::getId, value -> value, (left, right) -> left));
-
-        Map<Long, BranchEntity> branchById = branchRepository.findByIdIn(
-                orders.stream().map(OrderEntity::getBranchId).filter(Objects::nonNull).collect(Collectors.toSet()))
-                .stream()
-                .collect(Collectors.toMap(BranchEntity::getId, value -> value, (left, right) -> left));
-
-        Map<Long, OrderEntity> orderById = orders.stream()
-                .collect(Collectors.toMap(OrderEntity::getId, value -> value, (left, right) -> left));
 
         List<ShipmentEntity> shipments = orderIds.isEmpty()
                 ? Collections.emptyList()
@@ -182,20 +195,81 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
                 .toList();
 
         List<QuoteEntity> quotes = quoteRepository.findBySupplierCompanyIdOrderByCreatedAtDesc(resolvedSupplierId);
-        Map<Long, QuoteEntity> quoteByRfqId = new LinkedHashMap<>();
-        for (QuoteEntity quote : quotes) {
-            quoteByRfqId.putIfAbsent(quote.getRfqId(), quote);
+        Map<Long, QuoteEntity> quoteByRfqId = selectBestQuoteByRfqId(quotes);
+        List<Long> quoteIds = quotes.stream()
+                .map(QuoteEntity::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        Map<Long, OrderEntity> orderByQuoteId = quoteIds.isEmpty()
+                ? Collections.emptyMap()
+                : orderRepository.findByQuoteIdIn(quoteIds).stream()
+                        .filter(order -> order.getQuoteId() != null)
+                        .collect(Collectors.toMap(OrderEntity::getQuoteId, value -> value, (left, right) -> left));
+
+        List<RfqEntity> rfqs = loadRelevantRfqs(
+                supplierCategoryIds,
+                supplierProductIds,
+                supplierProvinces,
+                quoteByRfqId.keySet());
+        buyerCompanyIds.addAll(rfqs.stream()
+                .map(RfqEntity::getBuyerCompanyId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet()));
+
+        Map<Long, CompanyEntity> buyerByCompanyId = companyRepository.findAllById(Objects.requireNonNull(buyerCompanyIds))
+                .stream()
+                .collect(Collectors.toMap(CompanyEntity::getId, value -> value, (left, right) -> left));
+
+        Map<Long, BranchEntity> branchById = branchRepository.findByIdIn(
+                orders.stream().map(OrderEntity::getBranchId).filter(Objects::nonNull).collect(Collectors.toSet()))
+                .stream()
+                .collect(Collectors.toMap(BranchEntity::getId, value -> value, (left, right) -> left));
+
+        Map<Long, OrderEntity> orderById = orders.stream()
+                .collect(Collectors.toMap(OrderEntity::getId, value -> value, (left, right) -> left));
+
+        Set<Long> missingRfqProductIds = rfqs.stream()
+                .map(RfqEntity::getProductId)
+                .filter(Objects::nonNull)
+                .filter(id -> !productById.containsKey(id))
+                .collect(Collectors.toSet());
+        if (!missingRfqProductIds.isEmpty()) {
+            for (ProductEntity product : productRepository.findByIdIn(missingRfqProductIds)) {
+                productById.put(product.getId(), product);
+            }
         }
+        Set<Long> missingCategoryIds = rfqs.stream()
+                .map(RfqEntity::getCategoryId)
+                .filter(Objects::nonNull)
+                .filter(id -> !categoryById.containsKey(id))
+                .collect(Collectors.toSet());
+        if (!missingCategoryIds.isEmpty()) {
+            for (CategoryEntity category : categoryRepository.findAllById(missingCategoryIds)) {
+                categoryById.put(category.getId(), category);
+            }
+        }
+        Map<Long, Long> quoteCountByRfqId = rfqs.isEmpty()
+                ? Collections.emptyMap()
+                : quoteRepository.findByRfqIdIn(rfqs.stream().map(RfqEntity::getId).toList())
+                        .stream()
+                        .collect(Collectors.groupingBy(QuoteEntity::getRfqId, Collectors.counting()));
 
-        List<RfqEntity> rfqs = quoteByRfqId.isEmpty()
-                ? Collections.emptyList()
-                : rfqRepository.findByIdIn(quoteByRfqId.keySet());
-        Map<Long, RfqEntity> rfqById = rfqs.stream()
-                .collect(Collectors.toMap(RfqEntity::getId, value -> value, (left, right) -> left));
-
-        List<SupplierDashboardResponseDto.RfqDto> rfqItems = quoteByRfqId.values().stream()
+        List<SupplierDashboardResponseDto.RfqDto> rfqItems = rfqs.stream()
+                .sorted(Comparator
+                        .comparingInt((RfqEntity rfq) -> relevanceScore(rfq, supplierCategoryIds, supplierProductIds,
+                                supplierProvinces))
+                        .reversed()
+                        .thenComparing(RfqEntity::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(RfqEntity::getId, Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(20)
-                .map(quote -> toRfqDto(quote, rfqById.get(quote.getRfqId()), buyerByCompanyId, productById))
+                .map(rfq -> toRfqDto(
+                        rfq,
+                        quoteByRfqId.get(rfq.getId()),
+                        buyerByCompanyId,
+                        productById,
+                        categoryById,
+                        quoteCountByRfqId.getOrDefault(rfq.getId(), 0L),
+                        orderByQuoteId))
                 .toList();
 
         List<SupplierDashboardResponseDto.OrderDto> orderDtos = orders.stream()
@@ -512,15 +586,102 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
                 Collections.emptyList());
     }
 
+    private List<RfqEntity> loadRelevantRfqs(
+            Set<Long> supplierCategoryIds,
+            Set<Long> supplierProductIds,
+            Set<String> supplierProvinces,
+            Set<Long> quotedRfqIds) {
+        boolean hasRelevantFilters = !supplierCategoryIds.isEmpty()
+                || !supplierProductIds.isEmpty()
+                || !supplierProvinces.isEmpty();
+
+        List<RfqEntity> relevantOpenRfqs = hasRelevantFilters
+                ? rfqRepository.findRelevantOpenRfqs(
+                        RfqStatusEnum.OPEN,
+                        java.time.LocalDateTime.now(),
+                        !supplierCategoryIds.isEmpty(),
+                        supplierCategoryIds.isEmpty() ? List.of(-1L) : supplierCategoryIds,
+                        !supplierProductIds.isEmpty(),
+                        supplierProductIds.isEmpty() ? List.of(-1L) : supplierProductIds,
+                        !supplierProvinces.isEmpty(),
+                        supplierProvinces.isEmpty() ? List.of("__unmatched__") : supplierProvinces)
+                : Collections.emptyList();
+
+        List<RfqEntity> quotedRfqs = quotedRfqIds.isEmpty()
+                ? Collections.emptyList()
+                : rfqRepository.findByIdIn(quotedRfqIds);
+
+        Map<Long, RfqEntity> rfqById = new LinkedHashMap<>();
+        for (RfqEntity rfq : relevantOpenRfqs) {
+            rfqById.put(rfq.getId(), rfq);
+        }
+        for (RfqEntity rfq : quotedRfqs) {
+            rfqById.put(rfq.getId(), rfq);
+        }
+
+        return new ArrayList<>(rfqById.values());
+    }
+
+    private Map<Long, QuoteEntity> selectBestQuoteByRfqId(List<QuoteEntity> quotes) {
+        if (quotes.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<Long, QuoteEntity> quoteByRfqId = new LinkedHashMap<>();
+        for (QuoteEntity quote : quotes) {
+            if (quote == null || quote.getRfqId() == null) {
+                continue;
+            }
+            QuoteEntity current = quoteByRfqId.get(quote.getRfqId());
+            if (current == null || compareQuotePriority(quote, current) < 0) {
+                quoteByRfqId.put(quote.getRfqId(), quote);
+            }
+        }
+        return quoteByRfqId;
+    }
+
+    private int compareQuotePriority(QuoteEntity left, QuoteEntity right) {
+        int statusCompare = Integer.compare(quoteStatusPriority(left), quoteStatusPriority(right));
+        if (statusCompare != 0) {
+            return statusCompare;
+        }
+
+        Comparator<java.time.LocalDateTime> createdAtComparator = Comparator.nullsLast(Comparator.reverseOrder());
+        int createdAtCompare = createdAtComparator.compare(left.getCreatedAt(), right.getCreatedAt());
+        if (createdAtCompare != 0) {
+            return createdAtCompare;
+        }
+
+        return Comparator.<Long>nullsLast(Comparator.reverseOrder()).compare(left.getId(), right.getId());
+    }
+
+    private int quoteStatusPriority(QuoteEntity quote) {
+        if (quote == null || quote.getStatus() == null) {
+            return 4;
+        }
+
+        return switch (quote.getStatus().trim().toUpperCase(Locale.ROOT)) {
+            case "ACCEPTED", "APPROVED" -> 1;
+            case "PENDING" -> 2;
+            case "REJECTED" -> 3;
+            default -> 4;
+        };
+    }
+
     private SupplierDashboardResponseDto.RfqDto toRfqDto(
-            QuoteEntity quote,
             RfqEntity rfq,
+            QuoteEntity quote,
             Map<Long, CompanyEntity> buyerByCompanyId,
-            Map<Long, ProductEntity> productById) {
+            Map<Long, ProductEntity> productById,
+            Map<Long, CategoryEntity> categoryById,
+            long quoteCount,
+            Map<Long, OrderEntity> orderByQuoteId) {
         CompanyEntity buyer = rfq == null ? null : buyerByCompanyId.get(rfq.getBuyerCompanyId());
         ProductEntity product = rfq == null ? null : productById.get(rfq.getProductId());
+        CategoryEntity category = rfq == null ? null : categoryById.get(rfq.getCategoryId());
 
-        String quantity = quote.getQuantity() == null ? "0" : quote.getQuantity().stripTrailingZeros().toPlainString();
+        String quantity = rfq == null || rfq.getQuantity() == null ? "0"
+                : rfq.getQuantity().stripTrailingZeros().toPlainString();
         if (rfq != null && rfq.getUnit() != null && !rfq.getUnit().isBlank()) {
             quantity = quantity + " " + rfq.getUnit();
         }
@@ -528,25 +689,85 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
         String dueDate = rfq == null || rfq.getExpiredAt() == null
                 ? "N/A"
                 : rfq.getExpiredAt().toLocalDate().format(DATE_FORMATTER);
+        String deliveryDate = rfq == null || rfq.getDeliveryDate() == null
+                ? "N/A"
+                : rfq.getDeliveryDate().format(DATE_FORMATTER);
+        String supplierQuoteStatus = mapRfqDisplayStatus(rfq, quote);
+        String supplierQuotedPrice = quote != null ? formatMoney(quote.getPrice()) : "Chưa báo giá";
+        String supplierQuotedQuantity = quote == null || quote.getQuantity() == null
+                ? "Chưa báo giá"
+                : quote.getQuantity().stripTrailingZeros().toPlainString()
+                        + (rfq != null && rfq.getUnit() != null && !rfq.getUnit().isBlank() ? " " + rfq.getUnit() : "");
 
         return new SupplierDashboardResponseDto.RfqDto(
-                "RFQ-" + quote.getRfqId(),
+                "RFQ-" + (rfq == null ? "N/A" : rfq.getId()),
                 buyer != null ? buyer.getName() : "Khách hàng",
                 product != null ? product.getName() : (rfq != null ? safeText(rfq.getTitle()) : "N/A"),
+                category != null ? safeText(category.getName()) : "N/A",
                 quantity,
-                formatMoney(quote.getPrice()),
+                quote != null ? formatMoney(quote.getPrice()) : "Thỏa thuận",
+                supplierQuotedPrice,
+                supplierQuotedQuantity,
                 dueDate,
-                mapQuoteStatus(quote.getStatus()));
+                deliveryDate,
+                rfq == null ? "N/A" : safeText(rfq.getProvince()),
+                rfq == null ? "N/A" : safeText(rfq.getDescription()),
+                quoteCount,
+                supplierQuoteStatus,
+                quote == null ? null : quote.getDeliveryDays(),
+                quote == null ? "" : safeTextOrEmpty(quote.getNote()),
+                quote != null,
+                supplierQuoteStatus,
+                quote == null ? null : quote.getId(),
+                quote == null ? null : safeTextOrEmpty(quote.getStatus()),
+                quote == null || quote.getId() == null || orderByQuoteId.get(quote.getId()) == null
+                        ? null
+                        : orderByQuoteId.get(quote.getId()).getId());
     }
 
-    private String mapQuoteStatus(String status) {
-        if (status == null || status.isBlank()) {
-            return "Đã báo giá";
+    private int relevanceScore(
+            RfqEntity rfq,
+            Set<Long> supplierCategoryIds,
+            Set<Long> supplierProductIds,
+            Set<String> supplierProvinces) {
+        if (rfq == null) {
+            return 0;
         }
-        String normalized = status.trim().toUpperCase(Locale.ROOT);
+
+        int score = 0;
+        if (rfq.getProductId() != null && supplierProductIds.contains(rfq.getProductId())) {
+            score += 6;
+        }
+        if (rfq.getCategoryId() != null && supplierCategoryIds.contains(rfq.getCategoryId())) {
+            score += 4;
+        }
+        String province = normalizeKeyword(rfq.getProvince());
+        if (province != null && supplierProvinces.contains(province)) {
+            score += 2;
+        }
+        return score;
+    }
+
+    private String normalizeKeyword(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String mapRfqDisplayStatus(RfqEntity rfq, QuoteEntity quote) {
+        if (rfq != null && RfqStatusEnum.CANCELLED.equals(rfq.getStatus())) {
+            return "Đã hủy";
+        }
+        if (quote == null) {
+            return "Chờ báo giá";
+        }
+
+        String normalized = quote.getStatus() == null ? "" : quote.getStatus().trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
             case "ACCEPTED", "APPROVED" -> "Chấp nhận";
-            case "PENDING", "SENT", "DRAFT" -> "Chờ báo giá";
+            case "REJECTED" -> "Từ chối";
+            case "PENDING", "SENT", "DRAFT" -> "Đã báo giá";
             default -> "Đã báo giá";
         };
     }
@@ -579,9 +800,12 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             return "Chuẩn bị";
         }
         return switch (status) {
-            case PREPARING -> "Chuẩn bị";
-            case SHIPPING -> "Đang vận chuyển";
+            case PENDING, PREPARING -> "Chuẩn bị";
+            case SHIPPED -> "Đã rời kho";
+            case IN_TRANSIT, SHIPPING -> "Đang vận chuyển";
+            case WAITING_CONFIRMATION -> "Chờ buyer xác nhận";
             case DELIVERED -> "Đã giao";
+            case CANCELLED -> "Đã hủy";
             case FAILED -> "Sự cố";
         };
     }
@@ -591,10 +815,12 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             return 15;
         }
         return switch (status) {
-            case PREPARING -> 20;
-            case SHIPPING -> 65;
+            case PENDING, PREPARING -> 20;
+            case SHIPPED -> 45;
+            case IN_TRANSIT, SHIPPING -> 65;
+            case WAITING_CONFIRMATION -> 85;
             case DELIVERED -> 100;
-            case FAILED -> 45;
+            case CANCELLED, FAILED -> 45;
         };
     }
 
@@ -611,6 +837,13 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
     private String safeText(String value) {
         if (value == null || value.isBlank()) {
             return "N/A";
+        }
+        return value;
+    }
+
+    private String safeTextOrEmpty(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
         }
         return value;
     }

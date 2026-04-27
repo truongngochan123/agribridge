@@ -39,10 +39,24 @@ public record SupplierDashboardResponseDto(
             String id,
             String customer,
             String product,
+            String category,
             String quantity,
             String targetPrice,
+            String supplierQuotedPrice,
+            String supplierQuotedQuantity,
             String dueDate,
-            String status) {
+            String deliveryDate,
+            String province,
+            String description,
+            long quoteCount,
+            String supplierQuoteStatus,
+            Integer supplierDeliveryDays,
+            String supplierQuoteNote,
+            boolean hasExistingQuote,
+            String status,
+            Long quoteId,
+            String quoteStatus,
+            Long orderId) {
     }
 
     public record OrderDto(

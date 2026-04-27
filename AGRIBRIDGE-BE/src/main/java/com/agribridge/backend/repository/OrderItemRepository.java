@@ -8,4 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface OrderItemRepository extends JpaRepository<OrderItemEntity, Long> {
 
     List<OrderItemEntity> findByOrderIdIn(Collection<Long> orderIds);
+
+    List<OrderItemEntity> findByOrderIdOrderByIdAsc(Long orderId);
+
+    boolean existsByBatchIdIn(Collection<Long> batchIds);
 }

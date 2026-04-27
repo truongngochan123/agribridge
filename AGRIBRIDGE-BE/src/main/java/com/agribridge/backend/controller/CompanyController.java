@@ -1,6 +1,9 @@
 package com.agribridge.backend.controller;
 
 import com.agribridge.backend.dto.ApproveCompanyVerificationDto;
+import com.agribridge.backend.dto.CompanyProfileAssetsResponseDto;
+import com.agribridge.backend.dto.UpdateCompanyLegalProfileDto;
+import com.agribridge.backend.dto.UpsertCompanyImageDto;
 import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.service.CompanyService;
 import jakarta.validation.Valid;
@@ -43,6 +46,48 @@ public class CompanyController {
     @PutMapping("/{id}")
     public CompanyEntity update(@PathVariable Long id, @RequestBody CompanyEntity company) {
         return companyService.update(id, company);
+    }
+
+    @PutMapping("/{id}/legal-profile")
+    public CompanyEntity updateLegalProfile(@PathVariable Long id,
+            @Valid @RequestBody UpdateCompanyLegalProfileDto request) {
+        return companyService.updateLegalProfile(id, request);
+    }
+
+    @GetMapping("/{id}/profile-assets")
+    public CompanyProfileAssetsResponseDto getProfileAssets(@PathVariable Long id) {
+        return companyService.getProfileAssets(id);
+    }
+
+    @PostMapping("/{id}/logo")
+    public CompanyProfileAssetsResponseDto uploadLogo(
+            @PathVariable Long id,
+            @Valid @RequestBody UpsertCompanyImageDto request) {
+        return companyService.uploadLogo(id, request);
+    }
+
+    @DeleteMapping("/{id}/logo")
+    public CompanyProfileAssetsResponseDto removeLogo(@PathVariable Long id) {
+        return companyService.removeLogo(id);
+    }
+
+    @PostMapping("/{id}/farm-images")
+    public CompanyProfileAssetsResponseDto addFarmImage(
+            @PathVariable Long id,
+            @Valid @RequestBody UpsertCompanyImageDto request) {
+        return companyService.addFarmImage(id, request);
+    }
+
+    @PostMapping("/{id}/certificates")
+    public CompanyProfileAssetsResponseDto addCertificate(
+            @PathVariable Long id,
+            @Valid @RequestBody UpsertCompanyImageDto request) {
+        return companyService.addCertificate(id, request);
+    }
+
+    @DeleteMapping("/{id}/media/{mediaId}")
+    public CompanyProfileAssetsResponseDto deleteMedia(@PathVariable Long id, @PathVariable Long mediaId) {
+        return companyService.deleteMedia(id, mediaId);
     }
 
     @DeleteMapping("/{id}")

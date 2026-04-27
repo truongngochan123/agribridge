@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { fetchSupplierDashboard } from '../../services/supplierService'
 import type { SupplierDashboardPayload } from '../../types/supplierDashboard'
 
@@ -7,6 +7,12 @@ export function useSupplierDashboardData() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const [reloadToken, setReloadToken] = useState(0)
+
+  const reload = useCallback(() => {
+    setReloadToken((value) => value + 1)
+  }, [])
+
   useEffect(() => {
     let active = true
 
@@ -14,7 +20,7 @@ export function useSupplierDashboardData() {
       try {
         setLoading(true)
         setError('')
-        const payload = await fetchSupplierDashboard()
+        const payload = await fetchSupplierDashboard(reloadToken > 0)
         if (!active) return
         setData(payload)
       } catch {
@@ -32,11 +38,12 @@ export function useSupplierDashboardData() {
     return () => {
       active = false
     }
-  }, [])
+  }, [reloadToken])
 
   return {
     data,
     loading,
     error,
+    reload,
   }
 }

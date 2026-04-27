@@ -14,8 +14,12 @@ type CompanyApiModel = {
   id: number
   name: string
   companyType?: string
+  businessType?: string
   ownerName?: string
   taxCode?: string | null
+  registrationNumber?: string | null
+  establishedYear?: number | null
+  website?: string | null
   phone?: string
   email?: string | null
   address?: string
@@ -39,10 +43,17 @@ export type CurrentUserProfile = {
   address: string
   ownerName: string
   companyTypeLabel: string
+  businessTypeLabel: string
   accountCode: string
   joinedAt: string
   statusLabel: string
   initials: string
+  registrationNumber: string
+  establishedYear: string
+  website: string
+  province: string
+  district: string
+  description: string
 }
 
 let cachedProfile: CurrentUserProfile | null = null
@@ -67,7 +78,8 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
     try {
       const userResponse = await apiClient.get<UserApiModel>(`/api/users/${userId}`)
       user = userResponse.data
-    } catch {
+    } catch(error){
+      console.error('GET /api/users/:id failed', error)
       user = undefined
     }
 
@@ -126,10 +138,17 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
     address: company.address || 'N/A',
     ownerName: company.ownerName || fullName,
     companyTypeLabel: mapCompanyTypeLabel(company.companyType),
+    businessTypeLabel: mapBusinessTypeLabel(company.businessType),
     accountCode: `SUP-${String(companyId).padStart(6, '0')}`,
     joinedAt: formatDate(joinedAtSource),
     statusLabel: company.verifiedStatus ? 'Đã xác minh' : 'Chờ xác minh',
     initials: makeInitials(fullName),
+    registrationNumber: readUnknown(company.registrationNumber),
+    establishedYear: company.establishedYear ? String(company.establishedYear) : 'N/A',
+    website: readUnknown(company.website),
+    province: readUnknown(company.province),
+    district: readUnknown(company.district),
+    description: readUnknown(company.description),
   }
 
   cachedProfile = profile
@@ -193,6 +212,16 @@ function mapCompanyTypeLabel(companyType?: string): string {
   }
   if ((companyType ?? '').toLowerCase() === 'buyer') {
     return 'Nhà buôn / Buyer'
+  }
+  return 'N/A'
+}
+
+function mapBusinessTypeLabel(businessType?: string): string {
+  if ((businessType ?? '').toLowerCase() === 'business') {
+    return 'Doanh nghiệp'
+  }
+  if ((businessType ?? '').toLowerCase() === 'individual') {
+    return 'Cá nhân'
   }
   return 'N/A'
 }

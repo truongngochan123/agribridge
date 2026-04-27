@@ -44,6 +44,7 @@ export interface CreateBatchPayload {
   moq?: number
   storageTemp?: string
   videoUrl?: string
+  imageUrls?: string[]
   qc: CreateQcPayload
 }
 

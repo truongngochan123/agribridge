@@ -1,20 +1,26 @@
 import {
+  Award,
   ChevronDown,
   ChevronLeft,
-  Eye,
   ExternalLink,
+  Eye,
+  Flame,
+  Layers,
   Loader2,
-  MoreVertical,
+  MapPin,
+  Package2,
   Plus,
   Search,
+  ShoppingBag,
   Trash2,
   Upload,
-  Video,
+  X,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import type { Dispatch, SetStateAction } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { BatchFormFields, EMPTY_BATCH_FORM, type BatchFormState } from '../../components/supplier/BatchFormFields'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
+import { useToast } from '../../hooks/useToast'
 import {
   createBatchForExistingProduct,
   createProductOnly,
@@ -29,7 +35,7 @@ import {
   getSupplierProductDetail,
   updateSupplierProduct,
 } from '../../services/supplierService'
-import { uploadBatchVideo, uploadSupplierDocument } from '../../services/uploadService'
+import { resolveUploadedFileUrl, uploadBatchVideo, uploadSupplierDocument } from '../../services/uploadService'
 import type {
   CategoryOption,
   CreateBatchForProductRequest,
@@ -42,8 +48,10 @@ import type {
   SupplierProductOption,
   UpdateProductRequest,
 } from '../../types/supplierCreateFlow'
+import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
 
-const modalBackdropClass = 'fixed inset-0 z-[80] bg-black/35 p-4'
+const modalBackdropClass =
+  'fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm p-4'
 
 type CertificationDraft = {
   optionName: string
@@ -64,22 +72,18 @@ type CertificationItem = {
   documentUrl: string
 }
 
-type BatchForm = {
-  harvestDate: string
-  expiryDate: string
-  grade: 'A' | 'B' | 'C' | ''
-  size: string
-  quantity: string
-  price: string
-  moq: string
-  storageTempValue: string
-  videoUrl: string
-  qcResult: 'PASS' | 'FAIL' | ''
-  qcDocumentUrl: string
-  qcNotes: string
-}
+type BatchForm = BatchFormState
 
 type StockStatus = 'con-hang' | 'sap-het' | 'het-hang'
+
+type ProductCertificationPreview = {
+  id: number
+  name: string
+  documentUrl?: string | null
+  issuedBy?: string | null
+  issuedDate?: string | null
+  expiryDate?: string | null
+}
 
 type ProductCardItem = {
   product: SupplierProductOption
@@ -87,6 +91,7 @@ type ProductCardItem = {
   totalQuantity: number
   latestBatch: SupplierBatchCard | null
   stockStatus: StockStatus
+  certifications: ProductCertificationPreview[]
 }
 
 const EMPTY_CERT_DRAFT: CertificationDraft = {
@@ -99,22 +104,63 @@ const EMPTY_CERT_DRAFT: CertificationDraft = {
   documentName: '',
 }
 
-const EMPTY_BATCH_FORM: BatchForm = {
-  harvestDate: '',
-  expiryDate: '',
-  grade: '',
-  size: '',
-  quantity: '',
-  price: '',
-  moq: '',
-  storageTempValue: '',
-  videoUrl: '',
-  qcResult: '',
-  qcDocumentUrl: '',
-  qcNotes: '',
+const LOW_STOCK_THRESHOLD = 100
+const MAX_BATCH_VIDEO_SIZE_BYTES = 95 * 1024 * 1024
+
+const CATEGORY_NAME_BY_ID: Record<number, string> = {
+  1: 'Rau củ',
+  2: 'Trái cây',
+  3: 'Nấm',
+  4: 'Ngũ cốc',
+  5: 'Nông sản khô',
+  6: 'Gia vị',
+  7: 'Thực phẩm chế biến',
+  8: 'Hải sản tươi sống',
+  9: 'Hải sản đông lạnh',
+  10: 'Hải sản khô',
+  11: 'Thịt',
+  12: 'Trứng',
+  13: 'Sữa',
+  14: 'Thức ăn chăn nuôi',
+  15: 'Giống cây trồng',
+  16: 'Vật tư nông nghiệp',
 }
 
-const LOW_STOCK_THRESHOLD = 100
+const CATEGORY_NAME_FALLBACKS: Record<string, string> = {
+  'Rau c?': 'Rau củ',
+  'N?m': 'Nấm',
+  'Ngu c?c': 'Ngũ cốc',
+  'Nông s?n khô': 'Nông sản khô',
+  'Gia v?': 'Gia vị',
+  'Th?c ph?m ch? bi?n': 'Thực phẩm chế biến',
+  'H?i s?n tươi s?ng': 'Hải sản tươi sống',
+  'H?i s?n đông l?nh': 'Hải sản đông lạnh',
+  'H?i s?n khô': 'Hải sản khô',
+  'Th?t': 'Thịt',
+  'Tr?ng': 'Trứng',
+  'S?a': 'Sữa',
+  'Th?c an chan nuôi': 'Thức ăn chăn nuôi',
+  'Gi?ng cây tr?ng': 'Giống cây trồng',
+  'V?t tu nông nghi?p': 'Vật tư nông nghiệp',
+}
+
+function normalizeCategoryName(name: string, categoryId: number): string {
+  const trimmed = name.trim()
+  if (!trimmed) {
+    return trimmed
+  }
+
+  const byFallback = CATEGORY_NAME_FALLBACKS[trimmed]
+  if (byFallback) {
+    return byFallback
+  }
+
+  if (/[?]/.test(trimmed)) {
+    return CATEGORY_NAME_BY_ID[categoryId] ?? trimmed
+  }
+
+  return trimmed
+}
 
 function deriveStockStatus(totalQuantity: number): StockStatus {
   if (totalQuantity <= 0) {
@@ -136,22 +182,62 @@ function stockStatusLabel(status: StockStatus): string {
   return 'Hết hàng'
 }
 
-function stockStatusClass(status: StockStatus): string {
+function stockStatusBadge(status: StockStatus): string {
   if (status === 'con-hang') {
-    return 'bg-emerald-100 text-emerald-700'
+    return 'bg-emerald-500/15 text-emerald-700 border border-emerald-300/50'
   }
   if (status === 'sap-het') {
-    return 'bg-amber-100 text-amber-700'
+    return 'bg-amber-500/15 text-amber-700 border border-amber-300/50'
   }
-  return 'bg-rose-100 text-rose-700'
+  return 'bg-rose-500/15 text-rose-700 border border-rose-300/50'
+}
+
+function compactCurrency(value: number): string {
+  if (value >= 1000) {
+    const compact = value / 1000
+    if (Number.isInteger(compact)) {
+      return `${compact}k`
+    }
+    return `${compact.toFixed(1).replace(/\.0$/, '')}k`
+  }
+  return value.toLocaleString('vi-VN')
+}
+
+function formatBatchPriceRange(batches: SupplierBatchCard[], unit: string): string {
+  const prices = batches
+    .map((batch) => Number(batch.price || 0))
+    .filter((price) => Number.isFinite(price) && price > 0)
+
+  if (prices.length === 0) {
+    return `N/A/${unit}`
+  }
+
+  const min = Math.min(...prices)
+  const max = Math.max(...prices)
+  const minText = compactCurrency(min)
+  const maxText = compactCurrency(max)
+
+  if (min === max) {
+    return `${minText} /${unit}`
+  }
+
+  return `${minText} – ${maxText} /${unit}`
+}
+
+function toAbsoluteUploadedUrl(url?: string | null): string | undefined {
+  const trimmed = url?.trim()
+  if (!trimmed) {
+    return undefined
+  }
+  return resolveUploadedFileUrl(trimmed) || trimmed
 }
 
 export function SupplierProductListPage() {
   const navigate = useNavigate()
+  const { showToast, showConfirm } = useToast()
 
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [message, setMessage] = useState('')
 
   const [products, setProducts] = useState<ProductCardItem[]>([])
   const [categories, setCategories] = useState<CategoryOption[]>([])
@@ -171,10 +257,9 @@ export function SupplierProductListPage() {
   const [productModalStep, setProductModalStep] = useState<1 | 2>(1)
   const [editingProductId, setEditingProductId] = useState<number | null>(null)
 
-  const [menuProductId, setMenuProductId] = useState<number | null>(null)
-
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
   const [selectedProductDetail, setSelectedProductDetail] = useState<SupplierProductDetail | null>(null)
+  const [certPreviewProduct, setCertPreviewProduct] = useState<{ name: string; certifications: ProductCertificationPreview[] } | null>(null)
 
   const [productName, setProductName] = useState('')
   const [productCategoryId, setProductCategoryId] = useState('')
@@ -190,13 +275,14 @@ export function SupplierProductListPage() {
   const [batchForm, setBatchForm] = useState<BatchForm>(EMPTY_BATCH_FORM)
   const [uploadingQcFile, setUploadingQcFile] = useState(false)
   const [uploadingVideo, setUploadingVideo] = useState(false)
+  const [uploadingBatchImage, setUploadingBatchImage] = useState(false)
 
   const companyId = Number(sessionStorage.getItem('agribridge.auth.companyId') ?? 0)
   const userId = Number(sessionStorage.getItem('agribridge.auth.userId') ?? 0)
 
   const loadInitial = async () => {
     if (!companyId) {
-      setMessage('Thiếu companyId trong session, vui lòng đăng nhập lại.')
+      showToast('Thiếu companyId trong session, vui lòng đăng nhập lại.', 'error')
       return
     }
 
@@ -213,10 +299,16 @@ export function SupplierProductListPage() {
       const productCards = await Promise.all(
         productList.map(async (product) => {
           let batches: Awaited<ReturnType<typeof getProductBatches>> = []
+          let detail: SupplierProductDetail | null = null
           try {
             batches = await getProductBatches(product.id)
           } catch {
             batches = []
+          }
+          try {
+            detail = await getSupplierProductDetail(product.id)
+          } catch {
+            detail = null
           }
           const sortedById = [...batches].sort((a, b) => b.id - a.id)
           const latestBatch = sortedById[0] ?? null
@@ -227,17 +319,18 @@ export function SupplierProductListPage() {
             totalQuantity,
             latestBatch,
             stockStatus: deriveStockStatus(totalQuantity),
+            certifications: detail?.certifications ?? [],
           }
         }),
       )
 
       setProducts(productCards)
-      setCategories(categoryList)
+      setCategories(categoryList.map((item) => ({ ...item, name: normalizeCategoryName(item.name, item.id) })))
       setUnits(unitList)
       setProvinces(provinceList)
       setCertificationNames(certNameList)
     } catch {
-      setMessage('Không thể tải dữ liệu sản phẩm.')
+      showToast('Không thể tải dữ liệu sản phẩm.', 'error')
     } finally {
       setLoading(false)
     }
@@ -284,6 +377,21 @@ export function SupplierProductListPage() {
 
     return next
   }, [products, search, categoryFilter, provinceFilter, statusFilter, sortBy])
+
+  const categoryNameById = useMemo(() => {
+    const map = new Map<number, string>()
+    categories.forEach((item) => {
+      map.set(item.id, item.name)
+    })
+    return map
+  }, [categories])
+
+  const summary = useMemo(() => {
+    const total = products.length
+    const active = products.filter((p) => p.stockStatus === 'con-hang').length
+    const low = products.filter((p) => p.stockStatus === 'sap-het').length
+    return { total, active, low }
+  }, [products])
 
   const resetProductForm = () => {
     setProductModalStep(1)
@@ -333,7 +441,7 @@ export function SupplierProductListPage() {
       )
       setOpenProductModal(true)
     } catch {
-      setMessage('Không thể tải dữ liệu để sửa sản phẩm.')
+      showToast('Không thể tải dữ liệu để sửa sản phẩm.', 'error')
     }
   }
 
@@ -343,19 +451,33 @@ export function SupplierProductListPage() {
       const uploaded = await uploadSupplierDocument(file)
       onDone(uploaded.url)
     } catch {
-      setMessage('Upload tài liệu thất bại.')
+      showToast('Upload tài liệu thất bại.', 'error')
     } finally {
       setBusy?.(false)
     }
   }
 
   const uploadVideo = async (file: File) => {
+    if (!file.type.startsWith('video/')) {
+      showToast('Vui lòng chọn đúng định dạng video.', 'error')
+      return
+    }
+
+    if (file.size > MAX_BATCH_VIDEO_SIZE_BYTES) {
+      showToast('Video vượt quá 95MB, vui lòng chọn file nhỏ hơn.', 'error')
+      return
+    }
+
     setUploadingVideo(true)
     try {
       const uploaded = await uploadBatchVideo(file)
       setBatchForm((prev) => ({ ...prev, videoUrl: uploaded.url }))
-    } catch {
-      setMessage('Upload video thất bại.')
+    } catch (error) {
+      if (error instanceof Error && error.message) {
+        showToast(error.message, 'error')
+      } else {
+        showToast('Upload video thất bại.', 'error')
+      }
     } finally {
       setUploadingVideo(false)
     }
@@ -365,28 +487,28 @@ export function SupplierProductListPage() {
     const certName = certDraft.optionName === '__custom__' ? certDraft.customName.trim() : certDraft.optionName.trim()
 
     if (!certName) {
-      setMessage('Vui lòng chọn hoặc nhập tên chứng nhận.')
+      showToast('Vui lòng chọn hoặc nhập tên chứng nhận.', 'error')
       return
     }
 
     if (!certDraft.issuedDate || !certDraft.expiryDate) {
-      setMessage('Ngày cấp và ngày hết hạn của chứng nhận là bắt buộc.')
+      showToast('Ngày cấp và ngày hết hạn của chứng nhận là bắt buộc.', 'error')
       return
     }
 
     const today = new Date().toISOString().slice(0, 10)
     if (certDraft.issuedDate > today) {
-      setMessage('Ngày cấp không được ở tương lai.')
+      showToast('Ngày cấp không được ở tương lai.', 'error')
       return
     }
 
     if (certDraft.expiryDate < today) {
-      setMessage('Ngày hết hạn không được ở quá khứ.')
+      showToast('Ngày hết hạn không được ở quá khứ.', 'error')
       return
     }
 
     if (certDraft.expiryDate <= certDraft.issuedDate) {
-      setMessage('Ngày hết hạn phải sau ngày cấp.')
+      showToast('Ngày hết hạn phải sau ngày cấp.', 'error')
       return
     }
 
@@ -407,19 +529,19 @@ export function SupplierProductListPage() {
 
   const validateProductInput = (): boolean => {
     if (!productName.trim()) {
-      setMessage('Tên sản phẩm là bắt buộc.')
+      showToast('Tên sản phẩm là bắt buộc.', 'error')
       return false
     }
     if (!productCategoryId) {
-      setMessage('Danh mục là bắt buộc.')
+      showToast('Danh mục là bắt buộc.', 'error')
       return false
     }
     if (!productUnit) {
-      setMessage('Đơn vị là bắt buộc.')
+      showToast('Đơn vị là bắt buộc.', 'error')
       return false
     }
     if (!productProvince) {
-      setMessage('Tỉnh xuất xứ là bắt buộc.')
+      showToast('Tỉnh xuất xứ là bắt buộc.', 'error')
       return false
     }
     return true
@@ -427,53 +549,53 @@ export function SupplierProductListPage() {
 
   const validateBatchInput = (): boolean => {
     if (!batchForm.harvestDate) {
-      setMessage('Ngày thu hoạch/đánh bắt là bắt buộc.')
+      showToast('Ngày thu hoạch/đánh bắt là bắt buộc.', 'error')
       return false
     }
 
     const today = new Date().toISOString().slice(0, 10)
     if (batchForm.harvestDate > today) {
-      setMessage('Ngày thu hoạch/đánh bắt không được ở tương lai.')
+      showToast('Ngày thu hoạch/đánh bắt không được ở tương lai.', 'error')
       return false
     }
 
     if (batchForm.expiryDate && batchForm.expiryDate < today) {
-      setMessage('Ngày hết hạn không được ở quá khứ.')
+      showToast('Ngày hết hạn không được ở quá khứ.', 'error')
       return false
     }
 
     if (batchForm.expiryDate && batchForm.expiryDate <= batchForm.harvestDate) {
-      setMessage('Ngày hết hạn phải sau ngày thu hoạch.')
+      showToast('Ngày hết hạn phải sau ngày thu hoạch.', 'error')
       return false
     }
 
     if (!batchForm.grade) {
-      setMessage('Grade là bắt buộc.')
+      showToast('Grade là bắt buộc.', 'error')
       return false
     }
 
     if (!batchForm.quantity || Number(batchForm.quantity) <= 0) {
-      setMessage('Tồn kho phải lớn hơn 0.')
+      showToast('Tồn kho phải lớn hơn 0.', 'error')
       return false
     }
 
     if (!batchForm.price || Number(batchForm.price) <= 0) {
-      setMessage('Giá phải lớn hơn 0.')
+      showToast('Giá phải lớn hơn 0.', 'error')
       return false
     }
 
     if (!batchForm.qcResult) {
-      setMessage('Kết quả QC là bắt buộc.')
+      showToast('Kết quả QC là bắt buộc.', 'error')
       return false
     }
 
     if (batchForm.qcResult === 'PASS' && !batchForm.qcDocumentUrl.trim()) {
-      setMessage('PASS bắt buộc có file kiểm định.')
+      showToast('PASS bắt buộc có file kiểm định.', 'error')
       return false
     }
 
     if (batchForm.qcResult === 'FAIL' && !batchForm.qcNotes.trim()) {
-      setMessage('FAIL bắt buộc có ghi chú kiểm định.')
+      showToast('FAIL bắt buộc có ghi chú kiểm định.', 'error')
       return false
     }
 
@@ -492,10 +614,14 @@ export function SupplierProductListPage() {
       price: Number(batchForm.price),
       moq: batchForm.moq ? Number(batchForm.moq) : 0,
       storageTemp,
-      videoUrl: batchForm.videoUrl.trim() || undefined,
+      videoUrl: toAbsoluteUploadedUrl(batchForm.videoUrl),
+      imageUrls: batchForm.imageUrls
+        .map((url) => toAbsoluteUploadedUrl(url))
+        .filter((url): url is string => Boolean(url))
+        .filter((url, index, list) => url.length > 0 && list.indexOf(url) === index),
       qc: {
         result: batchForm.qcResult as 'PASS' | 'FAIL',
-        documentUrl: batchForm.qcDocumentUrl.trim() || undefined,
+        documentUrl: toAbsoluteUploadedUrl(batchForm.qcDocumentUrl),
         notes: batchForm.qcNotes.trim() || undefined,
       },
     }
@@ -508,10 +634,12 @@ export function SupplierProductListPage() {
       unit: productUnit,
       originProvince: productProvince,
       description: productDescription.trim() || undefined,
-      imageUrls: productImageUrls,
+      imageUrls: productImageUrls
+        .map((url) => toAbsoluteUploadedUrl(url))
+        .filter((url): url is string => Boolean(url)),
       certifications: certItems.map((item) => ({
         name: item.name,
-        documentUrl: item.documentUrl || undefined,
+        documentUrl: toAbsoluteUploadedUrl(item.documentUrl),
         issuedBy: item.issuedBy || undefined,
         issuedDate: item.issuedDate || undefined,
         expiryDate: item.expiryDate || undefined,
@@ -525,12 +653,11 @@ export function SupplierProductListPage() {
     }
 
     setSubmitting(true)
-    setMessage('')
 
     try {
       if (editingProductId) {
         await updateSupplierProduct(editingProductId, toProductUpdatePayload())
-        setMessage('Cập nhật sản phẩm thành công.')
+        showToast('Cập nhật sản phẩm thành công.', 'success')
       } else {
         const payload: CreateProductOnlyRequest = {
           supplierCompanyId: companyId,
@@ -540,10 +667,12 @@ export function SupplierProductListPage() {
             unit: productUnit,
             originProvince: productProvince,
             description: productDescription.trim() || undefined,
-            imageUrls: productImageUrls,
+            imageUrls: productImageUrls
+              .map((url) => toAbsoluteUploadedUrl(url))
+              .filter((url): url is string => Boolean(url)),
             certifications: certItems.map((item) => ({
               name: item.name,
-              documentUrl: item.documentUrl || undefined,
+              documentUrl: toAbsoluteUploadedUrl(item.documentUrl),
               issuedBy: item.issuedBy || undefined,
               issuedDate: item.issuedDate || undefined,
               expiryDate: item.expiryDate || undefined,
@@ -551,14 +680,14 @@ export function SupplierProductListPage() {
           },
         }
         await createProductOnly(payload)
-        setMessage('Tạo sản phẩm thành công.')
+        showToast('Tạo sản phẩm thành công.', 'success')
       }
 
       setOpenProductModal(false)
       resetProductForm()
       await loadInitial()
     } catch {
-      setMessage(editingProductId ? 'Cập nhật sản phẩm thất bại.' : 'Tạo sản phẩm thất bại.')
+      showToast(editingProductId ? 'Cập nhật sản phẩm thất bại.' : 'Tạo sản phẩm thất bại.', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -566,7 +695,7 @@ export function SupplierProductListPage() {
 
   const submitProductWithFirstBatch = async () => {
     if (editingProductId) {
-      setMessage('Chế độ sửa sản phẩm không áp dụng tạo lô hàng đầu tiên.')
+      showToast('Chế độ sửa sản phẩm không áp dụng tạo lô hàng đầu tiên.', 'error')
       return
     }
 
@@ -575,7 +704,6 @@ export function SupplierProductListPage() {
     }
 
     setSubmitting(true)
-    setMessage('')
 
     try {
       const payload: CreateProductWithFirstBatchRequest = {
@@ -587,10 +715,12 @@ export function SupplierProductListPage() {
           unit: productUnit,
           originProvince: productProvince,
           description: productDescription.trim() || undefined,
-          imageUrls: productImageUrls,
+          imageUrls: productImageUrls
+            .map((url) => toAbsoluteUploadedUrl(url))
+            .filter((url): url is string => Boolean(url)),
           certifications: certItems.map((item) => ({
             name: item.name,
-            documentUrl: item.documentUrl || undefined,
+            documentUrl: toAbsoluteUploadedUrl(item.documentUrl),
             issuedBy: item.issuedBy || undefined,
             issuedDate: item.issuedDate || undefined,
             expiryDate: item.expiryDate || undefined,
@@ -602,11 +732,11 @@ export function SupplierProductListPage() {
       const response: SupplierCreateFlowResponse = await createProductWithFirstBatch(payload)
       setOpenProductModal(false)
       resetProductForm()
-      setMessage('Tạo sản phẩm và lô hàng thành công.')
+      showToast('Tạo sản phẩm và lô hàng thành công.', 'success')
       await loadInitial()
       navigate(`/supplier/products/${response.product.id}/lots`)
     } catch {
-      setMessage('Tạo sản phẩm và lô hàng thất bại.')
+      showToast('Tạo sản phẩm và lô hàng thất bại.', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -614,7 +744,7 @@ export function SupplierProductListPage() {
 
   const submitCreateBatch = async () => {
     if (!selectedProductId) {
-      setMessage('Vui lòng chọn sản phẩm để tạo lô hàng.')
+      showToast('Vui lòng chọn sản phẩm để tạo lô hàng.', 'error')
       return
     }
 
@@ -623,7 +753,6 @@ export function SupplierProductListPage() {
     }
 
     setSubmitting(true)
-    setMessage('')
 
     try {
       const payload: CreateBatchForProductRequest = {
@@ -638,7 +767,7 @@ export function SupplierProductListPage() {
       await loadInitial()
       navigate(`/supplier/products/${selectedProductId}/lots`)
     } catch {
-      setMessage('Tạo lô hàng thất bại.')
+      showToast('Tạo lô hàng thất bại.', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -650,22 +779,26 @@ export function SupplierProductListPage() {
       setSelectedProductDetail(detail)
       setOpenProductDetailModal(true)
     } catch {
-      setMessage('Không thể tải chi tiết sản phẩm.')
+      showToast('Không thể tải chi tiết sản phẩm.', 'error')
     }
   }
 
   const handleDeleteProduct = async (productId: number) => {
-    const confirmed = window.confirm('Xóa sản phẩm này và toàn bộ lô hàng liên quan?')
+    const confirmed = await showConfirm('Xóa sản phẩm này và toàn bộ lô hàng liên quan?', {
+      title: 'Xác nhận xóa sản phẩm',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+    })
     if (!confirmed) {
       return
     }
 
     try {
       await deleteSupplierProduct(productId)
-      setMenuProductId(null)
       await loadInitial()
-    } catch {
-      setMessage('Không thể xóa sản phẩm.')
+      showToast('Đã xóa sản phẩm thành công.', 'success')
+    } catch (error) {
+      showToast(readApiErrorMessage(error) || 'Không thể xóa sản phẩm.', 'error')
     }
   }
 
@@ -675,232 +808,277 @@ export function SupplierProductListPage() {
         activeKey="products"
         title="Sản phẩm & Lô hàng"
         subtitle="Quản lý sản phẩm và lô hàng của bạn"
-        actions={
-          <div className="flex justify-end gap-2">
-            <button
-              className="inline-flex items-center gap-2 rounded-md border border-emerald-500 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700"
-              onClick={() => openCreateBatchModal()}
-            >
-              <Plus className="h-4 w-4" />
-              Tạo lô hàng mới
-            </button>
-            <button
-              className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"
-              onClick={openCreateProductModal}
-            >
-              <Plus className="h-4 w-4" />
-              Thêm sản phẩm mới
-            </button>
-          </div>
-        }
       >
-        <p className="mb-2 text-xs font-semibold text-emerald-700">Tong so san pham: {filteredProducts.length}</p>
+        <div className="flex h-full flex-col gap-3">
+          {/* ── Sticky top: summary chips + filter + buttons ── */}
+          <div className="shrink-0 space-y-2">
+            {/* Summary chips row */}
+            <div className="flex items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm">
+                <ShoppingBag className="h-3.5 w-3.5 text-slate-400" />
+                <span>{summary.total}</span>
+                <span className="text-slate-400">sản phẩm</span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm">
+                <Flame className="h-3.5 w-3.5" />
+                <span>{summary.active}</span>
+                <span className="text-emerald-500">còn hàng</span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 shadow-sm">
+                <Layers className="h-3.5 w-3.5" />
+                <span>{summary.low}</span>
+                <span className="text-amber-500">sắp hết</span>
+              </div>
+              {/* Push buttons to right */}
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 active:scale-95"
+                  onClick={() => openCreateBatchModal()}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Tạo lô hàng
+                </button>
+                <button
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-3 py-1.5 text-xs font-bold text-white shadow-md transition hover:opacity-90 active:scale-95"
+                  onClick={openCreateProductModal}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Thêm sản phẩm
+                </button>
+              </div>
+            </div>
 
-        <div className="mb-4 grid gap-2 rounded-xl border border-emerald-200 bg-white p-3 md:grid-cols-6">
-          <label className="relative md:col-span-2">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Tìm tên sản phẩm"
-              className="h-9 w-full rounded-md border border-slate-300 pl-8 pr-2 text-xs"
-            />
-          </label>
+            {/* Filter bar */}
+            <div className="grid gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2.5 backdrop-blur-sm md:grid-cols-6">
+              <label className="relative md:col-span-2">
+                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Tìm tên sản phẩm..."
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                />
+              </label>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="h-9 appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white"
+              >
+                <option value="">Danh mục</option>
+                {categories.map((item) => (
+                  <option key={item.id} value={String(item.id)}>{item.name}</option>
+                ))}
+              </select>
+              <select
+                value={provinceFilter}
+                onChange={(e) => setProvinceFilter(e.target.value)}
+                className="h-9 appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white"
+              >
+                <option value="">Tỉnh xuất xứ</option>
+                {provinces.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as '' | StockStatus)}
+                className="h-9 appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white"
+              >
+                <option value="">Trạng thái</option>
+                <option value="con-hang">Còn hàng</option>
+                <option value="sap-het">Sắp hết</option>
+                <option value="het-hang">Hết hàng</option>
+              </select>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="h-9 appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white"
+              >
+                <option value="newest">Mới nhất</option>
+                <option value="price-asc">Giá tăng dần</option>
+                <option value="price-desc">Giá giảm dần</option>
+              </select>
+            </div>
+          </div>
 
-          <select
-            value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value)}
-            className="h-9 rounded-md border border-slate-300 px-2 text-xs"
-          >
-            <option value="">Danh mục</option>
-            {categories.map((item) => (
-              <option key={item.id} value={String(item.id)}>
-                {item.name}
-              </option>
-            ))}
-          </select>
+          {loading ? (
+            <div className="shrink-0 flex items-center gap-2 text-sm text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
+              Đang tải dữ liệu...
+            </div>
+          ) : null}
 
-          <select
-            value={provinceFilter}
-            onChange={(event) => setProvinceFilter(event.target.value)}
-            className="h-9 rounded-md border border-slate-300 px-2 text-xs"
-          >
-            <option value="">Tỉnh xuất xứ</option>
-            {provinces.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as '' | StockStatus)}
-            className="h-9 rounded-md border border-slate-300 px-2 text-xs"
-          >
-            <option value="">Trạng thái</option>
-            <option value="con-hang">Còn hàng</option>
-            <option value="sap-het">Sắp hết</option>
-            <option value="het-hang">Hết hàng</option>
-          </select>
-
-          <select
-            value={sortBy}
-            onChange={(event) => setSortBy(event.target.value as 'newest' | 'price-asc' | 'price-desc')}
-            className="h-9 rounded-md border border-slate-300 px-2 text-xs"
-          >
-            <option value="newest">Mới nhất</option>
-            <option value="price-asc">Giá tăng dần</option>
-            <option value="price-desc">Giá giảm dần</option>
-          </select>
-
-        </div>
-
-        {message ? <p className="mb-3 text-sm font-semibold text-emerald-700">{message}</p> : null}
-        {loading ? <p className="text-sm font-semibold text-emerald-700">Đang tải dữ liệu...</p> : null}
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {/* ── Product Grid (scrollable) ── */}
+          <div className="flex-1 overflow-y-auto pr-1">
+            <div className="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {filteredProducts.map((item) => (
             <article
               key={item.product.id}
-              className="cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+              className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.06)] transition-all duration-200 hover:border-emerald-300 hover:shadow-[0_8px_30px_rgba(16,185,129,0.15)] hover:-translate-y-0.5"
               onClick={() => navigate(`/supplier/products/${item.product.id}/lots`)}
             >
-              <div className="relative h-28 bg-slate-50">
-                <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-slate-700">
-                  {item.batches.length} lo
+              {/* Thumbnail */}
+              <div className="relative h-28 shrink-0 overflow-hidden bg-slate-100">
+                <img
+                  src={resolveUploadedFileUrl(item.product.imageUrl) || 'https://placehold.co/420x220?text=No+Image'}
+                  alt={item.product.name}
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+                {/* Overlay gradient */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                {/* Badges */}
+                <span className="absolute left-2 top-2 rounded-full bg-black/40 px-2 py-1 text-[10px] font-bold text-white backdrop-blur-sm">
+                  {item.batches.length} lô
                 </span>
-                <span className={`absolute right-3 top-3 rounded-full px-2 py-1 text-[10px] font-semibold ${stockStatusClass(item.stockStatus)}`}>
+                <span
+                  className={`absolute right-2 top-2 rounded-full px-2 py-1 text-[10px] font-bold backdrop-blur-sm ${stockStatusBadge(item.stockStatus)}`}
+                >
                   {stockStatusLabel(item.stockStatus)}
                 </span>
-                <img
-                  src={item.product.imageUrl || 'https://placehold.co/420x220?text=No+Image'}
-                  alt={item.product.name}
-                  className="h-full w-full object-cover"
-                />
+                {item.certifications.length > 0 && (
+                  <button
+                    className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-emerald-700 shadow backdrop-blur-sm transition hover:bg-white"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setCertPreviewProduct({ name: item.product.name, certifications: item.certifications })
+                    }}
+                  >
+                    <Award className="h-3 w-3" />
+                    {item.certifications.length} chứng chỉ
+                  </button>
+                )}
               </div>
 
-              <div className="space-y-2 p-3">
-                <h3 className="truncate text-[18px] font-bold text-emerald-950">{item.product.name}</h3>
-                <p className="text-xs text-emerald-700">
-                  ♻ Lô liền tại: {item.latestBatch?.batchCode || 'Chưa có lô'}
-                </p>
-
-                <div className="grid grid-cols-2 gap-y-2 text-xs text-slate-700">
-                  <Info label="Grade" value={item.latestBatch?.grade || 'N/A'} />
-                  <Info label="Size" value={item.latestBatch?.size || 'N/A'} />
-                  <Info label="Tồn kho" value={`${item.totalQuantity}${item.product.unit}`} />
-                  <Info label="MOQ" value={`${item.latestBatch?.moq ?? 0}${item.product.unit}`} />
-                </div>
-
-                <div className="border-t border-slate-200 pt-2">
-                  <p className="text-[28px] font-black text-emerald-700">
-                    {(item.latestBatch?.price ?? 0).toLocaleString('vi-VN')}đ
-                    <span className="ml-1 text-xs font-medium text-slate-600">/{item.product.unit}</span>
+              {/* Body */}
+              <div className="flex flex-1 flex-col gap-2 p-3">
+                <div>
+                  <h3 className="truncate text-[15px] font-bold text-slate-900">{item.product.name}</h3>
+                  <p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-500">
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    {item.product.originProvince || 'N/A'}
+                    <span className="mx-1">·</span>
+                    {categoryNameById.get(item.product.categoryId) || item.product.categoryName || 'N/A'}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-[1fr_52px_32px] gap-1.5">
+                {item.batches.length === 0 ? (
+                  <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 py-3 text-center text-[11px] text-slate-400">
+                    Chưa có lô hàng
+                  </div>
+                ) : (
+                  <div className="flex flex-1 flex-col gap-2">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                      <InfoChip label="Grade" value={item.latestBatch?.grade || 'N/A'} />
+                      <InfoChip label="Size" value={item.latestBatch?.size || 'N/A'} />
+                      <InfoChip label="Tồn kho" value={`${item.totalQuantity}${item.product.unit}`} highlight />
+                      <InfoChip label="MOQ" value={`${item.latestBatch?.moq ?? 0}${item.product.unit}`} />
+                    </div>
+                    <div className="mt-auto rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Giá bán</p>
+                      <p className="text-lg font-black text-emerald-700">
+                        {formatBatchPriceRange(item.batches, item.product.unit)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="mt-auto grid grid-cols-[1fr_auto_auto_auto] gap-1.5 border-t border-slate-100 pt-2">
                   <button
-                    className="rounded-lg bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white"
-                    onClick={(event) => {
-                      event.stopPropagation()
+                    className="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-500 px-2 py-1.5 text-xs font-bold text-white shadow-sm transition hover:opacity-90 active:scale-95"
+                    onClick={(e) => {
+                      e.stopPropagation()
                       openCreateBatchModal(item.product.id)
                     }}
                   >
-                    ✺ Thêm lô hàng
+                    + Thêm lô
                   </button>
                   <button
-                    className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs font-semibold text-emerald-700"
-                    onClick={(event) => {
-                      event.stopPropagation()
+                    className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 active:scale-95"
+                    onClick={(e) => {
+                      e.stopPropagation()
                       void openEditProductModal(item.product.id)
                     }}
                   >
                     Sửa
                   </button>
-
-                  <div className="relative">
-                    <button
-                      className="flex h-full w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        setMenuProductId((prev) => (prev === item.product.id ? null : item.product.id))
-                      }}
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </button>
-                    {menuProductId === item.product.id ? (
-                      <div className="absolute right-0 top-10 z-20 min-w-[132px] rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
-                        <button
-                          className="inline-flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-xs hover:bg-slate-50"
-                          onClick={() => {
-                            setMenuProductId(null)
-                            void openProductDetail(item.product.id)
-                          }}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          Xem chi tiết
-                        </button>
-                        <button
-                          className="inline-flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-xs hover:bg-slate-50"
-                          onClick={() => {
-                            setMenuProductId(null)
-                            navigate(`/supplier/products/${item.product.id}/lots`)
-                          }}
-                        >
-                          Xem các lô
-                        </button>
-                        <button
-                          className="inline-flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-xs text-rose-600 hover:bg-rose-50"
-                          onClick={() => void handleDeleteProduct(item.product.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Xóa sản phẩm
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
+                  <button
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 active:scale-95"
+                    title="Xem chi tiết"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void openProductDetail(item.product.id)
+                    }}
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-500 transition hover:bg-rose-100 active:scale-95"
+                    title="Xóa sản phẩm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void handleDeleteProduct(item.product.id)
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
             </article>
           ))}
+
+          {!loading && filteredProducts.length === 0 && (
+            <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/60 py-16">
+              <Package2 className="mb-3 h-10 w-10 text-slate-300" />
+              <p className="text-sm font-semibold text-slate-500">Không tìm thấy sản phẩm nào</p>
+              <p className="mt-1 text-xs text-slate-400">Thử thay đổi bộ lọc hoặc thêm sản phẩm mới</p>
+            </div>
+          )}
+            </div>
+          </div>
         </div>
       </SupplierShell>
 
+      {/* ─── Product Modal ─── */}
       {openProductModal ? (
         <div className={modalBackdropClass}>
-          <div className="mx-auto mt-3 max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <h3 className="text-lg font-bold text-slate-900">
+          <div className="my-4 w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(0,0,0,0.2)]">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-emerald-600 to-teal-500 px-5 py-4">
+              <h3 className="text-base font-bold text-white">
                 {editingProductId ? 'Sửa sản phẩm' : 'Thêm sản phẩm mới'}
               </h3>
-              <button className="text-xs font-semibold text-slate-500" onClick={() => setOpenProductModal(false)}>
-                Đóng
+              <button
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white transition hover:bg-white/30"
+                onClick={() => setOpenProductModal(false)}
+              >
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="space-y-3 p-4 text-sm">
+            {/* Step tabs */}
+            <div className="border-b border-slate-100 bg-slate-50 px-5 py-2.5">
               <div className="flex gap-2 text-xs font-semibold">
                 <button
-                  className={`rounded-md px-3 py-1 ${productModalStep === 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}
+                  className={`rounded-lg px-3 py-1.5 transition ${productModalStep === 1 ? 'bg-emerald-600 text-white shadow' : 'text-slate-600 hover:bg-slate-200'}`}
                   onClick={() => setProductModalStep(1)}
                 >
-                  1. Sản phẩm
+                  1. Thông tin sản phẩm
                 </button>
                 <button
-                  className={`rounded-md px-3 py-1 ${productModalStep === 2 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}
+                  className={`rounded-lg px-3 py-1.5 transition ${productModalStep === 2 ? 'bg-emerald-600 text-white shadow' : 'text-slate-600 hover:bg-slate-200'} disabled:opacity-40`}
                   onClick={() => setProductModalStep(2)}
                   disabled={Boolean(editingProductId)}
                 >
                   2. Lô hàng đầu tiên
                 </button>
               </div>
+            </div>
 
+            <div className="max-h-[60vh] space-y-3 overflow-y-auto p-5 text-sm">
               {productModalStep === 1 ? (
                 <div className="space-y-3">
                   <Field label="Tên sản phẩm" value={productName} onChange={setProductName} required />
-                  <div className="grid gap-2 md:grid-cols-2">
+                  <div className="grid gap-3 md:grid-cols-2">
                     <FieldSelect
                       label="Danh mục"
                       value={productCategoryId}
@@ -925,44 +1103,59 @@ export function SupplierProductListPage() {
                   />
                   <FieldTextArea label="Mô tả" value={productDescription} onChange={setProductDescription} />
 
+                  {/* Images */}
                   <section>
-                    <p className="mb-1 text-xs font-semibold text-slate-700">Hình ảnh sản phẩm</p>
+                    <p className="mb-2 text-xs font-semibold text-slate-700">Hình ảnh sản phẩm</p>
                     <div className="flex flex-wrap items-center gap-2">
-                      {productImageUrls.map((url) => (
-                        <div key={url} className="relative h-20 w-20 overflow-hidden rounded-md border border-slate-200">
-                          <img src={url} alt="preview" className="h-full w-full object-cover" />
-                          <button
-                            className="absolute right-1 top-1 rounded bg-white/80 px-1 text-[10px]"
-                            onClick={() => setProductImageUrls((prev) => prev.filter((item) => item !== url))}
-                          >
-                            x
-                          </button>
-                        </div>
-                      ))}
-                      <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-[11px] text-slate-500">
-                        {uploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                      {productImageUrls.map((url) => {
+                        const previewUrl = resolveUploadedFileUrl(url)
+                        return (
+                          <div key={url} className="group relative h-20 w-20 overflow-hidden rounded-xl border border-slate-200">
+                            <img
+                              src={previewUrl || 'https://placehold.co/160x160?text=No+Image'}
+                              alt="preview"
+                              className="h-full w-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition group-hover:opacity-100"
+                              onClick={() => setProductImageUrls((prev) => prev.filter((i) => i !== url))}
+                            >
+                              <X className="h-4 w-4 text-white" />
+                            </button>
+                          </div>
+                        )
+                      })}
+                      <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-[11px] text-slate-500 transition hover:border-emerald-300 hover:bg-emerald-50">
+                        {uploadingImage ? <Loader2 className="h-4 w-4 animate-spin text-emerald-500" /> : <Upload className="h-4 w-4" />}
                         <span>Tải lên</span>
                         <input
                           type="file"
+                          accept="image/*"
                           className="hidden"
-                          onChange={(event) => {
-                            const file = event.target.files?.[0]
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
                             if (file) {
                               void uploadDocument(
                                 file,
-                                (url) => setProductImageUrls((prev) => [...prev, url]),
+                                (url) =>
+                                  setProductImageUrls((prev) => {
+                                    if (prev.includes(url)) return prev
+                                    return [...prev, url]
+                                  }),
                                 setUploadingImage,
                               )
                             }
-                            event.currentTarget.value = ''
+                            e.currentTarget.value = ''
                           }}
                         />
                       </label>
                     </div>
                   </section>
 
-                  <section className="rounded-lg border border-emerald-200 p-3">
-                    <p className="mb-2 text-sm font-semibold text-emerald-900">Chứng nhận / Tiêu chuẩn</p>
+                  {/* Certifications */}
+                  <section className="rounded-xl border border-emerald-200/60 bg-emerald-50/40 p-4">
+                    <p className="mb-3 text-sm font-bold text-emerald-900">Chứng nhận / Tiêu chuẩn</p>
                     <div className="grid gap-2 md:grid-cols-2">
                       <FieldSelect
                         label="Loại chứng nhận"
@@ -982,13 +1175,13 @@ export function SupplierProductListPage() {
 
                     {certDraft.optionName === '__custom__' ? (
                       <Field
-                        label="Tên custom"
+                        label="Tên tùy chỉnh"
                         value={certDraft.customName}
                         onChange={(value) => setCertDraft((prev) => ({ ...prev, customName: value }))}
                       />
                     ) : null}
 
-                    <div className="grid gap-2 md:grid-cols-2">
+                    <div className="mt-2 grid gap-2 md:grid-cols-2">
                       <Field
                         label="Ngày cấp"
                         type="date"
@@ -1003,15 +1196,15 @@ export function SupplierProductListPage() {
                       />
                     </div>
 
-                    <div className="mt-2 flex items-center gap-2">
-                      <label className="inline-flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs">
+                    <div className="mt-3 flex items-center gap-2">
+                      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50">
                         <Upload className="h-3 w-3" />
                         File chứng nhận
                         <input
                           type="file"
                           className="hidden"
-                          onChange={(event) => {
-                            const file = event.target.files?.[0]
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
                             if (file) {
                               void uploadDocument(file, (url) =>
                                 setCertDraft((prev) => ({
@@ -1021,40 +1214,51 @@ export function SupplierProductListPage() {
                                 })),
                               )
                             }
-                            event.currentTarget.value = ''
+                            e.currentTarget.value = ''
                           }}
                         />
                       </label>
-                      <button className="rounded bg-emerald-600 px-3 py-1 text-xs font-semibold text-white" onClick={addCertificationBox}>
-                        Thêm
+                      <button
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700"
+                        onClick={addCertificationBox}
+                      >
+                        Thêm chứng nhận
                       </button>
                     </div>
 
                     {certDraft.documentUrl ? (
-                      <div className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
-                        Đã tải lên: {certDraft.documentName || certDraft.documentUrl}
+                      <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                        ✓ Đã tải lên: {certDraft.documentName || certDraft.documentUrl}
                       </div>
                     ) : null}
 
                     <div className="mt-3 space-y-2">
                       {certItems.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-xs"
+                        >
                           <div className="min-w-0">
-                            <p className="font-semibold">{item.name}</p>
-                            <p className="truncate text-[11px] text-emerald-700">
-                              Cấp bởi {item.issuedBy || 'N/A'} · Ngày cấp: {item.issuedDate || 'N/A'} · Hết hạn: {item.expiryDate || 'N/A'}
+                            <p className="font-bold text-emerald-900">{item.name}</p>
+                            <p className="mt-0.5 truncate text-emerald-700">
+                              Cấp bởi {item.issuedBy || 'N/A'} · {item.issuedDate || 'N/A'} → {item.expiryDate || 'N/A'}
                             </p>
                             {item.documentUrl ? (
-                              <a className="truncate text-[11px] text-emerald-700 underline" href={item.documentUrl} target="_blank" rel="noreferrer">
-                                {item.documentUrl}
+                              <a
+                                className="mt-0.5 truncate text-emerald-600 underline"
+                                href={item.documentUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Xem tài liệu
                               </a>
                             ) : null}
                           </div>
                           <button
-                            className="ml-2 rounded px-1 text-rose-600 hover:bg-rose-50"
+                            className="ml-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-50 text-rose-500 transition hover:bg-rose-100"
                             onClick={() => setCertItems((prev) => prev.filter((entry) => entry.id !== item.id))}
                           >
-                            x
+                            <X className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       ))}
@@ -1062,12 +1266,14 @@ export function SupplierProductListPage() {
                   </section>
                 </div>
               ) : (
-                <BatchFormCompact
+                <BatchFormFields
                   form={batchForm}
                   setForm={setBatchForm}
                   unit={productUnit || 'kg'}
                   uploadingQcFile={uploadingQcFile}
                   uploadingVideo={uploadingVideo}
+                  uploadingBatchImage={uploadingBatchImage}
+                  showBatchImages
                   onUploadQc={(file) =>
                     void uploadDocument(
                       file,
@@ -1076,49 +1282,63 @@ export function SupplierProductListPage() {
                     )
                   }
                   onUploadVideo={(file) => void uploadVideo(file)}
+                  onUploadBatchImage={(file) =>
+                    void uploadDocument(
+                      file,
+                      (url) =>
+                        setBatchForm((prev) => {
+                          if (prev.imageUrls.includes(url)) return prev
+                          return { ...prev, imageUrls: [...prev.imageUrls, url] }
+                        }),
+                      setUploadingBatchImage,
+                    )
+                  }
                 />
               )}
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs">
-              <button className="rounded border border-slate-300 px-3 py-1.5" onClick={() => setOpenProductModal(false)}>
+            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-5 py-3">
+              <button
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+                onClick={() => setOpenProductModal(false)}
+              >
                 Hủy
               </button>
               <div className="flex items-center gap-2">
                 {productModalStep === 2 && !editingProductId ? (
                   <button
-                    className="inline-flex items-center gap-1 rounded border border-slate-300 px-3 py-1.5"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
                     onClick={() => setProductModalStep(1)}
                   >
-                    <ChevronLeft className="h-3 w-3" /> Quay lại
+                    <ChevronLeft className="h-4 w-4" /> Quay lại
                   </button>
                 ) : null}
 
                 {productModalStep === 1 && !editingProductId ? (
                   <button
-                    className="inline-flex items-center gap-1 rounded bg-emerald-500 px-3 py-1.5 font-semibold text-white"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400 bg-emerald-50 px-3.5 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
                     onClick={() => setProductModalStep(2)}
                   >
-                    Tiếp theo <ChevronDown className="h-3 w-3" />
+                    Tiếp theo <ChevronDown className="h-4 w-4" />
                   </button>
                 ) : null}
 
                 <button
-                  className="inline-flex items-center gap-1 rounded bg-emerald-600 px-3 py-1.5 font-semibold text-white disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:opacity-90 disabled:opacity-50 active:scale-95"
                   disabled={submitting}
                   onClick={() => void submitProductOnly()}
                 >
-                  {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {editingProductId ? 'Lưu cập nhật' : 'Thêm sản phẩm'}
                 </button>
 
                 {!editingProductId ? (
                   <button
-                    className="inline-flex items-center gap-1 rounded bg-emerald-700 px-3 py-1.5 font-semibold text-white disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:bg-emerald-900 disabled:opacity-50 active:scale-95"
                     disabled={submitting}
                     onClick={() => void submitProductWithFirstBatch()}
                   >
-                    {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Tạo sản phẩm & lô
                   </button>
                 ) : null}
@@ -1128,14 +1348,23 @@ export function SupplierProductListPage() {
         </div>
       ) : null}
 
+      {/* ─── Batch Modal ─── */}
       {openBatchModal ? (
         <div className={modalBackdropClass}>
-          <div className="mx-auto mt-6 max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white">
-            <div className="border-b border-slate-200 px-4 py-3">
-              <h3 className="text-lg font-bold text-slate-900">Tạo lô hàng mới</h3>
-              <p className="text-xs text-slate-500">Chọn sản phẩm và nhập thông tin lô hàng</p>
+          <div className="my-4 w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(0,0,0,0.2)]">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-emerald-600 to-teal-500 px-5 py-4">
+              <div>
+                <h3 className="text-base font-bold text-white">Tạo lô hàng mới</h3>
+                <p className="text-xs text-white/70">Chọn sản phẩm và nhập thông tin lô hàng</p>
+              </div>
+              <button
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white transition hover:bg-white/30"
+                onClick={() => setOpenBatchModal(false)}
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            <div className="space-y-3 p-4">
+            <div className="max-h-[65vh] space-y-3 overflow-y-auto p-5">
               <FieldSelect
                 label="Sản phẩm"
                 value={selectedProductId ? String(selectedProductId) : ''}
@@ -1143,12 +1372,14 @@ export function SupplierProductListPage() {
                 required
                 options={products.map((item) => ({ label: item.product.name, value: String(item.product.id) }))}
               />
-              <BatchFormCompact
+              <BatchFormFields
                 form={batchForm}
                 setForm={setBatchForm}
                 unit={selectedProductCard?.product.unit || 'kg'}
                 uploadingQcFile={uploadingQcFile}
                 uploadingVideo={uploadingVideo}
+                uploadingBatchImage={uploadingBatchImage}
+                showBatchImages
                 onUploadQc={(file) =>
                   void uploadDocument(
                     file,
@@ -1157,18 +1388,32 @@ export function SupplierProductListPage() {
                   )
                 }
                 onUploadVideo={(file) => void uploadVideo(file)}
+                onUploadBatchImage={(file) =>
+                  void uploadDocument(
+                    file,
+                    (url) =>
+                      setBatchForm((prev) => {
+                        if (prev.imageUrls.includes(url)) return prev
+                        return { ...prev, imageUrls: [...prev.imageUrls, url] }
+                      }),
+                    setUploadingBatchImage,
+                  )
+                }
               />
             </div>
-            <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs">
-              <button className="rounded border border-slate-300 px-3 py-1.5" onClick={() => setOpenBatchModal(false)}>
+            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-5 py-3">
+              <button
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+                onClick={() => setOpenBatchModal(false)}
+              >
                 Hủy
               </button>
               <button
-                className="inline-flex items-center gap-1 rounded bg-emerald-600 px-3 py-1.5 font-semibold text-white disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-5 py-2 text-sm font-bold text-white shadow-md transition hover:opacity-90 disabled:opacity-50 active:scale-95"
                 disabled={submitting}
                 onClick={() => void submitCreateBatch()}
               >
-                {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Thêm lô hàng
               </button>
             </div>
@@ -1176,28 +1421,285 @@ export function SupplierProductListPage() {
         </div>
       ) : null}
 
+      {/* ─── Product Detail Modal ─── */}
       {openProductDetailModal && selectedProductDetail ? (
         <div className={modalBackdropClass}>
-          <div className="mx-auto mt-10 max-w-xl rounded-xl bg-white p-4">
-            <h3 className="text-lg font-bold text-slate-900">Chi tiết sản phẩm</h3>
-            <p className="mt-2 text-sm">{selectedProductDetail.name}</p>
-            <p className="text-xs text-slate-500">
-              {selectedProductDetail.unit} • {selectedProductDetail.originProvince}
-            </p>
-            <p className="mt-2 text-sm text-slate-700">{selectedProductDetail.description || 'Không có mô tả.'}</p>
+          <div className="my-4 w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(0,0,0,0.25)]">
 
-            <div className="mt-3 grid grid-cols-4 gap-2">
-              {selectedProductDetail.imageUrls.map((url) => (
-                <img key={url} src={url} alt="product" className="h-16 w-full rounded border border-slate-200 object-cover" />
-              ))}
+            {/* ── Header ── */}
+            <div className="relative overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 px-5 py-4">
+              <div
+                className="pointer-events-none absolute inset-0 opacity-10"
+                style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, rgba(255,255,255,0.7) 0%, transparent 55%)' }}
+              />
+              <div className="relative flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  {/* Primary image avatar */}
+                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border-2 border-white/30 shadow-lg">
+                    <img
+                      src={resolveUploadedFileUrl(selectedProductDetail.imageUrls[0] || '') || 'https://placehold.co/80x80?text=SP'}
+                      alt={selectedProductDetail.name}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-white drop-shadow">{selectedProductDetail.name}</h3>
+                    <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/70">
+                      <MapPin className="h-3 w-3" />
+                      {selectedProductDetail.originProvince || 'N/A'}
+                      <span className="opacity-50">·</span>
+                      {selectedProductDetail.unit}
+                      <span className="opacity-50">·</span>
+                      {selectedProductDetail.categoryName}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/20 text-white transition hover:bg-white/30"
+                  onClick={() => setOpenProductDetailModal(false)}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Stat pills */}
+              <div className="relative mt-3 flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                  <Layers className="h-3 w-3" />
+                  {selectedProductDetail.batches.length} lô hàng
+                </span>
+                {selectedProductDetail.certifications.length > 0 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                    <Award className="h-3 w-3" />
+                    {selectedProductDetail.certifications.length} chứng chỉ
+                  </span>
+                )}
+                {selectedProductDetail.imageUrls.length > 0 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                    <ShoppingBag className="h-3 w-3" />
+                    {selectedProductDetail.imageUrls.length} ảnh
+                  </span>
+                )}
+              </div>
             </div>
 
-            <button
-              className="mt-4 rounded border border-slate-300 px-3 py-1.5 text-xs"
-              onClick={() => setOpenProductDetailModal(false)}
-            >
-              Đóng
-            </button>
+            {/* ── Scrollable body ── */}
+            <div className="max-h-[70vh] overflow-y-auto">
+
+              {/* Gallery */}
+              {selectedProductDetail.imageUrls.length > 0 && (
+                <div className="border-b border-slate-100 p-4">
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Hình ảnh sản phẩm</p>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {selectedProductDetail.imageUrls.map((url, idx) => (
+                      <img
+                        key={url + idx}
+                        src={resolveUploadedFileUrl(url) || 'https://placehold.co/120x120?text=No+Image'}
+                        alt={`product-${idx}`}
+                        className="h-24 w-24 shrink-0 rounded-xl border border-slate-200 object-cover shadow-sm transition hover:scale-105"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Info grid */}
+              <div className="grid grid-cols-2 gap-3 border-b border-slate-100 p-4 sm:grid-cols-4">
+                {[
+                  { label: 'Danh mục', value: selectedProductDetail.categoryName },
+                  { label: 'Đơn vị', value: selectedProductDetail.unit },
+                  { label: 'Xuất xứ', value: selectedProductDetail.originProvince || 'N/A' },
+                  { label: 'Số lô hàng', value: String(selectedProductDetail.batches.length) },
+                ].map(({ label, value }) => (
+                  <div key={label} className="rounded-xl bg-slate-50 px-3 py-2.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
+                    <p className="mt-0.5 text-sm font-bold text-slate-800 truncate">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Description */}
+              {selectedProductDetail.description && (
+                <div className="border-b border-slate-100 p-4">
+                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Mô tả sản phẩm</p>
+                  <p className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-700">
+                    {selectedProductDetail.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Certifications */}
+              {selectedProductDetail.certifications.length > 0 && (
+                <div className="border-b border-slate-100 p-4">
+                  <p className="mb-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Chứng chỉ & Chứng nhận</p>
+                  <div className="space-y-2">
+                    {selectedProductDetail.certifications.map((cert, idx) => (
+                      <div
+                        key={cert.id ?? idx}
+                        className="flex items-start justify-between gap-3 rounded-xl border border-emerald-100 bg-emerald-50/60 px-4 py-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <Award className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                            <p className="text-sm font-bold text-emerald-900 truncate">{cert.name}</p>
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-emerald-700">
+                            {cert.issuedBy && (
+                              <span><span className="font-semibold text-emerald-500">Cấp bởi:</span> {cert.issuedBy}</span>
+                            )}
+                            {cert.issuedDate && (
+                              <span><span className="font-semibold text-emerald-500">Ngày cấp:</span> {cert.issuedDate}</span>
+                            )}
+                            {cert.expiryDate && (
+                              <span><span className="font-semibold text-emerald-500">Hết hạn:</span> {cert.expiryDate}</span>
+                            )}
+                          </div>
+                        </div>
+                        {cert.documentUrl ? (
+                          <a
+                            href={resolveUploadedFileUrl(cert.documentUrl) || cert.documentUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Xem
+                          </a>
+                        ) : (
+                          <span className="inline-flex shrink-0 rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-[11px] text-slate-400">
+                            Chưa có file
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Batch summary */}
+              {selectedProductDetail.batches.length > 0 && (
+                <div className="p-4">
+                  <p className="mb-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Tóm tắt lô hàng</p>
+                  <div className="overflow-hidden rounded-xl border border-slate-200">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                          <th className="px-3 py-2 text-left font-bold text-slate-500">Mã lô</th>
+                          <th className="px-3 py-2 text-left font-bold text-slate-500">Grade</th>
+                          <th className="px-3 py-2 text-left font-bold text-slate-500">Tồn kho</th>
+                          <th className="px-3 py-2 text-left font-bold text-slate-500">Giá</th>
+                          <th className="px-3 py-2 text-left font-bold text-slate-500">Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedProductDetail.batches.map((batch, idx) => (
+                          <tr
+                            key={batch.id}
+                            className={`border-b border-slate-100 transition hover:bg-emerald-50/40 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
+                          >
+                            <td className="px-3 py-2 font-bold text-slate-800">{batch.batchCode || `#${batch.id}`}</td>
+                            <td className="px-3 py-2">
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                {batch.grade}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 font-semibold text-slate-700">
+                              {batch.quantity}{selectedProductDetail.unit}
+                            </td>
+                            <td className="px-3 py-2 font-bold text-emerald-700">
+                              {Number(batch.price).toLocaleString('vi-VN')}đ
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                batch.status === 'ACTIVE'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {batch.status === 'ACTIVE' ? 'Đang bán' : batch.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Empty batch state */}
+              {selectedProductDetail.batches.length === 0 && (
+                <div className="p-6 text-center">
+                  <Package2 className="mx-auto mb-2 h-8 w-8 text-slate-200" />
+                  <p className="text-sm text-slate-400">Chưa có lô hàng nào</p>
+                </div>
+              )}
+            </div>
+
+            {/* ── Footer ── */}
+            <div className="flex items-center justify-end border-t border-slate-100 bg-slate-50 px-5 py-3">
+              <button
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+                onClick={() => setOpenProductDetailModal(false)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+
+      {/* ─── Cert Preview Modal ─── */}
+      {certPreviewProduct ? (
+        <div className={modalBackdropClass}>
+          <div className="my-4 w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(0,0,0,0.2)]">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-emerald-600 to-teal-500 px-5 py-4">
+              <div>
+                <h3 className="text-base font-bold text-white">Chứng chỉ sản phẩm</h3>
+                <p className="text-xs text-white/70">{certPreviewProduct.name}</p>
+              </div>
+              <button
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white transition hover:bg-white/30"
+                onClick={() => setCertPreviewProduct(null)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-5">
+              {certPreviewProduct.certifications.length === 0 ? (
+                <p className="text-center text-sm text-slate-500">Sản phẩm chưa có chứng chỉ.</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {certPreviewProduct.certifications.map((cert) => (
+                    <div
+                      key={cert.id}
+                      className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-bold text-emerald-900">{cert.name}</p>
+                          <p className="mt-0.5 text-xs text-emerald-700">
+                            Cấp bởi: {cert.issuedBy || 'N/A'} · Ngày cấp: {cert.issuedDate || 'N/A'} · Hết hạn: {cert.expiryDate || 'N/A'}
+                          </p>
+                        </div>
+                        {cert.documentUrl ? (
+                          <a
+                            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                            href={resolveUploadedFileUrl(cert.documentUrl) || cert.documentUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Xem
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ) : null}
@@ -1205,163 +1707,11 @@ export function SupplierProductListPage() {
   )
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function InfoChip({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <p>
-      <span className="block text-[11px] text-slate-500">{label}</span>
-      <span className="text-[13px] font-semibold text-slate-900">{value}</span>
-    </p>
-  )
-}
-
-function BatchFormCompact({
-  form,
-  setForm,
-  unit,
-  uploadingQcFile,
-  uploadingVideo,
-  onUploadQc,
-  onUploadVideo,
-}: {
-  form: BatchForm
-  setForm: Dispatch<SetStateAction<BatchForm>>
-  unit: string
-  uploadingQcFile: boolean
-  uploadingVideo: boolean
-  onUploadQc: (file: File) => void
-  onUploadVideo: (file: File) => void
-}) {
-  return (
-    <div className="space-y-2 text-xs">
-      <div className="grid gap-2 md:grid-cols-2">
-        <Field
-          label="Ngày thu hoạch/đánh bắt"
-          type="date"
-          value={form.harvestDate}
-          onChange={(value) => setForm((prev) => ({ ...prev, harvestDate: value }))}
-          required
-        />
-        <Field
-          label="Ngày hết hạn"
-          type="date"
-          value={form.expiryDate}
-          onChange={(value) => setForm((prev) => ({ ...prev, expiryDate: value }))}
-        />
-        <FieldSelect
-          label="Grade"
-          value={form.grade}
-          onChange={(value) => setForm((prev) => ({ ...prev, grade: value as 'A' | 'B' | 'C' | '' }))}
-          required
-          options={[
-            { label: 'A', value: 'A' },
-            { label: 'B', value: 'B' },
-            { label: 'C', value: 'C' },
-          ]}
-        />
-        <Field label="Size" value={form.size} onChange={(value) => setForm((prev) => ({ ...prev, size: value }))} />
-      </div>
-
-      <div className="grid gap-2 md:grid-cols-3">
-        <Field
-          label={`Tồn kho (${unit})`}
-          type="number"
-          value={form.quantity}
-          onChange={(value) => setForm((prev) => ({ ...prev, quantity: value }))}
-          required
-        />
-        <Field
-          label="Giá"
-          type="number"
-          value={form.price}
-          onChange={(value) => setForm((prev) => ({ ...prev, price: value }))}
-          required
-        />
-        <Field label={`MOQ (${unit})`} type="number" value={form.moq} onChange={(value) => setForm((prev) => ({ ...prev, moq: value }))} />
-      </div>
-
-      <div className="grid gap-2 md:grid-cols-2">
-        <Field
-          label="Nhiệt độ bảo quản (°C)"
-          type="number"
-          value={form.storageTempValue}
-          onChange={(value) => setForm((prev) => ({ ...prev, storageTempValue: value }))}
-        />
-
-        <div>
-          <p className="mb-1 text-[11px] font-semibold text-slate-700">Video lô hàng</p>
-          <div className="flex items-center gap-2">
-            <label className="inline-flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1 text-[11px]">
-              {uploadingVideo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />} Upload
-              <input
-                type="file"
-                accept="video/*"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file) {
-                    onUploadVideo(file)
-                  }
-                  event.currentTarget.value = ''
-                }}
-              />
-            </label>
-            {form.videoUrl ? (
-              <a href={form.videoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-700">
-                <ExternalLink className="h-3 w-3" /> Link
-              </a>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-md border border-emerald-200 p-2">
-        <p className="mb-2 text-[11px] font-semibold text-emerald-900">Kiểm định lô hàng (QC)</p>
-        <div className="grid gap-2 md:grid-cols-2">
-          <div>
-            <p className="mb-1 text-[11px] font-semibold text-slate-700">Kết quả</p>
-            <div className="flex items-center gap-2">
-              <button
-                className={`rounded border px-2 py-1 ${form.qcResult === 'PASS' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-300'}`}
-                onClick={() => setForm((prev) => ({ ...prev, qcResult: 'PASS' }))}
-              >
-                PASS
-              </button>
-              <button
-                className={`rounded border px-2 py-1 ${form.qcResult === 'FAIL' ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-300'}`}
-                onClick={() => setForm((prev) => ({ ...prev, qcResult: 'FAIL' }))}
-              >
-                FAIL
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-1 text-[11px] font-semibold text-slate-700">File kiểm định</p>
-            <label className="inline-flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1 text-[11px]">
-              {uploadingQcFile ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-              Upload
-              <input
-                type="file"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file) {
-                    onUploadQc(file)
-                  }
-                  event.currentTarget.value = ''
-                }}
-              />
-            </label>
-            {form.qcDocumentUrl ? <p className="truncate text-[10px] text-emerald-700">{form.qcDocumentUrl}</p> : null}
-          </div>
-        </div>
-
-        <FieldTextArea
-          label="Ghi chú kiểm định"
-          value={form.qcNotes}
-          onChange={(value) => setForm((prev) => ({ ...prev, qcNotes: value }))}
-        />
-      </div>
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={`text-xs font-bold ${highlight ? 'text-emerald-700' : 'text-slate-800'}`}>{value}</p>
     </div>
   )
 }
@@ -1387,9 +1737,9 @@ function Field({
       </span>
       <input
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         type={type}
-        className="h-8 w-full rounded border border-slate-300 px-2 text-[12px]"
+        className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
       />
     </label>
   )
@@ -1409,8 +1759,8 @@ function FieldTextArea({
       <span className="mb-1 block text-[11px] font-semibold text-slate-700">{label}</span>
       <textarea
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-16 w-full rounded border border-slate-300 px-2 py-1 text-[12px]"
+        onChange={(e) => onChange(e.target.value)}
+        className="h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
       />
     </label>
   )
@@ -1437,8 +1787,8 @@ function FieldSelect({
       </span>
       <select
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-8 w-full rounded border border-slate-300 px-2 text-[12px]"
+        onChange={(e) => onChange(e.target.value)}
+        className="h-9 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
       >
         <option value="">-- Chọn --</option>
         {options.map((option) => (

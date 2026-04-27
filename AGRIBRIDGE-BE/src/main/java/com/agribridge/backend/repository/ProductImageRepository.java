@@ -5,6 +5,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface ProductImageRepository extends JpaRepository<ProductImageEntity, Long> {
 
@@ -14,5 +17,7 @@ public interface ProductImageRepository extends JpaRepository<ProductImageEntity
 
     Optional<ProductImageEntity> findTopByProductIdOrderByUploadedAtDesc(Long productId);
 
-    void deleteByProductId(Long productId);
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from ProductImageEntity image where image.productId = :productId")
+    void deleteByProductId(@Param("productId") Long productId);
 }

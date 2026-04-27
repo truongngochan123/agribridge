@@ -16,7 +16,11 @@ public interface CompanyRepository extends JpaRepository<CompanyEntity, Long> {
 
     boolean existsByTaxCode(String taxCode);
 
+    boolean existsByTaxCodeAndIdNot(String taxCode, Long id);
+
     boolean existsByCitizenId(String citizenId);
 
     boolean existsByEmailIgnoreCase(String email);
+
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
 }

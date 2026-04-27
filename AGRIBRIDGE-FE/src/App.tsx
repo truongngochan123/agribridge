@@ -23,6 +23,7 @@ import { SupportPage } from './pages/site/SupportPage'
 import { AboutPage } from './pages/site/AboutPage'
 import { BuyerDashboardPage } from './pages/buyer/BuyerDashboardPage'
 import { BuyerSourcingPage } from './pages/buyer/BuyerSourcingPage'
+import { BuyerProductBatchesPlaceholderPage } from './pages/buyer/BuyerProductBatchesPlaceholderPage'
 import { BuyerRFQPage } from './pages/buyer/BuyerRFQPage'
 import { BuyerOrdersPage } from './pages/buyer/BuyerOrdersPage'
 import { BuyerBranchesPage } from './pages/buyer/BuyerBranchesPage'
@@ -86,6 +87,7 @@ function App() {
       <Route path="/public/batch/:batchId" element={<PublicBatchTracePage />} />
       <Route path="/buyer/overview" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerDashboardPage /></ProtectedAppRoute>} />
       <Route path="/buyer/sourcing" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerSourcingPage /></ProtectedAppRoute>} />
+      <Route path="/buyer/sourcing/products/:productId/batches" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerProductBatchesPlaceholderPage /></ProtectedAppRoute>} />
       <Route path="/buyer/rfq" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerRFQPage /></ProtectedAppRoute>} />
       <Route path="/buyer/orders" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerOrdersPage /></ProtectedAppRoute>} />
       <Route path="/buyer/branches" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerBranchesPage /></ProtectedAppRoute>} />

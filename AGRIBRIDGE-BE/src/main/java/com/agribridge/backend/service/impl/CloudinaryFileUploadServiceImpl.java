@@ -4,6 +4,7 @@ import com.agribridge.backend.dto.UploadedFileResponseDto;
 import com.agribridge.backend.service.FileUploadService;
 import com.cloudinary.Cloudinary;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -80,7 +81,10 @@ public class CloudinaryFileUploadServiceImpl implements FileUploadService {
             options.put("unique_filename", true);
             options.put("overwrite", false);
 
-            Map<?, ?> result = cloudinary.uploader().upload(file.getBytes(), options);
+            Map<?, ?> result;
+            try (InputStream inputStream = file.getInputStream()) {
+                result = cloudinary.uploader().upload(inputStream, options);
+            }
 
             UploadedFileResponseDto response = UploadedFileResponseDto.builder()
                     .url(String.valueOf(result.get("secure_url")))
@@ -94,10 +98,12 @@ public class CloudinaryFileUploadServiceImpl implements FileUploadService {
                     file.getOriginalFilename(), resourceType, response.getPublicId());
             return response;
         } catch (IOException ex) {
-            log.error("Cannot read upload file originalName={} resourceType={}", file.getOriginalFilename(), resourceType, ex);
-            throw new IllegalArgumentException("Cannot read upload file");
+            log.error("Cannot read upload file directly, falling back to local upload originalName={} resourceType={}",
+                    file.getOriginalFilename(), resourceType, ex);
+            return uploadLocally(file, resourceType);
         } catch (Exception ex) {
-            log.error("Cloud upload failed originalName={} resourceType={}", file.getOriginalFilename(), resourceType, ex);
+            log.error("Cloud upload failed originalName={} resourceType={}", file.getOriginalFilename(), resourceType,
+                    ex);
             return uploadLocally(file, resourceType);
         }
     }

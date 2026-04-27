@@ -5,10 +5,16 @@ server:
       charset: UTF-8
       enabled: true
       force: true
+  tomcat:
+    max-swallow-size: -1
 
 spring:
   application:
     name: agribridge-be
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
   datasource:
     url: jdbc:sqlserver://${DB_HOST:localhost}:${DB_PORT:1433};databaseName=${DB_NAME:agribridge};encrypt=true;trustServerCertificate=true;sendStringParametersAsUnicode=true
     username: ${DB_USERNAME:sa}
@@ -21,7 +27,7 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        use_nationalized_character_data: true
+        use_nationalized_character_data: false
   messages:
     encoding: UTF-8
   sql:

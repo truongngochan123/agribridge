@@ -42,6 +42,9 @@ public class CompanyImageEntity {
     @Column(name = "image_url", nullable = false, length = 240)
     private String imageUrl;
 
+    @Column(name = "label", length = 120)
+    private String label;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "image_type", nullable = false)
     private ImageTypeEnum imageType;

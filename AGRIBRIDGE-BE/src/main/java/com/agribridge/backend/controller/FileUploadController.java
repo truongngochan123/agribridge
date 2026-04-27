@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 @RestController
 @RequestMapping("/api/uploads")
@@ -25,18 +26,29 @@ public class FileUploadController {
     private final LocalUploadStorageService localUploadStorageService;
 
     @PostMapping("/registration-file")
-    public UploadedFileResponseDto uploadRegistrationFile(@RequestParam("file") MultipartFile file) {
-        return fileUploadService.uploadRegistrationFile(file);
+    public UploadedFileResponseDto uploadRegistrationFile(
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "document", required = false) MultipartFile document,
+            @RequestParam(value = "video", required = false) MultipartFile video,
+            MultipartHttpServletRequest request) {
+        return fileUploadService.uploadRegistrationFile(resolveUploadedFile(request, file, document, video));
     }
 
     @PostMapping("/supplier-document")
-    public UploadedFileResponseDto uploadSupplierDocument(@RequestParam("file") MultipartFile file) {
-        return fileUploadService.uploadSupplierDocument(file);
+    public UploadedFileResponseDto uploadSupplierDocument(
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "document", required = false) MultipartFile document,
+            MultipartHttpServletRequest request) {
+        return fileUploadService.uploadSupplierDocument(resolveUploadedFile(request, file, document));
     }
 
     @PostMapping("/batch-video")
-    public UploadedFileResponseDto uploadBatchVideo(@RequestParam("file") MultipartFile file) {
-        return fileUploadService.uploadBatchVideo(file);
+    public UploadedFileResponseDto uploadBatchVideo(
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "video", required = false) MultipartFile video,
+            @RequestParam(value = "document", required = false) MultipartFile document,
+            MultipartHttpServletRequest request) {
+        return fileUploadService.uploadBatchVideo(resolveUploadedFile(request, file, video, document));
     }
 
     @GetMapping("/local/{fileName:.+}")
@@ -47,5 +59,23 @@ public class FileUploadController {
                 .contentType(MediaType.parseMediaType(contentType))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
                 .body(resource);
+    }
+
+    private MultipartFile resolveUploadedFile(MultipartHttpServletRequest request, MultipartFile... candidates) {
+        for (MultipartFile candidate : candidates) {
+            if (candidate != null && !candidate.isEmpty()) {
+                return candidate;
+            }
+        }
+
+        if (request != null) {
+            for (MultipartFile candidate : request.getFileMap().values()) {
+                if (candidate != null && !candidate.isEmpty()) {
+                    return candidate;
+                }
+            }
+        }
+
+        throw new IllegalArgumentException("File upload is required");
     }
 }

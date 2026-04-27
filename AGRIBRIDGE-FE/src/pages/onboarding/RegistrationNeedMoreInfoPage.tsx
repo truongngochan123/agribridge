@@ -90,7 +90,7 @@ export function RegistrationNeedMoreInfoPage() {
         setDraft(payload)
         setForm(buildFormState(payload))
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : 'Kh�ng t?i du?c h? so c?n b? sung.')
+        setError(loadError instanceof Error ? loadError.message : 'Kh�ng t?i du?c h? so c?n b? sung.')
       } finally {
         setLoading(false)
       }
@@ -111,11 +111,11 @@ export function RegistrationNeedMoreInfoPage() {
   async function handleUploadLogo(file?: File) {
     if (!file || !form) return
     if (!file.type.startsWith('image/')) {
-      setError('Logo ph?i l� file ?nh h?p l?.')
+      setError('Logo phải là file ảnh.')
       return
     }
     if (file.size > MAX_DOCUMENT_BYTES) {
-      setError('Logo ph?i nh? hon ho?c b?ng 5MB.')
+      setError('Logo phải nhỏ hơn 5MB.')
       return
     }
     try {
@@ -124,7 +124,7 @@ export function RegistrationNeedMoreInfoPage() {
       const uploaded = await uploadRegistrationFile(file)
       updateField('logoUrl', uploaded.url)
     } catch {
-      setError('Kh�ng upload du?c logo. Vui l�ng th? l?i.')
+      setError('Không upload được logo. Vui lòng thử lại.')
     } finally {
       setUploadingLogo(false)
     }
@@ -135,11 +135,11 @@ export function RegistrationNeedMoreInfoPage() {
     const isImage = file.type.startsWith('image/')
     const isPdf = file.type === 'application/pdf'
     if (!isImage && !isPdf) {
-      setError('T�i li?u ph?i l� PNG, JPG ho?c PDF.')
+      setError('Tài liệu phải là PNG, JPG hoặc PDF.')
       return
     }
     if (file.size > MAX_DOCUMENT_BYTES) {
-      setError('T�i li?u ph?i nh? hon ho?c b?ng 5MB.')
+      setError('Tài liệu phải nhỏ hơn hoặc bằng 5MB.')
       return
     }
     try {
@@ -148,7 +148,7 @@ export function RegistrationNeedMoreInfoPage() {
       const uploaded = await uploadRegistrationFile(file)
       updateField('documentUrls', [...form.documentUrls, uploaded.url])
     } catch {
-      setError('Kh�ng upload du?c t�i li?u. Vui l�ng th? l?i.')
+      setError('Không upload được tài liệu. Vui lòng thử lại.')
     } finally {
       setUploadingDocument(false)
     }
@@ -165,11 +165,11 @@ export function RegistrationNeedMoreInfoPage() {
   async function handleSubmit() {
     if (!form) return
     if (!form.companyName.trim() || !form.ownerName.trim() || !form.fullName.trim()) {
-      setError('Vui l�ng nh?p d?y d? t�n doanh nghi?p, ngu?i d?i di?n v� h? t�n t�i kho?n.')
+      setError('Vui lòng nhập đầy đủ tên doanh nghiệp, người đại diện và họ tên tài khoản.')
       return
     }
     if (!form.loginPhone.trim() || !form.address.trim() || !form.province.trim()) {
-      setError('Vui l�ng nh?p s? di?n tho?i, d?a ch? v� t?nh / th�nh.')
+      setError('Vui lòng nhập số điện thoại, địa chỉ và tỉnh / thành.')
       return
     }
 
@@ -198,12 +198,12 @@ export function RegistrationNeedMoreInfoPage() {
         documentUrls: normalizeUploadedUrls(form.documentUrls),
       })
       storeAuthSession(response, form.loginPhone)
-      setSuccess('H? so d� du?c g?i l?i v� dang ch? duy?t.')
+      setSuccess('Hồ sơ đã được gửi lại và đang chờ duyệt.')
       window.setTimeout(() => {
         navigate('/onboarding/verification/pending', { replace: true })
       }, 900)
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Kh�ng g?i l?i du?c h? so.')
+      setError(submitError instanceof Error ? submitError.message : 'Không gửi lại được hồ sơ.')
     } finally {
       setSubmitting(false)
     }
@@ -218,7 +218,7 @@ export function RegistrationNeedMoreInfoPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">
         <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm">
-          <Loader2 className="h-4 w-4 animate-spin" /> �ang t?i h? so c?n b? sung...
+          <Loader2 className="h-4 w-4 animate-spin" /> �ang t?i h? so cần bổ sung...
         </div>
       </div>
     )
@@ -228,7 +228,7 @@ export function RegistrationNeedMoreInfoPage() {
     return (
       <div className="min-h-screen bg-slate-50 px-4 py-10">
         <div className="mx-auto max-w-3xl rounded-3xl border border-red-200 bg-white p-8 shadow-sm">
-          <p className="text-lg font-bold text-red-700">{error || 'Kh�ng t�m th?y h? so d? b? sung.'}</p>
+          <p className="text-lg font-bold text-red-700">{error || 'Kh�ng t�m th?y h? so d? b? sung.'}</p>
           <div className="mt-5 flex gap-3">
             <button onClick={() => navigate('/auth/login', { replace: true })} className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white">
               Quay l?i dang nh?p
@@ -243,7 +243,7 @@ export function RegistrationNeedMoreInfoPage() {
     <div className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-4">
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
-          T�i kho?n c?a b?n c?n b? sung h? so tru?c khi c� th? s? d?ng h? th?ng. Ch? trang n�y v� dang xu?t dang du?c m?.
+          Tài khoản của bạn cần bổ sung hồ sơ trước khi có thể sử dụng hệ thống. Chỉ trang này và đang xuất đăng nhập được mở.
         </div>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -254,10 +254,10 @@ export function RegistrationNeedMoreInfoPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-600">H? so c?n b? sung</p>
-                <h1 className="mt-2 text-3xl font-extrabold text-slate-900">C?p nh?t h? so doanh nghi?p d? g?i l?i x�t duy?t</h1>
+                <h1 className="mt-2 text-3xl font-extrabold text-slate-900">C?p nh?t h? so doanh nghi?p d? g?i l?i x�t duy?t</h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                  Vui l�ng c?p nh?t th�ng tin doanh nghi?p, gi?y t? v� t�i li?u theo y�u c?u c?a admin. Sau khi g?i l?i,
-                  h? so s? chuy?n v? tr?ng th�i ch? duy?t v� b?n chua th? d�ng c�c module ch�nh cho t?i khi du?c ph� duy?t.
+                  Vui lòng cập nhật thông tin doanh nghiệp, giấy tờ và tài liệu theo yêu cầu của admin. Sau khi gửi lại,
+                  hồ sơ sẽ chuyển vào trạng thái chờ duyệt và bạn chưa thể sử dụng các module chính cho đến khi được phê duyệt.
                 </p>
               </div>
             </div>
@@ -266,7 +266,7 @@ export function RegistrationNeedMoreInfoPage() {
               onClick={handleLogout}
               className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:border-slate-300"
             >
-              <LogOut className="h-4 w-4" /> �ang xu?t
+              <LogOut className="h-4 w-4" /> �ang xu?t
             </button>
           </div>
 
@@ -274,9 +274,9 @@ export function RegistrationNeedMoreInfoPage() {
             <div className="flex items-start gap-3">
               <AlertCircle className="mt-0.5 h-5 w-5 text-amber-600" />
               <div>
-                <p className="font-bold text-slate-900">Y�u c?u b? sung t? admin</p>
+                <p className="font-bold text-slate-900">Y�u c?u b? sung t? admin</p>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                  {draft.verificationNote?.trim() || 'Admin chua d? l?i ghi ch� chi ti?t.'}
+                  {draft.verificationNote?.trim() || 'Admin chua d? l?i ghi ch� chi ti?t.'}
                 </p>
               </div>
             </div>
@@ -286,13 +286,13 @@ export function RegistrationNeedMoreInfoPage() {
         <section className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
           <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label="T�n ph�p l� doanh nghi?p *">
+              <Field label="T�n ph�p l� doanh nghi?p *">
                 <input className={inputClass} value={form.companyName} onChange={(event) => updateField('companyName', event.target.value)} />
               </Field>
               <Field label="Ngu?i d?i di?n *">
                 <input className={inputClass} value={form.ownerName} onChange={(event) => updateField('ownerName', event.target.value)} />
               </Field>
-              <Field label="H? t�n t�i kho?n *">
+              <Field label="H? t�n t�i kho?n *">
                 <input className={inputClass} value={form.fullName} onChange={(event) => updateField('fullName', event.target.value)} />
               </Field>
               <Field label="S? di?n tho?i dang nh?p *">
@@ -304,10 +304,10 @@ export function RegistrationNeedMoreInfoPage() {
               <Field label="CCCD / CMND">
                 <input className={inputClass} value={form.citizenId} onChange={(event) => updateField('citizenId', event.target.value)} />
               </Field>
-              <Field label="M� s? thu?">
+              <Field label="M� s? thu?">
                 <input className={inputClass} value={form.taxCode} onChange={(event) => updateField('taxCode', event.target.value)} />
               </Field>
-              <Field label="S? gi?y dang k� kinh doanh">
+              <Field label="S? gi?y dang k� kinh doanh">
                 <input className={inputClass} value={form.registrationNumber} onChange={(event) => updateField('registrationNumber', event.target.value)} />
               </Field>
               <Field label="S? di?n tho?i doanh nghi?p">
@@ -316,9 +316,9 @@ export function RegistrationNeedMoreInfoPage() {
               <Field label="Email doanh nghi?p">
                 <input className={inputClass} value={form.companyEmail} onChange={(event) => updateField('companyEmail', event.target.value)} />
               </Field>
-              <Field label="T?nh / Th�nh *">
+              <Field label="T?nh / Th�nh *">
                 <select className={inputClass} value={form.province} onChange={(event) => updateField('province', event.target.value)}>
-                  <option value="">Ch?n t?nh / th�nh</option>
+                  <option value="">Ch?n t?nh / th�nh</option>
                   {VN_ADDRESS_OPTIONS.map((item) => (
                     <option key={item.province} value={item.province}>
                       {item.province}
@@ -338,18 +338,18 @@ export function RegistrationNeedMoreInfoPage() {
               </Field>
             </div>
 
-            <Field label="�?a ch? chi ti?t *">
+            <Field label="�?a ch? chi ti?t *">
               <input className={inputClass} value={form.address} onChange={(event) => updateField('address', event.target.value)} />
             </Field>
 
-            <Field label="M� t? doanh nghi?p">
+            <Field label="M� t? doanh nghi?p">
               <textarea rows={4} className={textAreaClass} value={form.description} onChange={(event) => updateField('description', event.target.value)} />
             </Field>
           </div>
 
           <div className="space-y-4">
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-extrabold text-slate-900">Logo v� gi?y t?</h2>
+              <h2 className="text-lg font-extrabold text-slate-900">Logo v� gi?y t?</h2>
               <div className="mt-4 space-y-4">
                 <div>
                   <p className="mb-2 text-sm font-semibold text-slate-700">Logo doanh nghi?p</p>
@@ -357,19 +357,19 @@ export function RegistrationNeedMoreInfoPage() {
                     <img src={form.logoUrl} alt="Logo doanh nghi?p" className="mb-3 h-40 w-full rounded-2xl border border-slate-200 object-cover" />
                   ) : (
                     <div className="mb-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                      Chua c� logo
+                      Chua c� logo
                     </div>
                   )}
                   <label className={uploadBoxClass}>
                     <input type="file" accept="image/*" className="hidden" onChange={(event) => handleUploadLogo(event.target.files?.[0])} />
                     <span className="inline-flex items-center gap-2">
-                      <UploadCloud className="h-4 w-4" /> {uploadingLogo ? '�ang upload logo...' : 'Upload / thay logo'}
+                      <UploadCloud className="h-4 w-4" /> {uploadingLogo ? '�ang upload logo...' : 'Upload / thay logo'}
                     </span>
                   </label>
                 </div>
 
                 <div>
-                  <p className="mb-2 text-sm font-semibold text-slate-700">Gi?y t? d� upload</p>
+                  <p className="mb-2 text-sm font-semibold text-slate-700">Gi?y t? d� upload</p>
                   <div className="space-y-2">
                     {form.documentUrls.length > 0 ? (
                       form.documentUrls.map((url) => (
@@ -384,14 +384,14 @@ export function RegistrationNeedMoreInfoPage() {
                       ))
                     ) : (
                       <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                        Chua c� gi?y t? n�o sau khi b? sung.
+                        Chua c� gi?y t? n�o sau khi b? sung.
                       </div>
                     )}
                   </div>
                   <label className={`${uploadBoxClass} mt-3`}>
                     <input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => handleUploadDocument(event.target.files?.[0])} />
                     <span className="inline-flex items-center gap-2">
-                      <UploadCloud className="h-4 w-4" /> {uploadingDocument ? '�ang upload t�i li?u...' : 'Upload th�m gi?y t?'}
+                      <UploadCloud className="h-4 w-4" /> {uploadingDocument ? '�ang upload t�i li?u...' : 'Upload th�m gi?y t?'}
                     </span>
                   </label>
                 </div>
@@ -399,11 +399,11 @@ export function RegistrationNeedMoreInfoPage() {
             </section>
 
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-extrabold text-slate-900">Tr?ng th�i hi?n t?i</h2>
+              <h2 className="text-lg font-extrabold text-slate-900">Tr?ng th�i hi?n t?i</h2>
               <dl className="mt-4 space-y-3 text-sm">
-                <InfoRow label="Lo?i t�i kho?n" value={form.companyType === 'supplier' ? 'Nh� cung c?p' : 'Nh� bu�n'} />
-                <InfoRow label="Tr?ng th�i h? so" value="C?n b? sung" />
-                <InfoRow label="T�i li?u hi?n c�" value={String(form.documentUrls.length)} />
+                <InfoRow label="Lo?i t�i kho?n" value={form.companyType === 'supplier' ? 'Nh� cung c?p' : 'Nh� bu�n'} />
+                <InfoRow label="Tr?ng th�i h? so" value="C?n b? sung" />
+                <InfoRow label="T�i li?u hi?n c�" value={String(form.documentUrls.length)} />
               </dl>
             </section>
           </div>
@@ -414,7 +414,7 @@ export function RegistrationNeedMoreInfoPage() {
 
         <div className="flex flex-wrap justify-between gap-3">
           <Link to="/support" className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:border-slate-300">
-            Li�n h? h? tr?
+            Li�n h? h? tr?
           </Link>
           <button
             onClick={handleSubmit}
@@ -422,7 +422,7 @@ export function RegistrationNeedMoreInfoPage() {
             className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {submitting ? '�ang g?i l?i h? so...' : 'G?i l?i h? so'}
+            {submitting ? '�ang g?i l?i h? so...' : 'G?i l?i h? so'}
           </button>
         </div>
       </div>

@@ -1,7 +1,9 @@
 package com.agribridge.backend.controller;
 
+import com.agribridge.backend.dto.UpdateUserPersonalProfileDto;
 import com.agribridge.backend.entity.UserEntity;
 import com.agribridge.backend.service.UserService;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -41,6 +43,12 @@ public class UserController {
     @PutMapping("/{id}")
     public UserEntity update(@PathVariable Long id, @RequestBody UserEntity user) {
         return userService.update(id, user);
+    }
+
+    @PutMapping("/{id}/personal-profile")
+    public UserEntity updatePersonalProfile(@PathVariable Long id,
+            @Valid @RequestBody UpdateUserPersonalProfileDto request) {
+        return userService.updatePersonalProfile(id, request);
     }
 
     @DeleteMapping("/{id}")

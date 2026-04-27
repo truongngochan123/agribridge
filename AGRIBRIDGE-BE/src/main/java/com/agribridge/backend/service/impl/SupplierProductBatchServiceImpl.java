@@ -26,11 +26,16 @@ import com.agribridge.backend.entity.enums.CompanyTypeEnum;
 import com.agribridge.backend.repository.BatchImageRepository;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.CategoryRepository;
+import com.agribridge.backend.repository.ComplaintRepository;
 import com.agribridge.backend.repository.CompanyRepository;
+import com.agribridge.backend.repository.MarketPriceSnapshotRepository;
+import com.agribridge.backend.repository.OrderItemRepository;
 import com.agribridge.backend.repository.ProductCertificationRepository;
 import com.agribridge.backend.repository.ProductImageRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.QcRecordRepository;
+import com.agribridge.backend.repository.QuoteRepository;
+import com.agribridge.backend.repository.RfqRepository;
 import com.agribridge.backend.service.SupplierMetadataService;
 import com.agribridge.backend.service.SupplierProductBatchService;
 import java.math.BigDecimal;
@@ -66,6 +71,11 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
     private final QcRecordRepository qcRecordRepository;
     private final ProductImageRepository productImageRepository;
     private final ProductCertificationRepository productCertificationRepository;
+    private final OrderItemRepository orderItemRepository;
+    private final QuoteRepository quoteRepository;
+    private final ComplaintRepository complaintRepository;
+    private final RfqRepository rfqRepository;
+    private final MarketPriceSnapshotRepository marketPriceSnapshotRepository;
     private final SupplierMetadataService supplierMetadataService;
 
     @Value("${app.public-base-url:http://localhost:5173}")
@@ -84,7 +94,8 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
         List<ProductCertificationEntity> certifications = productCertificationRepository
                 .findByProduct_IdOrderByCreatedAtDesc(product.getId());
 
-        SupplierCreateFlowResponseDto response = toCreateFlowResponse(product, category.getName(), firstImageUrl(product.getId()), null, null,
+        SupplierCreateFlowResponseDto response = toCreateFlowResponse(product, category.getName(),
+                firstImageUrl(product.getId()), null, null,
                 certifications);
         log.info("Created product only productId={} supplierCompanyId={}", product.getId(), supplierCompany.getId());
         return response;
@@ -132,7 +143,8 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
                 batchAndQc.batch,
                 batchAndQc.qc,
                 certifications);
-        log.info("Created batch for existing product productId={} batchId={}", product.getId(), batchAndQc.batch.getId());
+        log.info("Created batch for existing product productId={} batchId={}", product.getId(),
+                batchAndQc.batch.getId());
         return response;
     }
 
@@ -164,7 +176,8 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
                 .orElse(null);
         QcRecordEntity latestQc = latestBatch == null
                 ? null
-                : qcRecordRepository.findTopByBatchIdOrderByCreatedAtDesc(Objects.requireNonNull(latestBatch.getId())).orElse(null);
+                : qcRecordRepository.findTopByBatchIdOrderByCreatedAtDesc(Objects.requireNonNull(latestBatch.getId()))
+                        .orElse(null);
 
         SupplierCreateFlowResponseDto response = toCreateFlowResponse(
                 product,
@@ -172,7 +185,8 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
                 firstImageUrl(Objects.requireNonNull(product.getId())),
                 latestBatch,
                 latestQc,
-                productCertificationRepository.findByProduct_IdOrderByCreatedAtDesc(Objects.requireNonNull(product.getId())));
+                productCertificationRepository
+                        .findByProduct_IdOrderByCreatedAtDesc(Objects.requireNonNull(product.getId())));
         log.info("Updated product productId={}", productId);
         return response;
     }
@@ -201,6 +215,14 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
         batch.setVideoUrl(normalizeOptional(dto.videoUrl()));
         batch = Objects.requireNonNull(batchRepository.save(Objects.requireNonNull(batch)));
 
+        if (dto.imageUrls() != null) {
+            syncBatchImages(Objects.requireNonNull(batch.getId()), dto.imageUrls());
+        }
+
+        if (dto.imageUrls() != null) {
+            syncBatchImages(Objects.requireNonNull(batch.getId()), dto.imageUrls());
+        }
+
         QcRecordEntity qc = upsertBatchQc(Objects.requireNonNull(batch.getId()), request.userId(), dto);
 
         ProductEntity product = getProduct(Objects.requireNonNull(batch.getProductId()));
@@ -212,7 +234,8 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
                 firstImageUrl(Objects.requireNonNull(product.getId())),
                 batch,
                 qc,
-                productCertificationRepository.findByProduct_IdOrderByCreatedAtDesc(Objects.requireNonNull(product.getId())));
+                productCertificationRepository
+                        .findByProduct_IdOrderByCreatedAtDesc(Objects.requireNonNull(product.getId())));
         log.info("Updated batch batchId={} productId={}", batchId, product.getId());
         return response;
     }
@@ -275,12 +298,14 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
 
             ProductEntity product = getProduct(Objects.requireNonNull(batch.getProductId()));
 
-            List<String> imageUrls = batchImageRepository.findByBatchIdOrderByUploadedAtDesc(Objects.requireNonNull(batch.getId()))
+            List<String> imageUrls = batchImageRepository
+                    .findByBatchIdOrderByUploadedAtDesc(Objects.requireNonNull(batch.getId()))
                     .stream()
                     .map(BatchImageEntity::getImageUrl)
                     .toList();
 
-            QcRecordEntity qc = qcRecordRepository.findTopByBatchIdOrderByCreatedAtDesc(Objects.requireNonNull(batch.getId())).orElse(null);
+            QcRecordEntity qc = qcRecordRepository
+                    .findTopByBatchIdOrderByCreatedAtDesc(Objects.requireNonNull(batch.getId())).orElse(null);
 
             SupplierBatchDetailDto detail = new SupplierBatchDetailDto(
                     batch.getId(),
@@ -423,19 +448,37 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
         log.info("Deleting product productId={}", productId);
         ProductEntity product = getProduct(productId);
         List<BatchEntity> batches = batchRepository.findByProductIdOrderByCreatedAtDesc(productId);
+        List<Long> batchIds = batches.stream()
+                .map(BatchEntity::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (!batchIds.isEmpty() && orderItemRepository.existsByBatchIdIn(batchIds)) {
+            throw new IllegalArgumentException("Khong the xoa san pham vi da co don hang lien ket voi lo hang.");
+        }
+        if (!batchIds.isEmpty() && quoteRepository.existsByBatchIdIn(batchIds)) {
+            throw new IllegalArgumentException("Khong the xoa san pham vi da co bao gia lien ket voi lo hang.");
+        }
+        if (!batchIds.isEmpty() && complaintRepository.existsByBatchIdIn(batchIds)) {
+            throw new IllegalArgumentException("Khong the xoa san pham vi da co khieu nai lien ket voi lo hang.");
+        }
+        if (marketPriceSnapshotRepository.existsByProductId(productId)) {
+            throw new IllegalArgumentException("Khong the xoa san pham vi da co lich su gia thi truong lien ket.");
+        }
 
         for (BatchEntity batch : batches) {
             Long batchEntityId = Objects.requireNonNull(batch.getId());
-            qcRecordRepository.findByBatchIdOrderByCreatedAtDesc(batchEntityId)
-                    .forEach(record -> qcRecordRepository.deleteById(Objects.requireNonNull(record.getId())));
+            qcRecordRepository.deleteByBatchId(batchEntityId);
             batchImageRepository.deleteByBatchId(batchEntityId);
             batchRepository.deleteById(batchEntityId);
         }
 
         productImageRepository.deleteByProductId(productId);
         productCertificationRepository.deleteByProduct_Id(Objects.requireNonNull(productId));
+        int detachedRfqCount = rfqRepository.clearProductReference(productId);
         productRepository.deleteById(Objects.requireNonNull(product.getId()));
-        log.info("Deleted product productId={} deletedBatchCount={}", productId, batches.size());
+        log.info("Deleted product productId={} deletedBatchCount={} detachedRfqCount={}", productId, batches.size(),
+                detachedRfqCount);
     }
 
     @Override
@@ -445,16 +488,30 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
         BatchEntity batch = Objects.requireNonNull(batchRepository.findById(Objects.requireNonNull(batchId))
                 .orElseThrow(() -> new IllegalArgumentException("Batch not found")));
 
-        qcRecordRepository.findByBatchIdOrderByCreatedAtDesc(Objects.requireNonNull(batchId))
-                .forEach(record -> qcRecordRepository.deleteById(Objects.requireNonNull(record.getId())));
+        ensureBatchCanBeDeleted(batchId);
+        qcRecordRepository.deleteByBatchId(Objects.requireNonNull(batchId));
         batchImageRepository.deleteByBatchId(Objects.requireNonNull(batchId));
         batchRepository.deleteById(Objects.requireNonNull(batch.getId()));
         log.info("Deleted batch batchId={} productId={}", batchId, batch.getProductId());
     }
 
+    private void ensureBatchCanBeDeleted(Long batchId) {
+        List<Long> batchIds = List.of(Objects.requireNonNull(batchId));
+        if (orderItemRepository.existsByBatchIdIn(batchIds)) {
+            throw new IllegalArgumentException("Khong the xoa lo hang vi da co don hang lien ket.");
+        }
+        if (quoteRepository.existsByBatchIdIn(batchIds)) {
+            throw new IllegalArgumentException("Khong the xoa lo hang vi da co bao gia lien ket.");
+        }
+        if (complaintRepository.existsByBatchIdIn(batchIds)) {
+            throw new IllegalArgumentException("Khong the xoa lo hang vi da co khieu nai lien ket.");
+        }
+    }
+
     private CompanyEntity validateSupplierCompany(Long supplierCompanyId) {
-        CompanyEntity supplierCompany = Objects.requireNonNull(companyRepository.findById(Objects.requireNonNull(supplierCompanyId))
-                .orElseThrow(() -> new IllegalArgumentException("Supplier company not found")));
+        CompanyEntity supplierCompany = Objects
+                .requireNonNull(companyRepository.findById(Objects.requireNonNull(supplierCompanyId))
+                        .orElseThrow(() -> new IllegalArgumentException("Supplier company not found")));
         if (supplierCompany.getCompanyType() != CompanyTypeEnum.SUPPLIER) {
             throw new IllegalArgumentException("Company must be supplier");
         }
@@ -589,6 +646,8 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
         batch.setQrCode(buildPublicBatchUrl(Objects.requireNonNull(batch.getId())));
         batch = Objects.requireNonNull(batchRepository.save(batch));
 
+        saveBatchImages(Objects.requireNonNull(batch.getId()), dto.imageUrls());
+
         QcRecordEntity qc = QcRecordEntity.builder()
                 .batchId(Objects.requireNonNull(batch.getId()))
                 .inspectorUserId(userId)
@@ -602,8 +661,36 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
         return new BatchAndQc(batch, qc);
     }
 
+    private void syncBatchImages(Long batchId, List<String> rawImageUrls) {
+        batchImageRepository.deleteByBatchId(batchId);
+        saveBatchImages(batchId, rawImageUrls);
+    }
+
+    private void saveBatchImages(Long batchId, List<String> rawImageUrls) {
+        if (rawImageUrls == null) {
+            return;
+        }
+
+        LinkedHashSet<String> imageUrls = new LinkedHashSet<>();
+        for (String rawImageUrl : rawImageUrls) {
+            String normalized = normalizeOptional(rawImageUrl);
+            if (normalized != null) {
+                imageUrls.add(normalized);
+            }
+        }
+
+        for (String imageUrl : imageUrls) {
+            Objects.requireNonNull(batchImageRepository.save(Objects.requireNonNull(BatchImageEntity.builder()
+                    .batchId(batchId)
+                    .imageUrl(imageUrl)
+                    .uploadedAt(LocalDateTime.now())
+                    .build())));
+        }
+    }
+
     private QcRecordEntity upsertBatchQc(Long batchId, Long userId, CreateBatchDto dto) {
-        QcRecordEntity existing = qcRecordRepository.findTopByBatchIdOrderByCreatedAtDesc(Objects.requireNonNull(batchId)).orElse(null);
+        QcRecordEntity existing = qcRecordRepository
+                .findTopByBatchIdOrderByCreatedAtDesc(Objects.requireNonNull(batchId)).orElse(null);
         if (existing == null) {
             return Objects.requireNonNull(qcRecordRepository.save(Objects.requireNonNull(QcRecordEntity.builder()
                     .batchId(batchId)

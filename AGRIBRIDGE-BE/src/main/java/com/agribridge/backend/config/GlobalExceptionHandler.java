@@ -4,9 +4,12 @@ import com.agribridge.backend.dto.ErrorResponseDto;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -40,6 +43,33 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ErrorResponseDto> handleIllegalStateException(IllegalStateException exception) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ErrorResponseDto.of(exception.getMessage()));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponseDto> handleDataIntegrityViolationException(
+            DataIntegrityViolationException exception) {
+        log.warn("Data integrity violation", exception);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponseDto.of("Khong the xoa du lieu vi da co thong tin lien ket."));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponseDto> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException exception) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ErrorResponseDto.of("Tep tai len vuot qua gioi han kich thuoc cho phep"));
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ErrorResponseDto> handleMultipartException(MultipartException exception) {
+        String message = exception.getMessage();
+        if (message != null && message.toLowerCase().contains("size")) {
+            return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                    .body(ErrorResponseDto.of("Tep tai len vuot qua gioi han kich thuoc cho phep"));
+        }
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponseDto.of("Yeu cau tai tep khong hop le"));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
