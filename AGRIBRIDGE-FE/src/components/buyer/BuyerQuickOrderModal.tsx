@@ -9,7 +9,8 @@ import {
   User,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { fetchCurrentUserProfile } from '../../services/currentUserService'
 import { resolveUploadedFileUrl } from '../../services/uploadService'
 import type {
   BuyerCreditLimit,
@@ -123,6 +124,7 @@ export function BuyerQuickOrderModal({
     if (buyerInfoProp) return buyerInfoProp
     return getBuyerInfoFromSession()
   })
+  const [loadingBuyerInfo, setLoadingBuyerInfo] = useState(!buyerInfoProp)
   const [editingAddress, setEditingAddress] = useState(false)
   const [draftName, setDraftName] = useState(buyerInfo.fullName || '')
   const [draftPhone, setDraftPhone] = useState(buyerInfo.phone || '')
@@ -132,10 +134,49 @@ export function BuyerQuickOrderModal({
   // ── Payment method state ──
   const [paymentMethod, setPaymentMethod] = useState<'BANK_TRANSFER' | 'CREDIT'>('BANK_TRANSFER')
 
+  // ── Reset quantity when target changes ──
   useEffect(() => {
     const qty = target.minMoq && target.minMoq > 0 ? target.minMoq : 1
     setQuantity(qty.toString())
   }, [target])
+
+  // ── Fetch buyer profile from API ──
+  const fetchedRef = useRef(false)
+  useEffect(() => {
+    if (buyerInfoProp || fetchedRef.current) return
+    fetchedRef.current = true
+    setLoadingBuyerInfo(true)
+    fetchCurrentUserProfile()
+      .then((profile) => {
+        if (!profile) return
+        // Write useful fields back to sessionStorage for next time
+        if (profile.fullName) sessionStorage.setItem('agribridge.auth.fullName', profile.fullName)
+        if (profile.phone) sessionStorage.setItem('agribridge.auth.phone', profile.phone)
+        if (profile.companyName) sessionStorage.setItem('agribridge.auth.companyName', profile.companyName)
+        if (profile.province && profile.province !== 'N/A') sessionStorage.setItem('agribridge.auth.companyProvince', profile.province)
+        if (profile.address && profile.address !== 'N/A') sessionStorage.setItem('agribridge.auth.companyAddress', profile.address)
+
+        setBuyerInfo((prev) => ({
+          fullName: prev.fullName || profile.fullName || null,
+          companyName: prev.companyName || profile.companyName || null,
+          phone: prev.phone || profile.phone || null,
+          province:
+            prev.province ||
+            (profile.province !== 'N/A' ? profile.province : null) ||
+            null,
+          address:
+            prev.address ||
+            (profile.address !== 'N/A' ? profile.address : null) ||
+            null,
+        }))
+      })
+      .catch(() => {
+        // Silently keep sessionStorage values
+      })
+      .finally(() => {
+        setLoadingBuyerInfo(false)
+      })
+  }, [buyerInfoProp])
 
   // ── Derived ──
   const quantityNumber = Number(quantity)
@@ -352,7 +393,13 @@ export function BuyerQuickOrderModal({
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               {!editingAddress ? (
                 <>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  {loadingBuyerInfo ? (
+                    <div className="flex items-center gap-2 py-1 text-xs text-slate-400">
+                      <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+                      Đang tải thông tin người nhận...
+                    </div>
+                  ) : null}
+                  <div className={`grid gap-2 sm:grid-cols-2 transition-opacity ${loadingBuyerInfo ? 'opacity-50' : 'opacity-100'}`}>
                     <div className="flex items-start gap-2">
                       <User className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
                       <div>
