@@ -12,6 +12,10 @@
   import { useEffect, useMemo, useRef, useState } from 'react'
   import { fetchCurrentUserProfile } from '../../services/currentUserService'
   import {
+    quoteBuyerShipping,
+    type BuyerShippingQuote,
+  } from '../../services/buyerShippingService'
+  import {
   fetchVietnamProvinces,
   fetchVietnamWardsByProvinceCode,
   type VietnamProvinceOption,
@@ -67,6 +71,15 @@
     const d = new Date()
     d.setDate(d.getDate() + days)
     return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
+
+  function estimateWeightInGram(quantity: number, unit?: string | null) {
+    if (!quantity || Number.isNaN(quantity)) return null
+    const normalized = (unit || '').toLowerCase()
+    if (normalized === 'kg') return Math.round(quantity * 1000)
+    if (normalized === 'g') return Math.round(quantity)
+    if (normalized === 'tấn' || normalized === 'ton') return Math.round(quantity * 1000000)
+    return Math.round(quantity * 1000)
   }
 
   function getBuyerInfoFromSession(): BuyerQuickOrderBuyerInfo {
@@ -146,6 +159,9 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
 
     // ── Payment method state ──
     const [paymentMethod, setPaymentMethod] = useState<'BANK_TRANSFER' | 'CREDIT'>('BANK_TRANSFER')
+    const [shippingQuote, setShippingQuote] = useState<BuyerShippingQuote | null>(null)
+    const [shippingLoading, setShippingLoading] = useState(false)
+    const [shippingError, setShippingError] = useState('')
 
     // ── Reset quantity when target changes ──
     useEffect(() => {
@@ -253,6 +269,15 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
     const subtotal = unitPrice != null && quantityNumber > 0 && !Number.isNaN(quantityNumber)
       ? unitPrice * quantityNumber
       : null
+    const shippingFee = shippingQuote?.estimatedShippingFee ?? null
+    const estimatedTotal = subtotal != null
+      ? subtotal + (shippingFee ?? 0)
+      : null
+    const estimatedDeliveryTime =
+      shippingQuote?.estimatedDeliveryTime ||
+      (shippingQuote?.estimatedDaysMin != null && shippingQuote?.estimatedDaysMax != null
+        ? `${shippingQuote.estimatedDaysMin} - ${shippingQuote.estimatedDaysMax} ngày`
+        : null)
 
     const showMoqWarning =
       target.minMoq != null && quantityNumber > 0 && quantityNumber < target.minMoq
@@ -274,6 +299,78 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
       due.setDate(due.getDate() + creditLimit.paymentTermDays)
       return due.toLocaleDateString('vi-VN')
     }, [creditLimit])
+
+    useEffect(() => {
+      const hasValidQuantity = quantityNumber > 0 && !Number.isNaN(quantityNumber)
+      const hasDeliveryAddress = Boolean(
+        buyerInfo.province?.trim() &&
+        buyerInfo.ward?.trim() &&
+        buyerInfo.address?.trim(),
+      )
+
+      if (!hasValidQuantity || !hasDeliveryAddress) {
+        setShippingQuote(null)
+        setShippingError('')
+        setShippingLoading(false)
+        return
+      }
+
+      let ignore = false
+      setShippingLoading(true)
+      setShippingError('')
+
+      const timeoutId = window.setTimeout(() => {
+        quoteBuyerShipping({
+          buyerCompanyId: target.buyerCompanyId ?? null,
+          supplierId: target.supplierId ?? target.supplierCompanyId ?? null,
+          productId: target.productId,
+          batchId: target.batchId ?? null,
+          quantity: quantityNumber,
+          unit: target.unit || 'kg',
+          fromProvince: target.originRegion || null,
+          fromWard: null,
+          fromAddress: null,
+          toProvince: buyerInfo.province || null,
+          toWard: buyerInfo.ward || null,
+          toAddress: buyerInfo.address || null,
+          weight: estimateWeightInGram(quantityNumber, target.unit),
+          length: 40,
+          width: 30,
+          height: 30,
+          insuranceValue: subtotal ?? 0,
+        })
+          .then((quote) => {
+            if (!ignore) setShippingQuote(quote)
+          })
+          .catch(() => {
+            if (!ignore) {
+              setShippingQuote(null)
+              setShippingError('Không thể tính phí vận chuyển. Vui lòng kiểm tra địa chỉ nhận hàng.')
+            }
+          })
+          .finally(() => {
+            if (!ignore) setShippingLoading(false)
+          })
+      }, 500)
+
+      return () => {
+        ignore = true
+        window.clearTimeout(timeoutId)
+      }
+    }, [
+      buyerInfo.address,
+      buyerInfo.province,
+      buyerInfo.ward,
+      quantityNumber,
+      subtotal,
+      target.batchId,
+      target.buyerCompanyId,
+      target.originRegion,
+      target.productId,
+      target.supplierCompanyId,
+      target.supplierId,
+      target.unit,
+    ])
 
     // ── Handlers ──
     const handleSaveAddress = () => {
@@ -331,8 +428,13 @@ const handleOpenEdit = () => {
         deliveryAddress: buyerInfo.address || '',
         paymentMethod,
         creditTermDays: paymentMethod === 'CREDIT' && creditLimit ? creditLimit.paymentTermDays : null,
-        shippingFee: null,
-        shippingStatus: 'PENDING_QUOTE',
+        shippingFee: shippingQuote?.estimatedShippingFee ?? null,
+        shippingProviderCode: shippingQuote?.providerCode ?? null,
+        shippingProviderName: shippingQuote?.providerName ?? null,
+        shippingServiceName: shippingQuote?.serviceName ?? null,
+        estimatedDeliveryTime: shippingQuote?.estimatedDeliveryTime ?? null,
+        shippingPayer: shippingQuote?.shippingPayer ?? 'BUYER',
+        shippingStatus: shippingQuote ? 'QUOTED' : 'PENDING_QUOTE',
         orderStatus: 'PENDING_SUPPLIER_CONFIRMATION',
       }
 
@@ -645,15 +747,34 @@ const handleOpenEdit = () => {
               <div className="rounded-2xl border border-slate-200 bg-white p-4 mb-3">
                 <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-slate-500">Vận chuyển</p>
                 <div className="grid gap-2 sm:grid-cols-2 text-sm">
-                  <ShippingRow label="Đơn vị vận chuyển" value="Chờ tính" />
-                  <ShippingRow label="Dịch vụ" value="Chờ tính" />
-                  <ShippingRow label="Phí vận chuyển" value="Chưa tính" />
-                  <ShippingRow label="Thời gian giao dự kiến" value="Chưa tính" />
+                  <ShippingRow
+                    label="Đơn vị vận chuyển"
+                    value={shippingLoading ? 'Đang tính...' : shippingQuote?.providerName || 'Chờ tính'}
+                  />
+                  <ShippingRow label="Dịch vụ" value={shippingQuote?.serviceName || 'Chờ tính'} />
+                  <ShippingRow
+                    label="Phí vận chuyển"
+                    value={
+                      shippingLoading
+                        ? 'Đang tính...'
+                        : shippingFee != null
+                          ? formatMoney(shippingFee)
+                          : 'Chưa tính'
+                    }
+                  />
+                  <ShippingRow
+                    label="Thời gian giao dự kiến"
+                    value={estimatedDeliveryTime || 'Chưa tính'}
+                  />
                   <ShippingRow label="Người trả phí" value="Buyer" />
                 </div>
+                {shippingError ? (
+                  <p className="mt-3 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600">
+                    {shippingError}
+                  </p>
+                ) : null}
                 <p className="mt-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2 text-[11px] italic text-slate-500">
-                  Phí vận chuyển và thời gian giao dự kiến sẽ được tính từ đơn vị vận chuyển sau khi hệ thống
-                  tích hợp API vận chuyển.
+                  Thông tin vận chuyển được tính dự kiến từ GHN sandbox/demo. Hệ thống chưa tạo vận đơn thật ở bước này.
                 </p>
               </div>
 
@@ -745,11 +866,11 @@ const handleOpenEdit = () => {
                 <div className="border-t border-emerald-100 pt-2">
                   <SummaryRow label="Tiền hàng" value={subtotal != null ? formatMoney(subtotal) : '--'} accent />
                 </div>
-                <SummaryRow label="Phí vận chuyển" value="Chưa tính" />
+                <SummaryRow label="Phí vận chuyển" value={shippingFee != null ? formatMoney(shippingFee) : 'Chưa tính'} />
                 <div className="border-t border-emerald-200 pt-2">
                   <SummaryRow
                     label="Tổng tạm tính"
-                    value={subtotal != null ? formatMoney(subtotal) : '--'}
+                    value={estimatedTotal != null ? formatMoney(estimatedTotal) : '--'}
                     accent
                   />
                 </div>

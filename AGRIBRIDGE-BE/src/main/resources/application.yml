@@ -55,6 +55,12 @@ cloudinary:
   api-secret: ${CLOUDINARY_API_SECRET:}
   folder: ${CLOUDINARY_FOLDER:agribridge}
 
+ghn:
+  api-base-url: ${GHN_API_BASE_URL:https://dev-online-gateway.ghn.vn}
+  token: ${GHN_TOKEN:}
+  shop-id: ${GHN_SHOP_ID:200136}
+  enable-mock: ${GHN_ENABLE_MOCK:true}
+
 app:
   public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:5173}
   mail:

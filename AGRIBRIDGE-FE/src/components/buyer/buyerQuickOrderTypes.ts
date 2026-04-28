@@ -62,8 +62,13 @@ export type BuyerQuickOrderPayload = {
   deliveryAddress: string
   paymentMethod: 'BANK_TRANSFER' | 'CREDIT'
   creditTermDays?: number | null
-  shippingFee: null
-  shippingStatus: 'PENDING_QUOTE'
+  shippingFee: number | null
+  shippingProviderCode?: string | null
+  shippingProviderName?: string | null
+  shippingServiceName?: string | null
+  estimatedDeliveryTime?: string | null
+  shippingPayer?: 'BUYER' | 'SUPPLIER' | 'NEGOTIATED'
+  shippingStatus: 'PENDING_QUOTE' | 'QUOTED'
   orderStatus: 'PENDING_SUPPLIER_CONFIRMATION'
   note?: string | null
 }
