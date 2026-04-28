@@ -6,7 +6,7 @@ import java.util.List;
 public final class RegistrationDescriptionUtils {
 
     private static final String REGISTRATION_PREFIX = "registrationNo=";
-    private static final String DISTRICT_PREFIX = "district=";
+    private static final String WARD_PREFIX = "ward=";
 
     private RegistrationDescriptionUtils() {
     }
@@ -52,7 +52,7 @@ public final class RegistrationDescriptionUtils {
             if (trimmed.regionMatches(true, 0, REGISTRATION_PREFIX, 0, REGISTRATION_PREFIX.length())) {
                 continue;
             }
-            if (trimmed.regionMatches(true, 0, DISTRICT_PREFIX, 0, DISTRICT_PREFIX.length())) {
+            if (trimmed.regionMatches(true, 0, WARD_PREFIX, 0, WARD_PREFIX.length())) {
                 continue;
             }
             parts.add(trimmed);

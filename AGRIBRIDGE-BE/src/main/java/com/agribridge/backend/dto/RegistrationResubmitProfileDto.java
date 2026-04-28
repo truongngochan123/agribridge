@@ -24,7 +24,7 @@ public class RegistrationResubmitProfileDto {
     private String companyEmail;
     private String address;
     private String province;
-    private String district;
+    private String ward;
     private String description;
     private String logoUrl;
     private List<AdminUploadedDocumentDto> documents;

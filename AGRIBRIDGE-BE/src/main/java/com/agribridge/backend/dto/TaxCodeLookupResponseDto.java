@@ -11,7 +11,7 @@ public class TaxCodeLookupResponseDto {
     private String taxCode;
     private String companyName;
     private String province;
-    private String district;
+    private String ward;
     private String address;
     private String message;
 }

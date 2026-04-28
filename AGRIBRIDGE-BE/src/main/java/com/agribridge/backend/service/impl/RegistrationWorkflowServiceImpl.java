@@ -102,7 +102,7 @@ public class RegistrationWorkflowServiceImpl implements RegistrationWorkflowServ
                 .companyEmail(company.getEmail())
                 .address(company.getAddress())
                 .province(company.getProvince())
-                .district(company.getDistrict())
+                .ward(company.getWard())
                 .description(RegistrationDescriptionUtils.extractDisplayDescription(company.getDescription()))
                 .logoUrl(logoUrl)
                 .documents(documents)
@@ -150,7 +150,7 @@ public class RegistrationWorkflowServiceImpl implements RegistrationWorkflowServ
         company.setEmail(firstNonBlank(normalizedCompanyEmail, normalizedLoginEmail));
         company.setAddress(request.getAddress().trim());
         company.setProvince(request.getProvince().trim());
-        company.setDistrict(normalizeOptional(request.getDistrict()));
+        company.setWard(normalizeOptional(request.getWard()));
         company.setDescription(RegistrationDescriptionUtils.buildDescription(request.getDescription(), request.getRegistrationNumber()));
         company.setVerifiedStatus(false);
         company.setVerificationStatus(VerificationStatusEnum.PENDING);

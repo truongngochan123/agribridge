@@ -108,7 +108,7 @@ public class AuthServiceImpl implements AuthService {
         validateUniqueTaxCode(normalizedTaxCode);
         validateUniqueCitizenId(normalizedCitizenId);
         validatePassword(request.getPassword());
-        validateAddress(request.getProvince(), request.getDistrict(), request.getAddress());
+        validateAddress(request.getProvince(), request.getWard(), request.getAddress());
         validateSupplierSubmission(request);
 
         String companyPhone = resolveCompanyPhone(request.getCompanyPhone(), normalizedPhone);
@@ -126,7 +126,7 @@ public class AuthServiceImpl implements AuthService {
                         .email(companyEmail)
                         .address(resolveAddress(request.getAddress()))
                         .province(resolveProvince(request.getProvince()))
-                        .district(resolveDistrict(request.getDistrict()))
+                        .ward(resolveWard(request.getWard()))
                         .description(request.getDescription())
                         .verifiedStatus(false)
                         .verificationStatus(VerificationStatusEnum.PENDING)
@@ -178,7 +178,7 @@ public class AuthServiceImpl implements AuthService {
         validateUniqueLoginPhone(normalizedPhone);
         validateUniqueEmail(normalizedLoginEmail);
         validatePassword(request.getPassword());
-        validateAddress(request.getProvince(), request.getDistrict(), request.getAddress());
+        validateAddress(request.getProvince(), request.getWard(), request.getAddress());
 
         BusinessTypeEnum businessType = deriveBuyerBusinessType(normalizedTaxCode);
         if (BusinessTypeEnum.BUSINESS.equals(businessType)) {
@@ -203,7 +203,7 @@ public class AuthServiceImpl implements AuthService {
                         .email(companyEmail)
                         .address(resolveAddress(request.getAddress()))
                         .province(resolveProvince(request.getProvince()))
-                        .district(resolveDistrict(request.getDistrict()))
+                        .ward(resolveWard(request.getWard()))
                         .description(request.getDescription())
                         .verifiedStatus(true)
                         .verificationStatus(VerificationStatusEnum.APPROVED)
@@ -497,7 +497,7 @@ public class AuthServiceImpl implements AuthService {
                 .taxCode(normalizedTaxCode)
                 .companyName(seed.companyName())
                 .province(seed.province())
-                .district(seed.district())
+                .ward(seed.ward())
                 .address(seed.address())
                 .message("Company profile found")
                 .build();
@@ -631,8 +631,8 @@ public class AuthServiceImpl implements AuthService {
         return "Unknown";
     }
 
-    private String resolveDistrict(String district) {
-        String trimmed = safeTrim(district);
+    private String resolveWard(String ward) {
+        String trimmed = safeTrim(ward);
         if (trimmed != null) {
             return trimmed;
         }
@@ -848,9 +848,9 @@ public class AuthServiceImpl implements AuthService {
         return citizenId != null && citizenId.matches("\\d{12}");
     }
 
-    private void validateAddress(String province, String district, String address) {
-        if (safeTrim(province) == null || safeTrim(district) == null || safeTrim(address) == null) {
-            throw new IllegalArgumentException("Province, district and address are required");
+    private void validateAddress(String province, String ward, String address) {
+        if (safeTrim(province) == null || safeTrim(ward) == null || safeTrim(address) == null) {
+            throw new IllegalArgumentException("Province, ward and address are required");
         }
     }
 
@@ -862,7 +862,7 @@ public class AuthServiceImpl implements AuthService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private record TaxCodeLookupSeed(String companyName, String province, String district, String address) {
+    private record TaxCodeLookupSeed(String companyName, String province, String ward, String address) {
     }
 
     private record PendingRegistrationOtp(String code, LocalDateTime expiresAt, boolean verified) {

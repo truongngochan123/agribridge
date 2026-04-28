@@ -96,7 +96,7 @@ public class CompanyServiceImpl implements CompanyService {
         company.setEstablishedYear(request.getEstablishedYear());
         company.setWebsite(normalizeOptional(request.getWebsite()));
         company.setProvince(province);
-        company.setDistrict(normalizeOptional(request.getDistrict()));
+        company.setWard(normalizeOptional(request.getWard()));
         company.setAddress(address);
         company.setDescription(normalizeOptional(request.getDescription()));
 

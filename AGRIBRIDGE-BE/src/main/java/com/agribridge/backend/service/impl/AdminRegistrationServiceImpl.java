@@ -64,7 +64,7 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                     email,
                     address,
                     province,
-                    district,
+                    ward,
                     tax_code,
                     citizen_id,
                     description,
@@ -332,7 +332,7 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                 .email(owner != null ? owner.getEmail() : company.email())
                 .address(company.address())
                 .province(company.province())
-                .district(company.district())
+                .ward(company.ward())
                 .taxCode(company.taxCode())
                 .registrationNumber(RegistrationDescriptionUtils.extractRegistrationNumber(company.description()))
                 .citizenId(company.citizenId())
@@ -483,7 +483,7 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                     email,
                     address,
                     province,
-                    district,
+                    ward,
                     tax_code,
                     citizen_id,
                     description,
@@ -519,7 +519,7 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                     rs.getString("email"),
                     Objects.requireNonNull(rs.getString("address")),
                     Objects.requireNonNull(rs.getString("province")),
-                    rs.getString("district"),
+                    rs.getString("ward"),
                     rs.getString("tax_code"),
                     rs.getString("citizen_id"),
                     rs.getString("description"),
@@ -611,7 +611,7 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
             String email,
             String address,
             String province,
-            String district,
+            String ward,
             String taxCode,
             String citizenId,
             String description,

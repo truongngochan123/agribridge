@@ -21,7 +21,7 @@ public class AdminRegistrationProfileDto {
     private String email;
     private String address;
     private String province;
-    private String district;
+    private String ward;
     private String taxCode;
     private String registrationNumber;
     private String citizenId;

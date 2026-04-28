@@ -31,7 +31,7 @@ public class CreateSupplierRegistrationDto {
 
     private String province;
 
-    private String district;
+    private String ward;
 
     private String description;
 

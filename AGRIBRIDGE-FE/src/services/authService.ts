@@ -108,8 +108,7 @@ export async function registerAccount(draft: RegistrationDraft, contact: Contact
       address: draft.address,
       province: draft.province,
 
-      // BE hiện còn field district, FE dùng ward theo API v2 nên map tạm ward vào district
-      district: draft.ward,
+      ward: draft.ward,
 
       description: buildDescription(draft),
       logoUrl: normalizeMediaRef(draft.logoUrl),
@@ -133,7 +132,7 @@ export async function registerAccount(draft: RegistrationDraft, contact: Contact
   companyEmail: draft.companyEmail || undefined,
   address: draft.address,
   province: draft.province,
-  district: draft.ward,
+  ward: draft.ward,
   description: buildDescription(draft),
   logoUrl: normalizeMediaRef(draft.logoUrl),
   fullName: contact.fullName,
@@ -188,7 +187,7 @@ function buildDescription(draft: RegistrationDraft): string {
   }
 
   if ((draft.ward ?? '').trim()) {
-    chunks.push(`district=${(draft.ward ?? '').trim()}`)
+    chunks.push(`ward=${(draft.ward ?? '').trim()}`)
   }
 
   return chunks.join(' | ')

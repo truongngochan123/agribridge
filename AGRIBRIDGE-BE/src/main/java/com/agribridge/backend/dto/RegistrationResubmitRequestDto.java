@@ -38,7 +38,7 @@ public class RegistrationResubmitRequestDto {
     @NotBlank
     private String province;
 
-    private String district;
+    private String ward;
     private String description;
     private String logoUrl;
     private List<String> documentUrls = new ArrayList<>();
