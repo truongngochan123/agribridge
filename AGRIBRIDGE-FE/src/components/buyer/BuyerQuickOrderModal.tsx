@@ -269,14 +269,15 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
     const subtotal = unitPrice != null && quantityNumber > 0 && !Number.isNaN(quantityNumber)
       ? unitPrice * quantityNumber
       : null
-    const shippingFee = shippingQuote?.estimatedShippingFee ?? null
+    const realGhnQuote = shippingQuote?.providerCode === 'GHN' ? shippingQuote : null
+    const shippingFee = realGhnQuote?.estimatedShippingFee ?? null
     const estimatedTotal = subtotal != null
       ? subtotal + (shippingFee ?? 0)
       : null
     const estimatedDeliveryTime =
-      shippingQuote?.estimatedDeliveryTime ||
-      (shippingQuote?.estimatedDaysMin != null && shippingQuote?.estimatedDaysMax != null
-        ? `${shippingQuote.estimatedDaysMin} - ${shippingQuote.estimatedDaysMax} ngày`
+      realGhnQuote?.estimatedDeliveryTime ||
+      (realGhnQuote?.estimatedDaysMin != null && realGhnQuote?.estimatedDaysMax != null
+        ? `${realGhnQuote.estimatedDaysMin} - ${realGhnQuote.estimatedDaysMax} ngày`
         : null)
 
     const showMoqWarning =
@@ -327,9 +328,6 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
           batchId: target.batchId ?? null,
           quantity: quantityNumber,
           unit: target.unit || 'kg',
-          fromProvince: target.originRegion || null,
-          fromWard: null,
-          fromAddress: null,
           toProvince: buyerInfo.province || null,
           toWard: buyerInfo.ward || null,
           toAddress: buyerInfo.address || null,
@@ -340,12 +338,19 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
           insuranceValue: subtotal ?? 0,
         })
           .then((quote) => {
-            if (!ignore) setShippingQuote(quote)
+            if (!ignore) {
+              if (quote.providerCode === 'GHN') {
+                setShippingQuote(quote)
+              } else {
+                setShippingQuote(null)
+                setShippingError('Không thể tính phí vận chuyển từ GHN. Vui lòng kiểm tra địa chỉ hoặc cấu hình GHN.')
+              }
+            }
           })
           .catch(() => {
             if (!ignore) {
               setShippingQuote(null)
-              setShippingError('Không thể tính phí vận chuyển. Vui lòng kiểm tra địa chỉ nhận hàng.')
+              setShippingError('Không thể tính phí vận chuyển từ GHN. Vui lòng kiểm tra địa chỉ hoặc cấu hình GHN.')
             }
           })
           .finally(() => {
@@ -365,7 +370,6 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
       subtotal,
       target.batchId,
       target.buyerCompanyId,
-      target.originRegion,
       target.productId,
       target.supplierCompanyId,
       target.supplierId,
@@ -428,13 +432,13 @@ const handleOpenEdit = () => {
         deliveryAddress: buyerInfo.address || '',
         paymentMethod,
         creditTermDays: paymentMethod === 'CREDIT' && creditLimit ? creditLimit.paymentTermDays : null,
-        shippingFee: shippingQuote?.estimatedShippingFee ?? null,
-        shippingProviderCode: shippingQuote?.providerCode ?? null,
-        shippingProviderName: shippingQuote?.providerName ?? null,
-        shippingServiceName: shippingQuote?.serviceName ?? null,
-        estimatedDeliveryTime: shippingQuote?.estimatedDeliveryTime ?? null,
-        shippingPayer: shippingQuote?.shippingPayer ?? 'BUYER',
-        shippingStatus: shippingQuote ? 'QUOTED' : 'PENDING_QUOTE',
+        shippingFee: realGhnQuote?.estimatedShippingFee ?? null,
+        shippingProviderCode: realGhnQuote?.providerCode ?? null,
+        shippingProviderName: realGhnQuote?.providerName ?? null,
+        shippingServiceName: realGhnQuote?.serviceName ?? null,
+        estimatedDeliveryTime: realGhnQuote?.estimatedDeliveryTime ?? null,
+        shippingPayer: realGhnQuote?.shippingPayer ?? 'BUYER',
+        shippingStatus: realGhnQuote ? 'QUOTED' : 'PENDING_QUOTE',
         orderStatus: 'PENDING_SUPPLIER_CONFIRMATION',
       }
 
@@ -749,9 +753,9 @@ const handleOpenEdit = () => {
                 <div className="grid gap-2 sm:grid-cols-2 text-sm">
                   <ShippingRow
                     label="Đơn vị vận chuyển"
-                    value={shippingLoading ? 'Đang tính...' : shippingQuote?.providerName || 'Chờ tính'}
+                    value={shippingLoading ? 'Đang tính...' : realGhnQuote?.providerName || 'Chờ tính'}
                   />
-                  <ShippingRow label="Dịch vụ" value={shippingQuote?.serviceName || 'Chờ tính'} />
+                  <ShippingRow label="Dịch vụ" value={realGhnQuote?.serviceName || 'Chờ tính'} />
                   <ShippingRow
                     label="Phí vận chuyển"
                     value={
@@ -774,7 +778,7 @@ const handleOpenEdit = () => {
                   </p>
                 ) : null}
                 <p className="mt-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2 text-[11px] italic text-slate-500">
-                  Thông tin vận chuyển được tính dự kiến từ GHN sandbox/demo. Hệ thống chưa tạo vận đơn thật ở bước này.
+                  Thông tin vận chuyển được tính dự kiến từ GHN sandbox. Hệ thống chưa tạo vận đơn thật ở bước này.
                 </p>
               </div>
 

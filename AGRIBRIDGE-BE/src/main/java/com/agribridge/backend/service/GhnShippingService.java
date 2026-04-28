@@ -2,58 +2,78 @@ package com.agribridge.backend.service;
 
 import com.agribridge.backend.dto.shipping.ShippingQuoteRequest;
 import com.agribridge.backend.dto.shipping.ShippingQuoteResponse;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 @Service
+@Slf4j
 public class GhnShippingService {
 
     private static final String SANDBOX_BASE_URL = "https://dev-online-gateway.ghn.vn";
+    private static final String PROVINCE_PATH = "/shiip/public-api/master-data/province";
+    private static final String DISTRICT_PATH = "/shiip/public-api/master-data/district";
+    private static final String WARD_PATH = "/shiip/public-api/master-data/ward";
     private static final String FEE_PATH = "/shiip/public-api/v2/shipping-order/fee";
     private static final String STANDARD_SERVICE = "Dịch vụ tiêu chuẩn";
-    private static final Map<String, GhnLocation> GHN_LOCATION_MAPPING = Map.of(
-            normalizeKey("Hà Nội", "Phường Cửa Nam"), new GhnLocation(1442, "20108"),
-            normalizeKey("Bình Định", "Phường Hải Cảng"), new GhnLocation(1450, "21211")
-    );
+    private static final Pattern DIACRITICS = Pattern.compile("\\p{M}+");
 
     private final RestClient restClient;
     private final String apiBaseUrl;
     private final String token;
     private final String shopId;
-    private final boolean mockEnabled;
+    private final String defaultFromProvince;
+    private final String defaultFromWard;
+    private final String defaultFromAddress;
 
     public GhnShippingService(
             RestClient.Builder restClientBuilder,
             @Value("${ghn.api-base-url:${GHN_API_BASE_URL:https://dev-online-gateway.ghn.vn}}") String apiBaseUrl,
             @Value("${ghn.token:${GHN_TOKEN:}}") String token,
             @Value("${ghn.shop-id:${GHN_SHOP_ID:}}") String shopId,
-            @Value("${ghn.enable-mock:${GHN_ENABLE_MOCK:true}}") boolean mockEnabled) {
+            @Value("${ghn.default-from-province:${GHN_DEFAULT_FROM_PROVINCE:}}") String defaultFromProvince,
+            @Value("${ghn.default-from-ward:${GHN_DEFAULT_FROM_WARD:}}") String defaultFromWard,
+            @Value("${ghn.default-from-address:${GHN_DEFAULT_FROM_ADDRESS:}}") String defaultFromAddress) {
         this.restClient = restClientBuilder.build();
         this.apiBaseUrl = stripTrailingSlash(apiBaseUrl);
         this.token = token;
         this.shopId = shopId;
-        this.mockEnabled = mockEnabled;
+        this.defaultFromProvince = defaultFromProvince;
+        this.defaultFromWard = defaultFromWard;
+        this.defaultFromAddress = defaultFromAddress;
     }
 
     public ShippingQuoteResponse quote(ShippingQuoteRequest request) {
-        if (!canCallGhn()) {
-            return mockQuote(request);
-        }
-
-        GhnLocation from = resolveLocation(request.fromProvince(), request.fromWard());
-        GhnLocation to = resolveLocation(request.toProvince(), request.toWard());
-        if (from == null || to == null) {
-            return mockQuote(request);
-        }
+        validateGhnConfig();
 
         try {
+            String fromProvince = firstText(request.fromProvince(), defaultFromProvince);
+            String fromWard = firstText(request.fromWard(), defaultFromWard);
+            String fromAddress = firstText(request.fromAddress(), defaultFromAddress);
+            if (!StringUtils.hasText(fromProvince) || !StringUtils.hasText(fromWard) || !StringUtils.hasText(fromAddress)
+                    || !StringUtils.hasText(request.toProvince()) || !StringUtils.hasText(request.toWard())
+                    || !StringUtils.hasText(request.toAddress())) {
+                throw new IllegalStateException("Cannot resolve GHN sender/receiver location");
+            }
+
+            GhnLocation from = resolveLocation(fromProvince, fromWard);
+            GhnLocation to = resolveLocation(request.toProvince(), request.toWard());
+            if (from == null || to == null) {
+                throw new IllegalStateException("Cannot resolve GHN sender/receiver location");
+            }
+
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("service_type_id", 2);
             body.put("from_district_id", from.districtId());
@@ -67,6 +87,7 @@ public class GhnShippingService {
             body.put("insurance_value", moneyOrZero(request.insuranceValue()));
             body.put("coupon", null);
 
+            log.info("Calling GHN shipping quote API {}", FEE_PATH);
             GhnFeeResponse response = restClient.post()
                     .uri(apiBaseUrl + FEE_PATH)
                     .header("Token", token)
@@ -76,11 +97,9 @@ public class GhnShippingService {
                     .retrieve()
                     .body(GhnFeeResponse.class);
 
-            BigDecimal total = response != null && response.data() != null
-                    ? response.data().total()
-                    : null;
+            BigDecimal total = response != null && response.data() != null ? response.data().total() : null;
             if (total == null) {
-                return mockQuote(request);
+                throw new IllegalStateException("GHN response data.total is null");
             }
 
             return new ShippingQuoteResponse(
@@ -88,34 +107,101 @@ public class GhnShippingService {
                     "Giao Hàng Nhanh",
                     STANDARD_SERVICE,
                     total,
-                    "1 - 2 ngày",
-                    1,
-                    2,
+                    "Theo GHN",
+                    null,
+                    null,
                     "BUYER",
                     true);
-        } catch (RuntimeException ex) {
-            if (mockEnabled) {
-                return mockQuote(request);
-            }
-            throw ex;
+        } catch (RestClientException ex) {
+            throw new IllegalStateException("GHN shipping quote request failed", ex);
         }
     }
 
-    private boolean canCallGhn() {
-        return SANDBOX_BASE_URL.equals(apiBaseUrl)
-                && StringUtils.hasText(token)
-                && StringUtils.hasText(shopId);
+    private void validateGhnConfig() {
+        if (!SANDBOX_BASE_URL.equals(apiBaseUrl) || !StringUtils.hasText(token) || !StringUtils.hasText(shopId)) {
+            throw new IllegalStateException("GHN token/shopId is not configured");
+        }
     }
 
-    private static GhnLocation resolveLocation(String province, String ward) {
-        if (!StringUtils.hasText(province) || !StringUtils.hasText(ward)) {
+    private GhnLocation resolveLocation(String provinceName, String wardName) {
+        GhnProvince province = findProvince(provinceName);
+        if (province == null) {
             return null;
         }
-        return GHN_LOCATION_MAPPING.get(normalizeKey(province, ward));
+
+        DistrictResponse districtResponse = restClient.get()
+                .uri(apiBaseUrl + DISTRICT_PATH)
+                .header("Token", token)
+                .retrieve()
+                .body(DistrictResponse.class);
+
+        List<GhnDistrict> districts = districtResponse != null && districtResponse.data() != null
+                ? districtResponse.data()
+                : List.of();
+
+        for (GhnDistrict district : districts) {
+            if (district.provinceId() == null || !district.provinceId().equals(province.provinceId())) {
+                continue;
+            }
+            GhnWard ward = findWardInDistrict(district.districtId(), wardName);
+            if (ward != null) {
+                return new GhnLocation(district.districtId(), ward.wardCode());
+            }
+        }
+
+        return null;
     }
 
-    private static String normalizeKey(String province, String ward) {
-        return (province + "|" + ward).trim().toLowerCase(Locale.ROOT);
+    private GhnProvince findProvince(String provinceName) {
+        ProvinceResponse response = restClient.get()
+                .uri(apiBaseUrl + PROVINCE_PATH)
+                .header("Token", token)
+                .retrieve()
+                .body(ProvinceResponse.class);
+
+        String target = normalizeAdministrativeName(provinceName);
+        List<GhnProvince> provinces = response != null && response.data() != null ? response.data() : List.of();
+        return provinces.stream()
+                .filter(province -> normalizeAdministrativeName(province.provinceName()).equals(target))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private GhnWard findWardInDistrict(Integer districtId, String wardName) {
+        if (districtId == null) {
+            return null;
+        }
+
+        WardResponse response = restClient.get()
+                .uri(apiBaseUrl + WARD_PATH + "?district_id=" + districtId)
+                .header("Token", token)
+                .retrieve()
+                .body(WardResponse.class);
+
+        String target = normalizeAdministrativeName(wardName);
+        List<GhnWard> wards = response != null && response.data() != null ? response.data() : List.of();
+        return wards.stream()
+                .filter(ward -> normalizeAdministrativeName(ward.wardName()).equals(target))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static String firstText(String value, String fallback) {
+        return StringUtils.hasText(value) ? value : fallback;
+    }
+
+    private static String normalizeAdministrativeName(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD);
+        normalized = DIACRITICS.matcher(normalized).replaceAll("");
+        normalized = normalized.toLowerCase(Locale.ROOT)
+                .replace('đ', 'd')
+                .replaceAll("\\b(tinh|thanh pho|tp|quan|huyen|thi xa|thi tran|phuong|xa)\\b", "")
+                .replaceAll("[^a-z0-9]+", " ")
+                .trim();
+        return normalized.replaceAll("\\s+", " ");
     }
 
     private static int positiveOrDefault(Integer value, int fallback) {
@@ -133,30 +219,31 @@ public class GhnShippingService {
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
     }
 
-    private static ShippingQuoteResponse mockQuote(ShippingQuoteRequest request) {
-        int weight = request.weight() != null ? request.weight() : 0;
-        BigDecimal fee;
-        if (weight <= 10_000) {
-            fee = BigDecimal.valueOf(60_000);
-        } else if (weight <= 30_000) {
-            fee = BigDecimal.valueOf(120_000);
-        } else {
-            fee = BigDecimal.valueOf(180_000);
-        }
-
-        return new ShippingQuoteResponse(
-                "GHN_DEMO",
-                "GHN Demo",
-                STANDARD_SERVICE,
-                fee,
-                "1 - 2 ngày",
-                1,
-                2,
-                "BUYER",
-                true);
+    private record GhnLocation(Integer districtId, String wardCode) {
     }
 
-    private record GhnLocation(int districtId, String wardCode) {
+    private record ProvinceResponse(List<GhnProvince> data) {
+    }
+
+    private record DistrictResponse(List<GhnDistrict> data) {
+    }
+
+    private record WardResponse(List<GhnWard> data) {
+    }
+
+    private record GhnProvince(
+            @JsonProperty("ProvinceID") Integer provinceId,
+            @JsonProperty("ProvinceName") String provinceName) {
+    }
+
+    private record GhnDistrict(
+            @JsonProperty("DistrictID") Integer districtId,
+            @JsonProperty("ProvinceID") Integer provinceId) {
+    }
+
+    private record GhnWard(
+            @JsonProperty("WardCode") String wardCode,
+            @JsonProperty("WardName") String wardName) {
     }
 
     private record GhnFeeResponse(GhnFeeData data) {
