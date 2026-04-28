@@ -78,7 +78,7 @@ public class CompanyEntity {
     private String province;
 
     @Column
-    private String district;
+    private String ward;
 
     @Column
     private String description;

@@ -990,6 +990,7 @@
 /com/arena-returns
 /com/aresstack
 /com/arextest
+/com/argenox
 /com/argmaxinc
 /com/argonio
 /com/argosnotary
@@ -3217,6 +3218,7 @@
 /com/doinglab
 /com/doist
 /com/doitnext
+/com/dokmatiq
 /com/doku
 /com/dolatkia
 /com/dolby
@@ -5049,6 +5051,7 @@
 /com/hunorkovacs
 /com/hunprog
 /com/huntercodexs
+/com/huntertechpay
 /com/hunterwb
 /com/huongdanjava
 /com/hupubao
@@ -7885,6 +7888,7 @@
 /com/nachinius
 /com/nagternal
 /com/naharoo
+/com/nahook
 /com/nahuellofeudo
 /com/najva
 /com/namanmalhotra
@@ -9942,6 +9946,7 @@
 /com/scality
 /com/scalyr
 /com/scandit
+/com/scanii
 /com/scanoss
 /com/scanzy
 /com/scapeak
@@ -10002,6 +10007,7 @@
 /com/sdnlab
 /com/sdoctech
 /com/sdv291
+/com/sdxmessaging
 /com/seagate
 /com/seaglassfoundry
 /com/seaglasslookandfeel
@@ -12072,6 +12078,7 @@
 /com/velasolaris
 /com/velevedi
 /com/velexio
+/com/velitasali
 /com/velkonost
 /com/velocidi
 /com/velopayments
@@ -12441,6 +12448,7 @@
 /com/wesuresoft
 /com/wetjens
 /com/wexalian
+/com/wexinc
 /com/wf2311
 /com/wgtwo
 /com/wgzhao
@@ -15727,6 +15735,7 @@
 /io/ultreia
 /io/ulysses
 /io/umehara
+/io/unconquerable
 /io/underscore
 /io/undertow
 /io/unifold

@@ -10,6 +10,12 @@ import {
   type RegistrationResubmitDraft,
 } from '../../services/registrationService'
 import { uploadRegistrationFile } from '../../services/uploadService'
+import {
+  fetchVietnamDistrictsByProvinceCode,
+  fetchVietnamProvinces,
+  findProvinceByName,
+  type VietnamProvinceOption,
+} from '../../services/vietnamAddressService'
 
 const inputClass =
   'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-200 focus:ring-2'
@@ -76,6 +82,10 @@ export function RegistrationNeedMoreInfoPage() {
   const [uploadingDocument, setUploadingDocument] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [provinceOptions, setProvinceOptions] = useState<VietnamProvinceOption[]>([])
+  const [districtOptions, setDistrictOptions] = useState<string[]>([])
+  const [loadingAddressOptions, setLoadingAddressOptions] = useState(false)
+  const [addressLoadError, setAddressLoadError] = useState('')
 
   useEffect(() => {
     async function loadDraft() {
@@ -99,10 +109,75 @@ export function RegistrationNeedMoreInfoPage() {
     loadDraft()
   }, [navigate, session?.companyId, session?.userId])
 
-  const districts = useMemo(
-    () => VN_ADDRESS_OPTIONS.find((item) => item.province === form?.province)?.districts ?? [],
-    [form?.province],
+  const selectedProvince = useMemo(
+    () => findProvinceByName(provinceOptions, form?.province),
+    [form?.province, provinceOptions],
   )
+
+  useEffect(() => {
+    let ignore = false
+    async function loadProvinces() {
+      setLoadingAddressOptions(true)
+      setAddressLoadError('')
+      try {
+        const provinces = await fetchVietnamProvinces()
+        if (!ignore) {
+          setProvinceOptions(provinces)
+        }
+      } catch {
+        if (!ignore) {
+          setAddressLoadError('Khong the tai danh sach tinh/thanh tu API. Dang dung danh sach du phong.')
+          setProvinceOptions(VN_ADDRESS_OPTIONS.map((item, index) => ({ code: -(index + 1), name: item.province })))
+        }
+      } finally {
+        if (!ignore) {
+          setLoadingAddressOptions(false)
+        }
+      }
+    }
+
+    void loadProvinces()
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let ignore = false
+    const provinceName = form?.province ?? ''
+
+    async function loadDistricts() {
+      if (!provinceName.trim()) {
+        setDistrictOptions([])
+        return
+      }
+
+      if (!selectedProvince || selectedProvince.code <= 0) {
+        const fallbackDistricts =
+          VN_ADDRESS_OPTIONS.find((item) => item.province === provinceName)?.districts ?? []
+        setDistrictOptions(fallbackDistricts)
+        return
+      }
+
+      try {
+        const districts = await fetchVietnamDistrictsByProvinceCode(selectedProvince.code)
+        if (!ignore) {
+          setDistrictOptions(districts.map((d) => d.name))
+        }
+      } catch {
+        if (!ignore) {
+          const fallbackDistricts =
+            VN_ADDRESS_OPTIONS.find((item) => item.province === provinceName)?.districts ?? []
+          setDistrictOptions(fallbackDistricts)
+        }
+      }
+    }
+
+    void loadDistricts()
+    return () => {
+      ignore = true
+    }
+  }, [form?.province, selectedProvince])
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => (current ? { ...current, [key]: value } : current))
@@ -319,17 +394,19 @@ export function RegistrationNeedMoreInfoPage() {
               <Field label="T?nh / Th�nh *">
                 <select className={inputClass} value={form.province} onChange={(event) => updateField('province', event.target.value)}>
                   <option value="">Ch?n t?nh / th�nh</option>
-                  {VN_ADDRESS_OPTIONS.map((item) => (
-                    <option key={item.province} value={item.province}>
-                      {item.province}
+                  {provinceOptions.map((item) => (
+                    <option key={item.code} value={item.name}>
+                      {item.name}
                     </option>
                   ))}
                 </select>
+                {loadingAddressOptions ? <p className="mt-1 text-xs text-slate-500">Dang tai danh sach tinh/thanh...</p> : null}
+                {!loadingAddressOptions && addressLoadError ? <p className="mt-1 text-xs text-slate-500">{addressLoadError}</p> : null}
               </Field>
               <Field label="Qu?n / Huy?n">
                 <select className={inputClass} value={form.district} onChange={(event) => updateField('district', event.target.value)}>
                   <option value="">Ch?n qu?n / huy?n</option>
-                  {districts.map((district) => (
+                  {districtOptions.map((district) => (
                     <option key={district} value={district}>
                       {district}
                     </option>

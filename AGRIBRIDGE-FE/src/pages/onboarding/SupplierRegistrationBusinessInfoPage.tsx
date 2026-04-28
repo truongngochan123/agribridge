@@ -1,10 +1,16 @@
 import { CircleHelp, ShoppingCart, Store } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Header } from '../../components/Header'
-import { VN_ADDRESS_OPTIONS } from '../../data/vnAddress'
 import { checkRegistrationAvailability, lookupCompanyByTaxCode, type RegistrationDraft } from '../../services/authService'
 import { uploadRegistrationFile } from '../../services/uploadService'
+
+import {
+  fetchVietnamProvinces,
+  fetchVietnamWardsByProvinceCode,
+  findProvinceByName,
+  type VietnamProvinceOption,
+} from '../../services/vietnamAddressService'
 
 const DRAFT_KEY = 'agribridge.register.draft'
 
@@ -17,7 +23,7 @@ type BusinessFieldErrors = {
   companyName?: string
   taxCode?: string
   province?: string
-  district?: string
+  ward?: string
   address?: string
 }
 
@@ -26,23 +32,23 @@ function validateBusinessField(field: keyof BusinessFieldErrors, value: string, 
 
   switch (field) {
     case 'companyName':
-      if (!trimmed) return 'Vui long nhap ten doanh nghiep.'
-      if (trimmed.length < 2) return 'Ten doanh nghiep phai co it nhat 2 ky tu.'
+      if (!trimmed) return 'Vui lòng nhập tên doanh nghiệp.'
+      if (trimmed.length < 2) return 'Tên doanh nghiệp phải có ít nhất 2 ký tự.'
       return ''
     case 'taxCode': {
       const normalizedTax = value.replace(/\D/g, '')
       if (!requiresTaxCode && !normalizedTax) return ''
-      if (!normalizedTax) return 'Vui long nhap ma so thue.'
-      if (normalizedTax.length !== 10) return 'Ma so thue phai dung 10 chu so.'
+      if (!normalizedTax) return 'Vui lòng nhập mã số thuế.'
+      if (normalizedTax.length !== 10) return 'Mã số thuế phải đúng 10 chữ số.'
       return ''
     }
     case 'province':
-      return trimmed ? '' : 'Vui long chon tinh/thanh.'
-    case 'district':
-      return trimmed ? '' : 'Vui long chon quan/huyen.'
+      return trimmed ? '' : 'Vui lòng chọn tỉnh/thành.'
+    case 'ward':
+      return trimmed ? '' : 'Vui lòng chọn xã/phường.'
     case 'address':
-      if (!trimmed) return 'Vui long nhap dia chi chi tiet.'
-      if (trimmed.length < 5) return 'Dia chi chi tiet qua ngan.'
+      if (!trimmed) return 'Vui lòng nhập địa chỉ chi tiết.'
+      if (trimmed.length < 5) return 'Địa chỉ chi tiết quá ngắn.'
       return ''
     default:
       return ''
@@ -64,7 +70,7 @@ export function SupplierRegistrationBusinessInfoPage() {
     companyPhone: '',
     companyEmail: '',
     province: '',
-    district: '',
+    ward: '',
     address: '',
     description: '',
     logoUrl: '',
@@ -74,6 +80,10 @@ export function SupplierRegistrationBusinessInfoPage() {
   const [taxLookupHint, setTaxLookupHint] = useState('')
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<BusinessFieldErrors>({})
+  const [provinceOptions, setProvinceOptions] = useState<VietnamProvinceOption[]>([])
+  const [wardOptions, setWardOptions] = useState<string[]>([])
+  const [loadingAddressOptions, setLoadingAddressOptions] = useState(false)
+  const [addressLoadError, setAddressLoadError] = useState('')
 
   useEffect(() => {
     const rawDraft = sessionStorage.getItem(DRAFT_KEY)
@@ -93,10 +103,68 @@ export function SupplierRegistrationBusinessInfoPage() {
     }
   }, [currentRole])
 
-  const districts = VN_ADDRESS_OPTIONS.find((item) => item.province === form.province)?.districts ?? []
+  const selectedProvince = useMemo(
+    () => findProvinceByName(provinceOptions, form.province),
+    [form.province, provinceOptions],
+  )
   const inferredBuyerType = form.taxCode.trim() ? 'BUSINESS' : 'INDIVIDUAL'
   const effectiveBusinessType = currentRole === 'supplier' ? 'BUSINESS' : inferredBuyerType
   const requiresTaxCode = currentRole === 'supplier' || effectiveBusinessType === 'BUSINESS'
+
+  useEffect(() => {
+    let ignore = false
+    async function loadProvinces() {
+      setLoadingAddressOptions(true)
+      setAddressLoadError('')
+      try {
+        const provinces = await fetchVietnamProvinces()
+        if (!ignore) {
+          setProvinceOptions(provinces)
+        }
+      } catch {
+        if (!ignore) {
+          setAddressLoadError('Không thể tải danh sách tỉnh/thành từ API.')
+          setProvinceOptions([])
+        }
+      } finally {
+        if (!ignore) {
+          setLoadingAddressOptions(false)
+        }
+      }
+    }
+
+    void loadProvinces()
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  useEffect(() => {
+  let ignore = false
+
+  async function loadWards() {
+    if (!form.province.trim() || !selectedProvince) {
+      setWardOptions([])
+      return
+    }
+
+    try {
+      const wards = await fetchVietnamWardsByProvinceCode(selectedProvince.code)
+      if (!ignore) {
+        setWardOptions(wards.map((ward) => ward.name))
+      }
+    } catch {
+      if (!ignore) {
+        setWardOptions([])
+      }
+    }
+  }
+
+  void loadWards()
+  return () => {
+    ignore = true
+  }
+}, [form.province, selectedProvince])
 
   const handleChange = <K extends keyof RegistrationDraft>(key: K, value: RegistrationDraft[K]) => {
     setForm((prev) => ({
@@ -104,13 +172,13 @@ export function SupplierRegistrationBusinessInfoPage() {
       [key]: value,
       role: currentRole,
       businessType: currentRole === 'supplier' ? 'BUSINESS' : (key === 'taxCode' ? ((String(value).trim() ? 'BUSINESS' : 'INDIVIDUAL')) : prev.businessType),
-      district: key === 'province' ? '' : key === 'district' ? String(value) : prev.district,
+      ward: key === 'province' ? '' : key === 'ward' ? String(value) : prev.ward,
     }))
-    if (key === 'companyName' || key === 'taxCode' || key === 'province' || key === 'district' || key === 'address') {
+    if (key === 'companyName' || key === 'taxCode' || key === 'province' || key === 'ward' || key === 'address') {
       setFieldErrors((prev) => ({ ...prev, [key]: '' }))
     }
     if (key === 'province') {
-      setFieldErrors((prev) => ({ ...prev, district: '' }))
+      setFieldErrors((prev) => ({ ...prev, ward: '' }))
     }
   }
 
@@ -119,7 +187,7 @@ export function SupplierRegistrationBusinessInfoPage() {
       companyName: validateBusinessField('companyName', form.companyName, requiresTaxCode),
       taxCode: validateBusinessField('taxCode', form.taxCode, requiresTaxCode),
       province: validateBusinessField('province', form.province, requiresTaxCode),
-      district: validateBusinessField('district', form.district, requiresTaxCode),
+      ward: validateBusinessField('ward', form.ward, requiresTaxCode),
       address: validateBusinessField('address', form.address, requiresTaxCode),
     }
     setFieldErrors(nextErrors)
@@ -189,7 +257,7 @@ export function SupplierRegistrationBusinessInfoPage() {
               ...prev,
               companyName: lookup.companyName ?? prev.companyName,
               province: lookup.province ?? prev.province,
-              district: lookup.district ?? prev.district,
+              ward: lookup.ward ?? prev.ward ?? '',
               address: lookup.address ?? prev.address,
             }))
             setTaxLookupHint('Đã tự điền thông tin công ty theo MST.')
@@ -363,37 +431,41 @@ export function SupplierRegistrationBusinessInfoPage() {
                   }
                 >
                   <option value="">Chọn tỉnh/thành</option>
-                  {VN_ADDRESS_OPTIONS.map((item) => (
-                    <option key={item.province} value={item.province}>
-                      {item.province}
+                  {provinceOptions.map((item) => (
+                    <option key={item.code} value={item.name}>
+                      {item.name}
                     </option>
                   ))}
                 </select>
                 {fieldErrors.province ? <p className="mt-1 text-xs font-semibold text-[#DC2626]">{fieldErrors.province}</p> : null}
+                {loadingAddressOptions ? <p className="mt-1 text-xs text-[#667085]">Dang tai danh sach tinh/thanh...</p> : null}
+                {!loadingAddressOptions && addressLoadError ? <p className="mt-1 text-xs text-[#667085]">{addressLoadError}</p> : null}
               </div>
 
               <div>
-                <label className={labelClass}>Quận / Huyện</label>
+                <label className={labelClass}>Xã / Phường *</label>
                 <select
                   className={`${inputClass} appearance-none`}
-                  value={form.district}
+                  value={form.ward}
                   disabled={!form.province}
-                  onChange={(event) => handleChange('district', event.target.value)}
+                  onChange={(event) => handleChange('ward', event.target.value)}
                   onBlur={() =>
                     setFieldErrors((prev) => ({
                       ...prev,
-                      district: validateBusinessField('district', form.district, requiresTaxCode),
+                      ward: validateBusinessField('ward', form.ward, requiresTaxCode),
                     }))
                   }
                 >
-                  <option value="">Chọn quận/huyện</option>
-                  {districts.map((district) => (
-                    <option key={district} value={district}>
-                      {district}
+                  <option value="">Chọn xã/phường</option>
+                  {wardOptions.map((ward) => (
+                    <option key={ward} value={ward}>
+                      {ward}
                     </option>
                   ))}
                 </select>
-                {fieldErrors.district ? <p className="mt-1 text-xs font-semibold text-[#DC2626]">{fieldErrors.district}</p> : null}
+                {fieldErrors.ward ? (
+                  <p className="mt-1 text-xs font-semibold text-[#DC2626]">{fieldErrors.ward}</p>
+                ) : null}
               </div>
             </div>
 

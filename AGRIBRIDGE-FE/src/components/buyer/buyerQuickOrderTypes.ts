@@ -29,6 +29,8 @@ export type BuyerQuickOrderBuyerInfo = {
   companyName?: string | null
   phone?: string | null
   province?: string | null
+  district?: string | null
+  ward?: string | null
   address?: string | null
 }
 
@@ -55,6 +57,8 @@ export type BuyerQuickOrderPayload = {
   deliveryName: string
   deliveryPhone: string
   deliveryProvince: string
+  deliveryDistrict?: string | null
+  deliveryWard?: string | null
   deliveryAddress: string
   paymentMethod: 'BANK_TRANSFER' | 'CREDIT'
   creditTermDays?: number | null

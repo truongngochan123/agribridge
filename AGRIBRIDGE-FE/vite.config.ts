@@ -7,4 +7,14 @@ export default defineConfig({
     global: 'globalThis',
   },
   plugins: [react()],
+  server: {
+    proxy: {
+      '/province-api': {
+        target: 'https://provinces.open-api.vn',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/province-api/, ''),
+      },
+    },
+  },
 })

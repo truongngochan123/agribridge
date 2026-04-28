@@ -10,7 +10,7 @@ export type RegistrationDraft = {
   companyPhone: string
   companyEmail: string
   province: string
-  district: string
+  ward: string
   address: string
   description?: string
   logoUrl?: string
@@ -70,7 +70,7 @@ export type TaxCodeLookupResponse = {
   taxCode?: string
   companyName?: string
   province?: string
-  district?: string
+  ward?: string
   address?: string
   message?: string
 }
@@ -107,7 +107,10 @@ export async function registerAccount(draft: RegistrationDraft, contact: Contact
       companyEmail: draft.companyEmail || undefined,
       address: draft.address,
       province: draft.province,
-      district: draft.district,
+
+      // BE hiện còn field district, FE dùng ward theo API v2 nên map tạm ward vào district
+      district: draft.ward,
+
       description: buildDescription(draft),
       logoUrl: normalizeMediaRef(draft.logoUrl),
       documentUrls,
@@ -122,23 +125,23 @@ export async function registerAccount(draft: RegistrationDraft, contact: Contact
   }
 
   const response = await apiClient.post<AuthResponse>('/api/auth/register/buyer', {
-    companyName: draft.companyName,
-    businessType,
-    ownerName: resolvedOwnerName,
-    taxCode: businessType === 'BUSINESS' ? normalizedTaxCode : undefined,
-    companyPhone: draft.companyPhone || undefined,
-    companyEmail: draft.companyEmail || undefined,
-    address: draft.address,
-    province: draft.province,
-    district: draft.district,
-    description: buildDescription(draft),
-    logoUrl: normalizeMediaRef(draft.logoUrl),
-    fullName: contact.fullName,
-    loginPhone: contact.loginPhone,
-    loginEmail: contact.loginEmail,
-    password: contact.password,
-    citizenId: contact.citizenId || undefined,
-  })
+  companyName: draft.companyName,
+  businessType,
+  ownerName: resolvedOwnerName,
+  taxCode: businessType === 'BUSINESS' ? normalizedTaxCode : undefined,
+  companyPhone: draft.companyPhone || undefined,
+  companyEmail: draft.companyEmail || undefined,
+  address: draft.address,
+  province: draft.province,
+  district: draft.ward,
+  description: buildDescription(draft),
+  logoUrl: normalizeMediaRef(draft.logoUrl),
+  fullName: contact.fullName,
+  loginPhone: contact.loginPhone,
+  loginEmail: contact.loginEmail,
+  password: contact.password,
+  citizenId: contact.citizenId || undefined,
+})
 
   return response.data
 }
@@ -175,9 +178,19 @@ export async function lookupCompanyByTaxCode(taxCode: string): Promise<TaxCodeLo
 
 function buildDescription(draft: RegistrationDraft): string {
   const chunks: string[] = []
-  if ((draft.description ?? '').trim()) chunks.push((draft.description ?? '').trim())
-  if ((draft.registrationNumber ?? '').trim()) chunks.push(`registrationNo=${(draft.registrationNumber ?? '').trim()}`)
-  if ((draft.district ?? '').trim()) chunks.push(`district=${(draft.district ?? '').trim()}`)
+
+  if ((draft.description ?? '').trim()) {
+    chunks.push((draft.description ?? '').trim())
+  }
+
+  if ((draft.registrationNumber ?? '').trim()) {
+    chunks.push(`registrationNo=${(draft.registrationNumber ?? '').trim()}`)
+  }
+
+  if ((draft.ward ?? '').trim()) {
+    chunks.push(`district=${(draft.ward ?? '').trim()}`)
+  }
+
   return chunks.join(' | ')
 }
 
