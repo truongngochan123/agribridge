@@ -34,19 +34,25 @@ public class GhnAddressMappingService {
     }
 
     public GhnLocation resolveForGhn(Address address, String role) {
-        Address ghnAddress = toGhnCompatibleAddress(address);
+        MappingResult mapping = toGhnCompatibleAddress(address);
+        Address ghnAddress = mapping.address();
         log.info(
-                "GHN address mapping: role={}, originalProvince={}, originalWard={}, originalAddress={}, ghnProvince={}, ghnWard={}",
+                "GHN address mapping: role={}, source={}, originalProvince={}, originalWard={}, originalAddress={}, ghnProvince={}, ghnWard={}",
                 role,
+                mapping.source(),
                 address.province(),
                 address.ward(),
                 address.address(),
                 ghnAddress.province(),
                 ghnAddress.ward());
-        return resolveLocation(ghnAddress.province(), ghnAddress.ward(), role);
+        try {
+            return resolveLocation(ghnAddress.province(), ghnAddress.ward(), role);
+        } catch (IllegalArgumentException ex) {
+            throw unresolvedAddress(role, address, ex);
+        }
     }
 
-    private Address toGhnCompatibleAddress(Address address) {
+    private MappingResult toGhnCompatibleAddress(Address address) {
         String normalizedProvince = normalizeAdministrativeName(address.province());
         String normalizedWard = normalizeAdministrativeName(address.ward());
         String normalizedAddress = normalizeAdministrativeName(address.address());
@@ -54,14 +60,41 @@ public class GhnAddressMappingService {
         // Temporary compatibility aliases for GHN master data until GHN supports new administrative wards.
         if ("gia lai".equals(normalizedProvince) && "quy nhon".equals(normalizedWard)) {
             if (normalizedAddress.contains("tran phu")) {
-                return new Address("B\u00ecnh \u0110\u1ecbnh", "Ph\u01b0\u1eddng Tr\u1ea7n Ph\u00fa", address.address());
+                return temporaryAlias("Ph\u01b0\u1eddng Tr\u1ea7n Ph\u00fa", address);
             }
             if (normalizedAddress.contains("nguyen hue")) {
-                return new Address("B\u00ecnh \u0110\u1ecbnh", "Ph\u01b0\u1eddng H\u1ea3i C\u1ea3ng", address.address());
+                return temporaryAlias("Ph\u01b0\u1eddng H\u1ea3i C\u1ea3ng", address);
+            }
+            if (normalizedAddress.contains("le loi")) {
+                return temporaryAlias("Ph\u01b0\u1eddng L\u00ea L\u1ee3i", address);
+            }
+            if (normalizedAddress.contains("an duong vuong")) {
+                return temporaryAlias("Ph\u01b0\u1eddng Nguy\u1ec5n V\u0103n C\u1eeb", address);
+            }
+            if (normalizedAddress.contains("xuan dieu")) {
+                return temporaryAlias("Ph\u01b0\u1eddng H\u1ea3i C\u1ea3ng", address);
             }
         }
 
-        return address;
+        return new MappingResult(address, "DIRECT_GHN_MASTER_DATA");
+    }
+
+    private MappingResult temporaryAlias(String ward, Address originalAddress) {
+        return new MappingResult(
+                new Address("B\u00ecnh \u0110\u1ecbnh", ward, originalAddress.address()),
+                "TEMP_ALIAS_MAPPING");
+    }
+
+    private IllegalArgumentException unresolvedAddress(String role, Address address, Exception cause) {
+        String normalizedRole = "sender".equals(role) ? "sender" : "receiver";
+        String message = "Cannot resolve GHN-compatible " + normalizedRole + " address: province="
+                + address.province()
+                + ", ward="
+                + address.ward()
+                + ", address="
+                + address.address()
+                + ". This address is not mapped to GHN yet. Please choose a supported demo address or configure GHN address mapping.";
+        return new IllegalArgumentException(message, cause);
     }
 
     private GhnLocation resolveLocation(String provinceName, String wardName, String role) {
@@ -82,8 +115,7 @@ public class GhnAddressMappingService {
                     role,
                     provinceName,
                     normalizedProvince);
-            throw new IllegalArgumentException(
-                    "Cannot resolve GHN-compatible address. Please configure GHN address mapping.");
+            throw new IllegalArgumentException("Cannot resolve GHN-compatible address");
         }
 
         List<GhnDistrict> districts = getDistricts().stream()
@@ -115,7 +147,7 @@ public class GhnAddressMappingService {
                 province.provinceId(),
                 wardName,
                 normalizedWard);
-        throw new IllegalArgumentException("Cannot resolve GHN-compatible address. Please configure GHN address mapping.");
+        throw new IllegalArgumentException("Cannot resolve GHN-compatible address");
     }
 
     private GhnProvince findProvince(String provinceName, String normalizedProvinceName) {
@@ -203,6 +235,9 @@ public class GhnAddressMappingService {
     }
 
     public record GhnLocation(Integer districtId, String wardCode) {
+    }
+
+    private record MappingResult(Address address, String source) {
     }
 
     private record ProvinceResponse(List<GhnProvince> data) {
