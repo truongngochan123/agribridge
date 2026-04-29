@@ -75,24 +75,34 @@ public class GhnShippingService {
             throw new IllegalArgumentException("Buyer delivery address is missing. Cannot calculate GHN shipping fee.");
         }
 
-        ShippingAddress sender = resolveSenderAddress(request);
-        log.info(
-                "GHN sender address resolved from real company data: senderSource={}, province={}, ward={}, address={}",
-                sender.source(),
-                sender.province(),
-                sender.ward(),
-                sender.address());
-
+        // ── Resolve sender address ────────────────────────────────────────────
+        ShippingAddress sender;
         try {
-            long senderResolveStart = System.currentTimeMillis();
-            GhnLocation from = ghnAddressMappingService.resolveForGhn(
-                    new Address(sender.province(), sender.ward(), sender.address()), "sender");
-            log.info("Resolved GHN sender location in {}ms", System.currentTimeMillis() - senderResolveStart);
+            sender = resolveSenderAddress(request);
+            log.info(
+                    "GHN sender address resolved: senderSource={}, province={}, ward={}, address={}",
+                    sender.source(),
+                    sender.province(),
+                    sender.ward(),
+                    sender.address());
+        } catch (IllegalArgumentException senderEx) {
+            log.warn("Cannot resolve sender address — falling back to PENDING_QUOTE. reason={}", senderEx.getMessage());
+            return pendingQuoteFallback("Địa chỉ kho/nhà cung cấp chưa khớp GHN, phí vận chuyển sẽ được cập nhật sau.");
+        }
 
-            long receiverResolveStart = System.currentTimeMillis();
+        // ── Resolve GHN locations ─────────────────────────────────────────────
+        try {
+            GhnLocation from;
+            try {
+                from = ghnAddressMappingService.resolveForGhn(
+                        new Address(sender.province(), sender.ward(), sender.address()), "sender");
+            } catch (IllegalArgumentException senderResolveEx) {
+                log.warn("GHN sender location resolve failed — falling back to PENDING_QUOTE. reason={}", senderResolveEx.getMessage());
+                return pendingQuoteFallback("Địa chỉ kho/nhà cung cấp chưa khớp GHN, phí vận chuyển sẽ được cập nhật sau.");
+            }
+
             GhnLocation to = ghnAddressMappingService.resolveForGhn(
                     new Address(request.toProvince(), request.toWard(), request.toAddress()), "receiver");
-            log.info("Resolved GHN receiver location in {}ms", System.currentTimeMillis() - receiverResolveStart);
 
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("service_type_id", 2);
@@ -108,7 +118,6 @@ public class GhnShippingService {
             body.put("coupon", null);
 
             log.info("Calling GHN shipping quote API {}", FEE_PATH);
-            long feeStart = System.currentTimeMillis();
             GhnFeeResponse response = restClient.post()
                     .uri(apiBaseUrl + FEE_PATH)
                     .header("Token", token)
@@ -117,7 +126,6 @@ public class GhnShippingService {
                     .body(body)
                     .retrieve()
                     .body(GhnFeeResponse.class);
-            log.info("GHN shipping fee API responded in {}ms", System.currentTimeMillis() - feeStart);
 
             BigDecimal total = response != null && response.data() != null ? response.data().total() : null;
             if (total == null) {
@@ -142,6 +150,21 @@ public class GhnShippingService {
             throw new IllegalStateException("GHN shipping quote request failed", ex);
         }
     }
+
+    /** Fallback response when sender GHN address cannot be resolved — buyer can still place order. */
+    private static ShippingQuoteResponse pendingQuoteFallback(String message) {
+        return new ShippingQuoteResponse(
+                "PENDING_QUOTE",
+                message,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "BUYER",
+                true);
+    }
+
 
     private void validateGhnConfig() {
         log.info(

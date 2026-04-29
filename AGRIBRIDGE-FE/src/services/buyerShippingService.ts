@@ -21,13 +21,17 @@ export type BuyerShippingQuoteRequest = {
 export type BuyerShippingQuote = {
   providerCode: string
   providerName: string
-  serviceName: string
+  serviceName: string | null
   estimatedShippingFee: number | null
   estimatedDeliveryTime?: string | null
   estimatedDaysMin?: number | null
   estimatedDaysMax?: number | null
   shippingPayer: 'BUYER' | 'SUPPLIER' | 'NEGOTIATED'
   quoteOnly: boolean
+  /** True when the supplier/sender address could not be resolved. Buyer can still place order. */
+  isPendingQuote?: boolean
+  /** Human-readable reason the quote is pending (sender address issue). */
+  pendingReason?: string | null
 }
 
 export async function quoteBuyerShipping(
@@ -37,7 +41,18 @@ export async function quoteBuyerShipping(
     const response = await apiClient.post('/api/buyer/shipping/quote', payload, {
       timeout: 20000,
     })
-    return response.data?.data ?? response.data
+    const data: BuyerShippingQuote = response.data?.data ?? response.data
+
+    // Backend returned PENDING_QUOTE fallback (sender address unresolvable)
+    if (data.providerCode === 'PENDING_QUOTE') {
+      return {
+        ...data,
+        isPendingQuote: true,
+        pendingReason: data.providerName ?? 'Địa chỉ kho/nhà cung cấp chưa hỗ trợ tính phí tự động.',
+      }
+    }
+
+    return data
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const message = error.response?.data?.message

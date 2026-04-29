@@ -196,7 +196,8 @@
     const [paymentMethod, setPaymentMethod] = useState<BuyerPaymentMethod>('ESCROW_TRANSFER')
     const [shippingQuote, setShippingQuote] = useState<BuyerShippingQuote | null>(null)
     const [shippingLoading, setShippingLoading] = useState(false)
-    const [shippingError, setShippingError] = useState('')
+    const [shippingError, setShippingError] = useState('')          // receiver-side hard error
+    const [senderAddressWarning, setSenderAddressWarning] = useState('') // supplier-side soft warning
     const inFlightShippingQuoteKeyRef = useRef('')
 
     // ── Reset quantity when target changes ──
@@ -507,8 +508,18 @@
         })
           .then((quote) => {
             if (!ignore) {
-              if (quote.providerCode === 'GHN') {
+              if (quote.isPendingQuote) {
+                // Supplier/sender address unresolvable — soft warning, buyer can still order
+                setShippingQuote(null)
+                setSenderAddressWarning(
+                  quote.pendingReason ||
+                  'Địa chỉ kho/nhà cung cấp chưa hỗ trợ tính phí tự động. Đơn hàng vẫn có thể tạo, phí vận chuyển sẽ được cập nhật sau.',
+                )
+                setShippingError('')
+              } else if (quote.providerCode === 'GHN') {
                 setShippingQuote(quote)
+                setSenderAddressWarning('')
+                setShippingError('')
               } else {
                 setShippingQuote(null)
                 setShippingError('Không thể tính phí vận chuyển từ GHN. Vui lòng kiểm tra địa chỉ hoặc cấu hình GHN.')
@@ -1051,6 +1062,12 @@ const handleOpenEdit = () => {
                   />
                   <ShippingRow label="Người trả phí" value="Buyer" />
                 </div>
+                {senderAddressWarning ? (
+                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <span className="mt-0.5 shrink-0 text-amber-500">⚠</span>
+                    <p className="text-xs font-semibold text-amber-700">{senderAddressWarning}</p>
+                  </div>
+                ) : null}
                 {shippingError ? (
                   <p className="mt-3 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600">
                     {shippingError}
