@@ -8,9 +8,6 @@ export type BuyerShippingQuoteRequest = {
   batchId?: number | null
   quantity: number
   unit: string
-  fromProvince?: string | null
-  fromWard?: string | null
-  fromAddress?: string | null
   toProvince?: string | null
   toWard?: string | null
   toAddress?: string | null

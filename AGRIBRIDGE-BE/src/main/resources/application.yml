@@ -59,9 +59,6 @@ ghn:
   api-base-url: ${GHN_API_BASE_URL:https://dev-online-gateway.ghn.vn}
   token: ${GHN_TOKEN:}
   shop-id: ${GHN_SHOP_ID:200136}
-  default-from-province: ${GHN_DEFAULT_FROM_PROVINCE:}
-  default-from-ward: ${GHN_DEFAULT_FROM_WARD:}
-  default-from-address: ${GHN_DEFAULT_FROM_ADDRESS:}
 
 app:
   public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:5173}

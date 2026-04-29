@@ -2,6 +2,12 @@ package com.agribridge.backend.service;
 
 import com.agribridge.backend.dto.shipping.ShippingQuoteRequest;
 import com.agribridge.backend.dto.shipping.ShippingQuoteResponse;
+import com.agribridge.backend.entity.BatchEntity;
+import com.agribridge.backend.entity.CompanyEntity;
+import com.agribridge.backend.entity.ProductEntity;
+import com.agribridge.backend.repository.BatchRepository;
+import com.agribridge.backend.repository.CompanyRepository;
+import com.agribridge.backend.repository.ProductRepository;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.text.Normalizer;
@@ -32,57 +38,57 @@ public class GhnShippingService {
     private static final Pattern DIACRITICS = Pattern.compile("\\p{M}+");
 
     private final RestClient restClient;
+    private final BatchRepository batchRepository;
+    private final CompanyRepository companyRepository;
+    private final ProductRepository productRepository;
     private final String apiBaseUrl;
     private final String token;
     private final String shopId;
-    private final String defaultFromProvince;
-    private final String defaultFromWard;
-    private final String defaultFromAddress;
 
     public GhnShippingService(
             RestClient.Builder restClientBuilder,
+            BatchRepository batchRepository,
+            CompanyRepository companyRepository,
+            ProductRepository productRepository,
             @Value("${ghn.api-base-url:${GHN_API_BASE_URL:https://dev-online-gateway.ghn.vn}}") String apiBaseUrl,
             @Value("${ghn.token:${GHN_TOKEN:}}") String token,
-            @Value("${ghn.shop-id:${GHN_SHOP_ID:}}") String shopId,
-            @Value("${ghn.default-from-province:${GHN_DEFAULT_FROM_PROVINCE:}}") String defaultFromProvince,
-            @Value("${ghn.default-from-ward:${GHN_DEFAULT_FROM_WARD:}}") String defaultFromWard,
-            @Value("${ghn.default-from-address:${GHN_DEFAULT_FROM_ADDRESS:}}") String defaultFromAddress) {
+            @Value("${ghn.shop-id:${GHN_SHOP_ID:}}") String shopId) {
         this.restClient = restClientBuilder.build();
+        this.batchRepository = batchRepository;
+        this.companyRepository = companyRepository;
+        this.productRepository = productRepository;
         this.apiBaseUrl = stripTrailingSlash(apiBaseUrl);
         this.token = token;
         this.shopId = shopId;
-        this.defaultFromProvince = defaultFromProvince;
-        this.defaultFromWard = defaultFromWard;
-        this.defaultFromAddress = defaultFromAddress;
     }
 
     public ShippingQuoteResponse quote(ShippingQuoteRequest request) {
         validateGhnConfig();
 
-        String fromProvince = firstText(request.fromProvince(), defaultFromProvince);
-        String fromWard = firstText(request.fromWard(), defaultFromWard);
-        String fromAddress = firstText(request.fromAddress(), defaultFromAddress);
-
         log.info(
-                "GHN quote request address: toProvince={}, toWard={}, toAddress={}, defaultFromProvince={}, defaultFromWard={}, defaultFromAddress={}",
+                "GHN quote request: supplierId={}, batchId={}, toProvince={}, toWard={}, toAddress={}",
+                request.supplierId(),
+                request.batchId(),
                 request.toProvince(),
                 request.toWard(),
-                request.toAddress(),
-                defaultFromProvince,
-                defaultFromWard,
-                defaultFromAddress);
+                request.toAddress());
 
-        if (!StringUtils.hasText(fromProvince)
-                || !StringUtils.hasText(fromWard)
-                || !StringUtils.hasText(fromAddress)
-                || !StringUtils.hasText(request.toProvince())
+        if (!StringUtils.hasText(request.toProvince())
                 || !StringUtils.hasText(request.toWard())
                 || !StringUtils.hasText(request.toAddress())) {
-            throw new IllegalArgumentException("Missing GHN sender/receiver address");
+            throw new IllegalArgumentException("Buyer delivery address is missing. Cannot calculate GHN shipping fee.");
         }
 
+        ShippingAddress sender = resolveSenderAddress(request);
+        log.info(
+                "GHN sender address resolved: senderSource={}, fromProvince={}, fromWard={}, fromAddress={}",
+                sender.source(),
+                sender.province(),
+                sender.ward(),
+                sender.address());
+
         try {
-            GhnLocation from = resolveLocation(fromProvince, fromWard, "sender");
+            GhnLocation from = resolveLocation(sender.province(), sender.ward(), "sender");
             GhnLocation to = resolveLocation(request.toProvince(), request.toWard(), "receiver");
 
             Map<String, Object> body = new LinkedHashMap<>();
@@ -134,16 +140,68 @@ public class GhnShippingService {
 
     private void validateGhnConfig() {
         log.info(
-                "GHN config check: apiBaseUrl={}, tokenConfigured={}, shopId={}, defaultFromProvinceConfigured={}, defaultFromWardConfigured={}, defaultFromAddressConfigured={}",
+                "GHN config check: apiBaseUrl={}, tokenConfigured={}, shopId={}",
                 apiBaseUrl,
                 StringUtils.hasText(token),
-                shopId,
-                StringUtils.hasText(defaultFromProvince),
-                StringUtils.hasText(defaultFromWard),
-                StringUtils.hasText(defaultFromAddress));
+                shopId);
 
         if (!SANDBOX_BASE_URL.equals(apiBaseUrl) || !StringUtils.hasText(token) || !StringUtils.hasText(shopId)) {
             throw new IllegalStateException("GHN token/shopId is not configured");
+        }
+    }
+
+    private ShippingAddress resolveSenderAddress(ShippingQuoteRequest request) {
+        log.info("Resolving GHN sender address: supplierId={}, batchId={}", request.supplierId(), request.batchId());
+
+        if (request.batchId() != null) {
+            ShippingAddress address = resolveSenderAddressFromBatch(request.batchId());
+            if (address != null) {
+                validateSupplierAddress(address);
+                return address;
+            }
+        }
+
+        if (request.supplierId() != null) {
+            CompanyEntity supplierCompany = companyRepository.findById(request.supplierId()).orElse(null);
+            if (supplierCompany != null) {
+                ShippingAddress address = addressFromCompany("SUPPLIER_COMPANY", supplierCompany);
+                validateSupplierAddress(address);
+                return address;
+            }
+        }
+
+        throw new IllegalArgumentException("Supplier address is missing. Cannot calculate GHN shipping fee.");
+    }
+
+    private ShippingAddress resolveSenderAddressFromBatch(Long batchId) {
+        BatchEntity batch = batchRepository.findById(batchId).orElse(null);
+        if (batch == null || batch.getProductId() == null) {
+            return null;
+        }
+
+        ProductEntity product = productRepository.findById(batch.getProductId()).orElse(null);
+        if (product == null || product.getSupplierCompanyId() == null) {
+            return null;
+        }
+
+        CompanyEntity supplierCompany = companyRepository.findById(product.getSupplierCompanyId()).orElse(null);
+        if (supplierCompany == null) {
+            return null;
+        }
+
+        return addressFromCompany("BATCH", supplierCompany);
+    }
+
+    private ShippingAddress addressFromCompany(String source, CompanyEntity company) {
+        return new ShippingAddress(source, company.getProvince(), company.getWard(), company.getAddress());
+    }
+
+    private void validateSupplierAddress(ShippingAddress address) {
+        if (address == null
+                || !StringUtils.hasText(address.province())
+                || !StringUtils.hasText(address.ward())
+                || !StringUtils.hasText(address.address())) {
+            throw new IllegalArgumentException("Supplier address is missing. Cannot calculate GHN shipping fee.");
         }
     }
 
@@ -204,11 +262,8 @@ public class GhnShippingService {
                 province.provinceId(),
                 wardName,
                 normalizedWard);
-        String message = "Cannot resolve GHN " + role + " location: province=" + provinceName + ", ward=" + wardName;
-        if ("receiver".equals(role)) {
-            message += ". GHN master data does not support this new ward yet.";
-        }
-        throw new IllegalArgumentException(message);
+        throw new IllegalArgumentException(
+                "Cannot resolve GHN " + role + " location: province=" + provinceName + ", ward=" + wardName);
     }
 
     private GhnProvince findProvince(String provinceName, String normalizedProvinceName) {
@@ -280,16 +335,12 @@ public class GhnShippingService {
                 || normalizedB.contains(normalizedA);
     }
 
-    private static String firstText(String value, String fallback) {
-        return StringUtils.hasText(value) ? value : fallback;
-    }
-
     private static String normalizeAdministrativeName(String value) {
         if (!StringUtils.hasText(value)) {
             return "";
         }
 
-        String normalized = value.replace('Đ', 'D').replace('đ', 'd');
+        String normalized = value.replace('\u0110', 'D').replace('\u0111', 'd');
         normalized = Normalizer.normalize(normalized, Normalizer.Form.NFD);
         normalized = DIACRITICS.matcher(normalized).replaceAll("");
         normalized = normalized.toLowerCase(Locale.ROOT)
@@ -312,6 +363,9 @@ public class GhnShippingService {
             return "";
         }
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    private record ShippingAddress(String source, String province, String ward, String address) {
     }
 
     private record GhnLocation(Integer districtId, String wardCode) {
