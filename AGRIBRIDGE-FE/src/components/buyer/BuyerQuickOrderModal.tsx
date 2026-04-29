@@ -377,8 +377,12 @@
     const subtotal = unitPrice != null && quantityNumber > 0 && !Number.isNaN(quantityNumber)
       ? unitPrice * quantityNumber
       : null
-    const realGhnQuote = shippingQuote?.providerCode === 'GHN' ? shippingQuote : null
-    const shippingFee = realGhnQuote?.estimatedShippingFee ?? null
+    /** Quote valid for order submission: GHN (real price) or INTERNAL (system estimate). */
+    const effectiveShippingQuote =
+      shippingQuote?.providerCode === 'GHN' || shippingQuote?.providerCode === 'INTERNAL'
+        ? shippingQuote
+        : null
+    const shippingFee = effectiveShippingQuote?.estimatedShippingFee ?? null
     const estimatedTotal = subtotal != null
       ? subtotal + (shippingFee ?? 0)
       : null
@@ -403,9 +407,9 @@
             : 'Công nợ'
           : 'Chuyển khoản qua sàn'
     const estimatedDeliveryTime =
-      realGhnQuote?.estimatedDeliveryTime ||
-      (realGhnQuote?.estimatedDaysMin != null && realGhnQuote?.estimatedDaysMax != null
-        ? `${realGhnQuote.estimatedDaysMin} - ${realGhnQuote.estimatedDaysMax} ngày`
+      effectiveShippingQuote?.estimatedDeliveryTime ||
+      (effectiveShippingQuote?.estimatedDaysMin != null && effectiveShippingQuote?.estimatedDaysMax != null
+        ? `${effectiveShippingQuote.estimatedDaysMin} - ${effectiveShippingQuote.estimatedDaysMax} ngày`
         : null)
 
     const filteredProvinceOptions = useMemo(() => {
@@ -516,13 +520,13 @@
                   'Địa chỉ kho/nhà cung cấp chưa hỗ trợ tính phí tự động. Đơn hàng vẫn có thể tạo, phí vận chuyển sẽ được cập nhật sau.',
                 )
                 setShippingError('')
-              } else if (quote.providerCode === 'GHN') {
+              } else if (quote.providerCode === 'GHN' || quote.providerCode === 'INTERNAL') {
                 setShippingQuote(quote)
                 setSenderAddressWarning('')
                 setShippingError('')
               } else {
                 setShippingQuote(null)
-                setShippingError('Không thể tính phí vận chuyển từ GHN. Vui lòng kiểm tra địa chỉ hoặc cấu hình GHN.')
+                setShippingError('Không thể tính phí vận chuyển. Vui lòng kiểm tra địa chỉ hoặc thử lại.')
               }
             }
           })
@@ -652,13 +656,13 @@ const handleOpenEdit = () => {
         depositAmount: paymentMethod === 'DEPOSIT_50' ? depositAmount : null,
         balanceAmount: paymentMethod === 'DEPOSIT_50' ? balanceAmount : null,
         creditTermDays: paymentMethod === 'CREDIT' && creditLimit ? creditLimit.paymentTermDays : null,
-        shippingFee: realGhnQuote?.estimatedShippingFee ?? null,
-        shippingProviderCode: realGhnQuote?.providerCode ?? null,
-        shippingProviderName: realGhnQuote?.providerName ?? null,
-        shippingServiceName: realGhnQuote?.serviceName ?? null,
-        estimatedDeliveryTime: realGhnQuote?.estimatedDeliveryTime ?? null,
-        shippingPayer: realGhnQuote?.shippingPayer ?? 'BUYER',
-        shippingStatus: realGhnQuote ? 'QUOTED' : 'PENDING_QUOTE',
+        shippingFee: effectiveShippingQuote?.estimatedShippingFee ?? null,
+        shippingProviderCode: effectiveShippingQuote?.providerCode ?? null,
+        shippingProviderName: effectiveShippingQuote?.providerName ?? null,
+        shippingServiceName: effectiveShippingQuote?.serviceName ?? null,
+        estimatedDeliveryTime: effectiveShippingQuote?.estimatedDeliveryTime ?? null,
+        shippingPayer: effectiveShippingQuote?.shippingPayer ?? 'BUYER',
+        shippingStatus: effectiveShippingQuote ? 'QUOTED' : 'PENDING_QUOTE',
         orderStatus: 'PENDING_SUPPLIER_CONFIRMATION',
       }
 
@@ -1043,9 +1047,9 @@ const handleOpenEdit = () => {
                 <div className="grid gap-2 sm:grid-cols-2 text-sm">
                   <ShippingRow
                     label="Đơn vị vận chuyển"
-                    value={shippingLoading ? 'Đang tính...' : realGhnQuote?.providerName || 'Chờ tính'}
+                    value={shippingLoading ? 'Đang tính...' : effectiveShippingQuote?.providerName || 'Chờ tính'}
                   />
-                  <ShippingRow label="Dịch vụ" value={realGhnQuote?.serviceName || 'Chờ tính'} />
+                  <ShippingRow label="Dịch vụ" value={effectiveShippingQuote?.serviceName || 'Chờ tính'} />
                   <ShippingRow
                     label="Phí vận chuyển"
                     value={
@@ -1062,6 +1066,15 @@ const handleOpenEdit = () => {
                   />
                   <ShippingRow label="Người trả phí" value="Buyer" />
                 </div>
+                {/* INTERNAL provider soft info banner */}
+                {effectiveShippingQuote?.providerCode === 'INTERNAL' && !senderAddressWarning ? (
+                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <span className="mt-0.5 shrink-0 text-amber-500">⚠</span>
+                    <p className="text-xs font-semibold text-amber-700">
+                      Phí vận chuyển đang được hệ thống tạm tính vì GHN chưa khả dụng.
+                    </p>
+                  </div>
+                ) : null}
                 {senderAddressWarning ? (
                   <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
                     <span className="mt-0.5 shrink-0 text-amber-500">⚠</span>
