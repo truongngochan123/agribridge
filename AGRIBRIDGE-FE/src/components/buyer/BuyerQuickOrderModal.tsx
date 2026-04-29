@@ -1056,9 +1056,7 @@ const handleOpenEdit = () => {
                     {shippingError}
                   </p>
                 ) : null}
-                <p className="mt-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2 text-[11px] italic text-slate-500">
-                  Thông tin vận chuyển được tính dự kiến từ GHN sandbox. Hệ thống chưa tạo vận đơn thật ở bước này.
-                </p>
+          
               </div>
 
               {/* Payment */}
