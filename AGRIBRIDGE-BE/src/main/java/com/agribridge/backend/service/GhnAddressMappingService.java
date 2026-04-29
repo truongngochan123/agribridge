@@ -42,11 +42,8 @@ public class GhnAddressMappingService {
     public GhnLocation resolveForGhn(Address address, String role) {
         long start = System.currentTimeMillis();
         log.info(
-                "GHN address mapping: role={}, source=DIRECT_GHN_MASTER_DATA, originalProvince={}, originalWard={}, originalAddress={}, ghnProvince={}, ghnWard={}",
+                "GHN address mapping: role={}, source=DIRECT_GHN_MASTER_DATA, originalProvince={}, originalWard={}",
                 role,
-                address.province(),
-                address.ward(),
-                address.address(),
                 address.province(),
                 address.ward());
         try {
@@ -60,6 +57,29 @@ public class GhnAddressMappingService {
                     : "Cannot resolve GHN-compatible sender address.";
             throw new IllegalArgumentException(
                     message + " province=" + address.province() + ", ward=" + address.ward(),
+                    ex);
+        }
+    }
+
+    /**
+     * Resolve sender (supplier/warehouse) address for GHN.
+     * Strategy:
+     * 1. Try exact province + ward match.
+     * 2. If ward not found, treat ward text as a DISTRICT name and pick the first ward of that district.
+     *    (e.g. "Phường Quy Nhơn" → normalizes to "quy nhon" → matches district "Thành phố Quy Nhơn")
+     * This prevents hard 400 errors for suppliers whose ward field contains a city/district name.
+     */
+    public GhnLocation resolveForGhnSender(Address address) {
+        long start = System.currentTimeMillis();
+        log.info("GHN sender address mapping: province={}, ward={}", address.province(), address.ward());
+        try {
+            GhnLocation location = resolveLocationWithDistrictFallback(address.province(), address.ward());
+            log.info("Resolved GHN sender location in {}ms", System.currentTimeMillis() - start);
+            return location;
+        } catch (IllegalArgumentException ex) {
+            log.warn("Failed to resolve GHN sender location in {}ms: {}", System.currentTimeMillis() - start, ex.getMessage());
+            throw new IllegalArgumentException(
+                    "Cannot resolve GHN-compatible sender address. province=" + address.province() + ", ward=" + address.ward(),
                     ex);
         }
     }
@@ -171,6 +191,64 @@ public class GhnAddressMappingService {
                 wardName,
                 normalizedWard);
         throw new IllegalArgumentException("Cannot resolve GHN location");
+    }
+
+    /**
+     * Like resolveLocation but with district-name fallback for sender addresses.
+     * If the ward text doesn't match any ward, tries matching it against district names
+     * and picks the first ward of the matching district.
+     */
+    private GhnLocation resolveLocationWithDistrictFallback(String provinceName, String wardName) {
+        String normalizedProvince = normalizeAdministrativeName(provinceName);
+        String normalizedWard = normalizeAdministrativeName(wardName);
+        String cacheKey = "sender|" + normalizedProvince + "|" + normalizedWard;
+        GhnLocation cached = resolvedLocationCache.get(cacheKey);
+        if (cached != null) {
+            log.info("Resolved GHN sender location from cache: province={}, ward={}", provinceName, wardName);
+            return cached;
+        }
+
+        GhnProvince province = findProvince(provinceName, normalizedProvince);
+        if (province == null) {
+            throw new IllegalArgumentException("Cannot resolve GHN sender province: " + provinceName);
+        }
+
+        List<GhnDistrict> districts = getDistricts().stream()
+                .filter(d -> d.provinceId() != null && d.provinceId().equals(province.provinceId()))
+                .toList();
+
+        // ── Pass 1: exact ward match ──────────────────────────────────────────
+        for (GhnDistrict district : districts) {
+            GhnWard ward = findWardInDistrict(district.districtId(), wardName, normalizedWard);
+            if (ward != null) {
+                log.info("Sender ward matched (pass 1): districtId={}, wardCode={}, wardName={}",
+                        district.districtId(), ward.wardCode(), ward.wardName());
+                GhnLocation location = new GhnLocation(district.districtId(), ward.wardCode());
+                resolvedLocationCache.put(cacheKey, location);
+                return location;
+            }
+        }
+
+        // ── Pass 2: treat ward text as district name, pick first ward ─────────
+        log.info("Sender ward not found in pass 1 — trying district-name fallback for ward='{}'", wardName);
+        for (GhnDistrict district : districts) {
+            if (district.districtName() == null) continue;
+            String normalizedDistrictName = normalizeAdministrativeName(district.districtName());
+            if (administrativeNamesMatch(normalizedDistrictName, normalizedWard)) {
+                List<GhnWard> wards = getWards(district.districtId());
+                if (!wards.isEmpty()) {
+                    GhnWard firstWard = wards.get(0);
+                    log.info("Sender ward resolved via district-name fallback: districtName={}, districtId={}, fallbackWard={}",
+                            district.districtName(), district.districtId(), firstWard.wardName());
+                    GhnLocation location = new GhnLocation(district.districtId(), firstWard.wardCode());
+                    resolvedLocationCache.put(cacheKey, location);
+                    return location;
+                }
+            }
+        }
+
+        throw new IllegalArgumentException(
+                "Cannot resolve GHN sender location even with district fallback. province=" + provinceName + ", ward=" + wardName);
     }
 
     private List<String> nearProvinceMatches(String normalizedProvinceName) {
@@ -347,7 +425,8 @@ public class GhnAddressMappingService {
 
     private record GhnDistrict(
             @JsonProperty("DistrictID") Integer districtId,
-            @JsonProperty("ProvinceID") Integer provinceId) {
+            @JsonProperty("ProvinceID") Integer provinceId,
+            @JsonProperty("DistrictName") String districtName) {
     }
 
     private record GhnWard(

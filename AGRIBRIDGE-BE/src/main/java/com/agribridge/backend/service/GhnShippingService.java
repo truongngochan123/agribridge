@@ -94,8 +94,10 @@ public class GhnShippingService {
         try {
             GhnLocation from;
             try {
-                from = ghnAddressMappingService.resolveForGhn(
-                        new Address(sender.province(), sender.ward(), sender.address()), "sender");
+                // Use resolveForGhnSender which has district-name fallback:
+                // e.g. ward="Phường Quy Nhơn" → normalizes to "quy nhon" → matches district "Thành phố Quy Nhơn"
+                from = ghnAddressMappingService.resolveForGhnSender(
+                        new Address(sender.province(), sender.ward(), sender.address()));
             } catch (IllegalArgumentException senderResolveEx) {
                 log.warn("GHN sender location resolve failed — falling back to PENDING_QUOTE. reason={}", senderResolveEx.getMessage());
                 return pendingQuoteFallback("Địa chỉ kho/nhà cung cấp chưa khớp GHN, phí vận chuyển sẽ được cập nhật sau.");
