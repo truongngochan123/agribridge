@@ -84,10 +84,15 @@ public class GhnShippingService {
                 sender.address());
 
         try {
+            long senderResolveStart = System.currentTimeMillis();
             GhnLocation from = ghnAddressMappingService.resolveForGhn(
                     new Address(sender.province(), sender.ward(), sender.address()), "sender");
+            log.info("Resolved GHN sender location in {}ms", System.currentTimeMillis() - senderResolveStart);
+
+            long receiverResolveStart = System.currentTimeMillis();
             GhnLocation to = ghnAddressMappingService.resolveForGhn(
                     new Address(request.toProvince(), request.toWard(), request.toAddress()), "receiver");
+            log.info("Resolved GHN receiver location in {}ms", System.currentTimeMillis() - receiverResolveStart);
 
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("service_type_id", 2);
@@ -103,6 +108,7 @@ public class GhnShippingService {
             body.put("coupon", null);
 
             log.info("Calling GHN shipping quote API {}", FEE_PATH);
+            long feeStart = System.currentTimeMillis();
             GhnFeeResponse response = restClient.post()
                     .uri(apiBaseUrl + FEE_PATH)
                     .header("Token", token)
@@ -111,6 +117,7 @@ public class GhnShippingService {
                     .body(body)
                     .retrieve()
                     .body(GhnFeeResponse.class);
+            log.info("GHN shipping fee API responded in {}ms", System.currentTimeMillis() - feeStart);
 
             BigDecimal total = response != null && response.data() != null ? response.data().total() : null;
             if (total == null) {

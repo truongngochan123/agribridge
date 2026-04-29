@@ -34,13 +34,18 @@ export async function quoteBuyerShipping(
   payload: BuyerShippingQuoteRequest,
 ): Promise<BuyerShippingQuote> {
   try {
-    const response = await apiClient.post('/api/buyer/shipping/quote', payload)
+    const response = await apiClient.post('/api/buyer/shipping/quote', payload, {
+      timeout: 20000,
+    })
     return response.data?.data ?? response.data
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const message = error.response?.data?.message
       if (typeof message === 'string' && message.trim()) {
         throw new Error(message)
+      }
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('GHN phản hồi quá lâu. Vui lòng thử lại hoặc kiểm tra địa chỉ.')
       }
     }
     throw error

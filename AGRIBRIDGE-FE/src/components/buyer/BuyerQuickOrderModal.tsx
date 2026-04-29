@@ -165,6 +165,7 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
     const [shippingQuote, setShippingQuote] = useState<BuyerShippingQuote | null>(null)
     const [shippingLoading, setShippingLoading] = useState(false)
     const [shippingError, setShippingError] = useState('')
+    const inFlightShippingQuoteKeyRef = useRef('')
 
     // ── Reset quantity when target changes ──
     useEffect(() => {
@@ -313,14 +314,29 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
         buyerInfo.address?.trim(),
       )
 
-      if (!hasValidQuantity || !hasDeliveryAddress) {
+      if (!hasValidQuantity || !hasDeliveryAddress || subtotal == null) {
         setShippingQuote(null)
         setShippingError('')
         setShippingLoading(false)
+        inFlightShippingQuoteKeyRef.current = ''
+        return
+      }
+
+      const shippingQuoteKey = JSON.stringify({
+        quantity: quantityNumber,
+        province: buyerInfo.province,
+        ward: buyerInfo.ward,
+        address: buyerInfo.address,
+        productId: target.productId,
+        batchId: target.batchId ?? null,
+        subtotal,
+      })
+      if (inFlightShippingQuoteKeyRef.current === shippingQuoteKey) {
         return
       }
 
       let ignore = false
+      inFlightShippingQuoteKeyRef.current = shippingQuoteKey
       setShippingLoading(true)
       setShippingError('')
 
@@ -362,6 +378,9 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
             }
           })
           .finally(() => {
+            if (inFlightShippingQuoteKeyRef.current === shippingQuoteKey) {
+              inFlightShippingQuoteKeyRef.current = ''
+            }
             if (!ignore) setShippingLoading(false)
           })
       }, 500)
@@ -369,6 +388,9 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
       return () => {
         ignore = true
         window.clearTimeout(timeoutId)
+        if (inFlightShippingQuoteKeyRef.current === shippingQuoteKey) {
+          inFlightShippingQuoteKeyRef.current = ''
+        }
       }
     }, [
       buyerInfo.address,

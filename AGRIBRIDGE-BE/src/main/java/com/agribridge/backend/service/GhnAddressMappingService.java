@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +25,10 @@ public class GhnAddressMappingService {
     private final RestClient restClient;
     private final String apiBaseUrl;
     private final String token;
+    private volatile List<GhnProvince> provinceCache;
+    private volatile List<GhnDistrict> districtCache;
+    private final Map<Integer, List<GhnWard>> wardCacheByDistrictId = new ConcurrentHashMap<>();
+    private final Map<String, GhnLocation> resolvedLocationCache = new ConcurrentHashMap<>();
 
     public GhnAddressMappingService(
             RestClient.Builder restClientBuilder,
@@ -34,6 +40,7 @@ public class GhnAddressMappingService {
     }
 
     public GhnLocation resolveForGhn(Address address, String role) {
+        long start = System.currentTimeMillis();
         MappingResult mapping = toGhnCompatibleAddress(address);
         Address ghnAddress = mapping.address();
         log.info(
@@ -46,8 +53,11 @@ public class GhnAddressMappingService {
                 ghnAddress.province(),
                 ghnAddress.ward());
         try {
-            return resolveLocation(ghnAddress.province(), ghnAddress.ward(), role);
+            GhnLocation location = resolveLocation(ghnAddress.province(), ghnAddress.ward(), role);
+            log.info("Resolved GHN {} location in {}ms", role, System.currentTimeMillis() - start);
+            return location;
         } catch (IllegalArgumentException ex) {
+            log.warn("Failed to resolve GHN {} location in {}ms", role, System.currentTimeMillis() - start);
             throw unresolvedAddress(role, address, ex);
         }
     }
@@ -100,6 +110,13 @@ public class GhnAddressMappingService {
     private GhnLocation resolveLocation(String provinceName, String wardName, String role) {
         String normalizedProvince = normalizeAdministrativeName(provinceName);
         String normalizedWard = normalizeAdministrativeName(wardName);
+        String cacheKey = normalizedProvince + "|" + normalizedWard;
+        GhnLocation cached = resolvedLocationCache.get(cacheKey);
+        if (cached != null) {
+            log.info("Resolved GHN {} location from cache: province={}, ward={}", role, provinceName, wardName);
+            return cached;
+        }
+
         log.info(
                 "Resolving GHN {} location: provinceInput={}, normalizedProvince={}, wardInput={}, normalizedWard={}",
                 role,
@@ -136,7 +153,9 @@ public class GhnAddressMappingService {
                         district.districtId(),
                         ward.wardCode(),
                         ward.wardName());
-                return new GhnLocation(district.districtId(), ward.wardCode());
+                GhnLocation location = new GhnLocation(district.districtId(), ward.wardCode());
+                resolvedLocationCache.put(cacheKey, location);
+                return location;
             }
         }
 
@@ -151,13 +170,7 @@ public class GhnAddressMappingService {
     }
 
     private GhnProvince findProvince(String provinceName, String normalizedProvinceName) {
-        ProvinceResponse response = restClient.get()
-                .uri(apiBaseUrl + PROVINCE_PATH)
-                .header("Token", token)
-                .retrieve()
-                .body(ProvinceResponse.class);
-
-        List<GhnProvince> provinces = response != null && response.data() != null ? response.data() : List.of();
+        List<GhnProvince> provinces = getProvinces();
         GhnProvince matched = provinces.stream()
                 .filter(province -> administrativeNamesMatch(
                         normalizeAdministrativeName(province.provinceName()), normalizedProvinceName))
@@ -173,13 +186,49 @@ public class GhnAddressMappingService {
     }
 
     private List<GhnDistrict> getDistricts() {
-        DistrictResponse response = restClient.get()
-                .uri(apiBaseUrl + DISTRICT_PATH)
-                .header("Token", token)
-                .retrieve()
-                .body(DistrictResponse.class);
+        List<GhnDistrict> cached = districtCache;
+        if (cached != null) {
+            return cached;
+        }
 
-        return response != null && response.data() != null ? response.data() : List.of();
+        synchronized (this) {
+            if (districtCache != null) {
+                return districtCache;
+            }
+
+            DistrictResponse response = restClient.get()
+                    .uri(apiBaseUrl + DISTRICT_PATH)
+                    .header("Token", token)
+                    .retrieve()
+                    .body(DistrictResponse.class);
+
+            districtCache = response != null && response.data() != null ? response.data() : List.of();
+            log.info("Loaded GHN district master data: count={}", districtCache.size());
+            return districtCache;
+        }
+    }
+
+    private List<GhnProvince> getProvinces() {
+        List<GhnProvince> cached = provinceCache;
+        if (cached != null) {
+            return cached;
+        }
+
+        synchronized (this) {
+            if (provinceCache != null) {
+                return provinceCache;
+            }
+
+            ProvinceResponse response = restClient.get()
+                    .uri(apiBaseUrl + PROVINCE_PATH)
+                    .header("Token", token)
+                    .retrieve()
+                    .body(ProvinceResponse.class);
+
+            provinceCache = response != null && response.data() != null ? response.data() : List.of();
+            log.info("Loaded GHN province master data: count={}", provinceCache.size());
+            return provinceCache;
+        }
     }
 
     private GhnWard findWardInDistrict(Integer districtId, String wardName, String normalizedWardName) {
@@ -187,17 +236,25 @@ public class GhnAddressMappingService {
             return null;
         }
 
-        WardResponse response = restClient.get()
-                .uri(apiBaseUrl + WARD_PATH + "?district_id=" + districtId)
-                .header("Token", token)
-                .retrieve()
-                .body(WardResponse.class);
-
-        List<GhnWard> wards = response != null && response.data() != null ? response.data() : List.of();
+        List<GhnWard> wards = getWards(districtId);
         return wards.stream()
                 .filter(ward -> administrativeNamesMatch(normalizeAdministrativeName(ward.wardName()), normalizedWardName))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private List<GhnWard> getWards(Integer districtId) {
+        return wardCacheByDistrictId.computeIfAbsent(districtId, id -> {
+            WardResponse response = restClient.get()
+                    .uri(apiBaseUrl + WARD_PATH + "?district_id=" + id)
+                    .header("Token", token)
+                    .retrieve()
+                    .body(WardResponse.class);
+
+            List<GhnWard> wards = response != null && response.data() != null ? response.data() : List.of();
+            log.info("Loaded GHN ward master data: districtId={}, count={}", id, wards.size());
+            return wards;
+        });
     }
 
     static String normalizeAdministrativeName(String value) {
