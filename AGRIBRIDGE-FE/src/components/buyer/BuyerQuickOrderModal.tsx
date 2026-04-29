@@ -82,6 +82,16 @@
     return Math.round(quantity * 1000)
   }
 
+  function normalizeSearchText(value?: string | null) {
+    return String(value ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .toLowerCase()
+      .trim()
+  }
+
   function getBuyerInfoFromSession(): BuyerQuickOrderBuyerInfo {
     const get = (key: string) => sessionStorage.getItem(key)?.trim() || null
     return {
@@ -153,10 +163,14 @@
     const [draftProvince, setDraftProvince] = useState(buyerInfo.province || '')
 const [draftProvinceCode, setDraftProvinceCode] = useState('')
 const [draftWard, setDraftWard] = useState(buyerInfo.ward || '')
-const [draftWardCode, setDraftWardCode] = useState('')
+const [, setDraftWardCode] = useState('')
 const [draftAddress, setDraftAddress] = useState(buyerInfo.address || '')
 const [provinceOptions, setProvinceOptions] = useState<VietnamProvinceOption[]>([])
 const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
+    const [provinceSearch, setProvinceSearch] = useState(buyerInfo.province || '')
+    const [wardSearch, setWardSearch] = useState(buyerInfo.ward || '')
+    const [showProvinceOptions, setShowProvinceOptions] = useState(false)
+    const [showWardOptions, setShowWardOptions] = useState(false)
     const [loadingAddressOptions, setLoadingAddressOptions] = useState(false)
     const [addressLoadError, setAddressLoadError] = useState('')
 
@@ -284,6 +298,17 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
       (realGhnQuote?.estimatedDaysMin != null && realGhnQuote?.estimatedDaysMax != null
         ? `${realGhnQuote.estimatedDaysMin} - ${realGhnQuote.estimatedDaysMax} ngày`
         : null)
+
+    const filteredProvinceOptions = useMemo(() => {
+      const query = normalizeSearchText(provinceSearch)
+      if (!query) return provinceOptions
+      return provinceOptions.filter((province) => normalizeSearchText(province.name).includes(query))
+    }, [provinceOptions, provinceSearch])
+    const filteredWardOptions = useMemo(() => {
+      const query = normalizeSearchText(wardSearch)
+      if (!query) return wardOptions
+      return wardOptions.filter((ward) => normalizeSearchText(ward.name).includes(query))
+    }, [wardOptions, wardSearch])
 
     const showMoqWarning =
       target.minMoq != null && quantityNumber > 0 && quantityNumber < target.minMoq
@@ -423,11 +448,15 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
   setDraftName(buyerInfo.fullName || '')
   setDraftPhone(buyerInfo.phone || '')
   setDraftProvince(buyerInfo.province || '')
+  setProvinceSearch(buyerInfo.province || '')
   setDraftProvinceCode('')
   setDraftWard(buyerInfo.ward || '')
+  setWardSearch(buyerInfo.ward || '')
   setDraftWardCode('')
   setDraftAddress(buyerInfo.address || '')
   setWardOptions([])
+  setShowProvinceOptions(false)
+  setShowWardOptions(false)
   setEditingAddress(false)
 }
 
@@ -435,11 +464,15 @@ const handleOpenEdit = () => {
   setDraftName(buyerInfo.fullName || '')
   setDraftPhone(buyerInfo.phone || '')
   setDraftProvince(buyerInfo.province || '')
+  setProvinceSearch(buyerInfo.province || '')
   setDraftProvinceCode('')
   setDraftWard(buyerInfo.ward || '')
+  setWardSearch(buyerInfo.ward || '')
   setDraftWardCode('')
   setDraftAddress(buyerInfo.address || '')
   setWardOptions([])
+  setShowProvinceOptions(false)
+  setShowWardOptions(false)
   setEditingAddress(true)
 }
 
@@ -687,50 +720,95 @@ const handleOpenEdit = () => {
                       </div>
                       <div>
                         <label className="mb-1 block text-xs font-semibold text-slate-600">Tỉnh/Khu vực</label>
-                        <select
-                          value={draftProvinceCode}
-                          onChange={(e) => {
-                            const code = e.target.value
-                            const province = provinceOptions.find((item) => String(item.code) === String(code))
-
-                            setDraftProvinceCode(code)
-                            setDraftProvince(province?.name || '')
-                            setDraftWard('')
-                            setDraftWardCode('')
-                            setWardOptions([])
-                          }}
-                          className="h-10 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                        >
-                          <option value="">Chọn tỉnh/thành</option>
-                          {provinceOptions.map((province) => (
-                            <option key={province.code} value={province.code}>
-                              {province.name}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="relative">
+                          <input
+                            value={provinceSearch || draftProvince}
+                            onFocus={() => {
+                              setProvinceSearch('')
+                              setShowProvinceOptions(true)
+                            }}
+                            onBlur={() => window.setTimeout(() => setShowProvinceOptions(false), 150)}
+                            onChange={(e) => {
+                              setProvinceSearch(e.target.value)
+                              setShowProvinceOptions(true)
+                            }}
+                            className="h-10 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                            placeholder="Chọn hoặc tìm tỉnh/thành"
+                          />
+                          {showProvinceOptions ? (
+                            <div className="absolute z-30 mt-1 max-h-[220px] w-full overflow-y-auto rounded-lg border border-emerald-100 bg-white py-1 text-sm shadow-lg">
+                              {filteredProvinceOptions.length > 0 ? (
+                                filteredProvinceOptions.map((province) => (
+                                  <button
+                                    key={province.code}
+                                    type="button"
+                                    onMouseDown={(event) => event.preventDefault()}
+                                    onClick={() => {
+                                      setDraftProvinceCode(String(province.code))
+                                      setDraftProvince(province.name)
+                                      setProvinceSearch(province.name)
+                                      setDraftWard('')
+                                      setDraftWardCode('')
+                                      setWardSearch('')
+                                      setWardOptions([])
+                                      setShowProvinceOptions(false)
+                                    }}
+                                    className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-emerald-50"
+                                  >
+                                    {province.name}
+                                  </button>
+                                ))
+                              ) : (
+                                <p className="px-3 py-2 text-slate-400">Không tìm thấy</p>
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                       
                       <div>
                         <label className="mb-1 block text-xs font-semibold text-slate-600">Xã / Phường</label>
-                        <select
-                          value={draftWardCode}
-                          onChange={(e) => {
-                            const code = e.target.value
-                            const ward = wardOptions.find((item) => String(item.code) === String(code))
-
-                            setDraftWardCode(code)
-                            setDraftWard(ward?.name || '')
-                          }}
-                          disabled={!draftProvinceCode.trim()}
-                          className="h-10 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                        >
-                          <option value="">Chọn xã/phường</option>
-                          {wardOptions.map((ward) => (
-                            <option key={ward.code} value={ward.code}>
-                              {ward.name}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="relative">
+                          <input
+                            value={wardSearch || draftWard}
+                            disabled={!draftProvinceCode.trim()}
+                            onFocus={() => {
+                              setWardSearch('')
+                              setShowWardOptions(true)
+                            }}
+                            onBlur={() => window.setTimeout(() => setShowWardOptions(false), 150)}
+                            onChange={(e) => {
+                              setWardSearch(e.target.value)
+                              setShowWardOptions(true)
+                            }}
+                            className="h-10 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                            placeholder={draftProvinceCode.trim() ? 'Chọn hoặc tìm xã/phường' : 'Chọn tỉnh trước'}
+                          />
+                          {showWardOptions && draftProvinceCode.trim() ? (
+                            <div className="absolute z-30 mt-1 max-h-[220px] w-full overflow-y-auto rounded-lg border border-emerald-100 bg-white py-1 text-sm shadow-lg">
+                              {filteredWardOptions.length > 0 ? (
+                                filteredWardOptions.map((ward) => (
+                                  <button
+                                    key={ward.code}
+                                    type="button"
+                                    onMouseDown={(event) => event.preventDefault()}
+                                    onClick={() => {
+                                      setDraftWardCode(String(ward.code))
+                                      setDraftWard(ward.name)
+                                      setWardSearch(ward.name)
+                                      setShowWardOptions(false)
+                                    }}
+                                    className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-emerald-50"
+                                  >
+                                    {ward.name}
+                                  </button>
+                                ))
+                              ) : (
+                                <p className="px-3 py-2 text-slate-400">Không tìm thấy</p>
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                       <div>
                         <label className="mb-1 block text-xs font-semibold text-slate-600">Địa chỉ chi tiết</label>
