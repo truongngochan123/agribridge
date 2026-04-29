@@ -55,8 +55,12 @@ public class GhnAddressMappingService {
             return location;
         } catch (IllegalArgumentException ex) {
             log.warn("Failed to resolve GHN {} location in {}ms", role, System.currentTimeMillis() - start);
+            String message = "receiver".equalsIgnoreCase(role)
+                    ? "Xã/phường không thuộc tỉnh/thành đã chọn. Vui lòng chọn lại địa chỉ."
+                    : "Cannot resolve GHN-compatible sender address.";
             throw new IllegalArgumentException(
-                    "Cannot resolve GHN location: province=" + address.province() + ", ward=" + address.ward(), ex);
+                    message + " province=" + address.province() + ", ward=" + address.ward(),
+                    ex);
         }
     }
 

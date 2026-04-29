@@ -15,11 +15,12 @@
     type BuyerShippingQuote,
   } from '../../services/buyerShippingService'
   import {
-  fetchVietnamProvinces,
-  fetchVietnamWardsByProvinceCode,
-  type VietnamProvinceOption,
-  type VietnamWardOption,
-} from '../../services/vietnamAddressService'
+    fetchVietnamProvinces,
+    fetchVietnamWardsByProvinceCode,
+    findProvinceByName,
+    type VietnamProvinceOption,
+    type VietnamWardOption,
+  } from '../../services/vietnamAddressService'
   import { resolveUploadedFileUrl } from '../../services/uploadService'
   import type {
     BuyerCreditLimit,
@@ -84,6 +85,26 @@
       .replace(/Đ/g, 'D')
       .toLowerCase()
       .trim()
+  }
+
+  function normalizeAddressOptionText(value?: string | null) {
+    return normalizeSearchText(value)
+      .replace(/\b(tinh|thanh pho|tp|phuong|xa|thi tran|quan|huyen|thi xa)\b/g, ' ')
+      .replace(/[.\-_/]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
+  function addressNamesMatch(left?: string | null, right?: string | null) {
+    const normalizedLeft = normalizeAddressOptionText(left)
+    const normalizedRight = normalizeAddressOptionText(right)
+    return Boolean(
+      normalizedLeft &&
+        normalizedRight &&
+        (normalizedLeft === normalizedRight ||
+          normalizedLeft.includes(normalizedRight) ||
+          normalizedRight.includes(normalizedLeft)),
+    )
   }
 
   function getBuyerInfoFromSession(): BuyerQuickOrderBuyerInfo {
@@ -155,18 +176,21 @@
     const [draftName, setDraftName] = useState(buyerInfo.fullName || '')
     const [draftPhone, setDraftPhone] = useState(buyerInfo.phone || '')
     const [draftProvince, setDraftProvince] = useState(buyerInfo.province || '')
-const [draftProvinceCode, setDraftProvinceCode] = useState('')
-const [draftWard, setDraftWard] = useState(buyerInfo.ward || '')
-const [, setDraftWardCode] = useState('')
-const [draftAddress, setDraftAddress] = useState(buyerInfo.address || '')
-const [provinceOptions, setProvinceOptions] = useState<VietnamProvinceOption[]>([])
-const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
+    const [draftProvinceCode, setDraftProvinceCode] = useState('')
+    const [draftWard, setDraftWard] = useState(buyerInfo.ward || '')
+    const [draftWardCode, setDraftWardCode] = useState('')
+    const [draftAddress, setDraftAddress] = useState(buyerInfo.address || '')
+    const [provinceOptions, setProvinceOptions] = useState<VietnamProvinceOption[]>([])
+    const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
     const [provinceSearch, setProvinceSearch] = useState(buyerInfo.province || '')
     const [wardSearch, setWardSearch] = useState(buyerInfo.ward || '')
     const [showProvinceOptions, setShowProvinceOptions] = useState(false)
     const [showWardOptions, setShowWardOptions] = useState(false)
     const [loadingAddressOptions, setLoadingAddressOptions] = useState(false)
     const [addressLoadError, setAddressLoadError] = useState('')
+    const [addressEditError, setAddressEditError] = useState('')
+    const [deliveryAddressWarning, setDeliveryAddressWarning] = useState('')
+    const [deliveryAddressValid, setDeliveryAddressValid] = useState(false)
 
     // ── Payment method state ──
     const [paymentMethod, setPaymentMethod] = useState<BuyerPaymentMethod>('ESCROW_TRANSFER')
@@ -276,6 +300,76 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
   }
 }, [draftProvinceCode])
 
+    useEffect(() => {
+      if (!draftWard.trim() || draftWardCode.trim() || wardOptions.length === 0) return
+      const matchedWard = wardOptions.find((ward) => addressNamesMatch(ward.name, draftWard))
+      if (matchedWard) {
+        setDraftWardCode(String(matchedWard.code))
+        setDraftWard(matchedWard.name)
+        setWardSearch(matchedWard.name)
+      }
+    }, [draftWard, draftWardCode, wardOptions])
+
+    useEffect(() => {
+      let ignore = false
+
+      async function validateDeliveryWard() {
+        const provinceName = buyerInfo.province?.trim()
+        const wardName = buyerInfo.ward?.trim()
+
+        if (!provinceName || !wardName) {
+          setDeliveryAddressValid(false)
+          if (!provinceName) setDeliveryAddressWarning('')
+          return
+        }
+
+        if (provinceOptions.length === 0) {
+          setDeliveryAddressValid(false)
+          return
+        }
+
+        const matchedProvince = findProvinceByName(provinceOptions, provinceName)
+        if (!matchedProvince) {
+          setDeliveryAddressValid(false)
+          setDeliveryAddressWarning('Vui lòng chọn lại tỉnh/thành và xã/phường hợp lệ để tính phí vận chuyển')
+          return
+        }
+
+        try {
+          const wards = await fetchVietnamWardsByProvinceCode(matchedProvince.code)
+          if (ignore) return
+
+          const matchedWard = wards.find((ward) => addressNamesMatch(ward.name, wardName))
+          if (!matchedWard) {
+            setDeliveryAddressValid(false)
+            setDeliveryAddressWarning('Xã/phường không thuộc tỉnh đã chọn, vui lòng chọn lại địa chỉ nhận hàng')
+            setShippingQuote(null)
+            setBuyerInfo((current) => {
+              if (current.province?.trim() === provinceName && current.ward?.trim() === wardName) {
+                return { ...current, ward: null }
+              }
+              return current
+            })
+            sessionStorage.removeItem('agribridge.auth.companyWard')
+            sessionStorage.removeItem('agribridge.auth.ward')
+            return
+          }
+
+          setDeliveryAddressValid(true)
+          setDeliveryAddressWarning('')
+        } catch {
+          if (!ignore) {
+            setDeliveryAddressValid(false)
+          }
+        }
+      }
+
+      void validateDeliveryWard()
+      return () => {
+        ignore = true
+      }
+    }, [buyerInfo.province, buyerInfo.ward, provinceOptions])
+
     // ── Derived ──
     const quantityNumber = Number(quantity)
     const unitPrice = target.price ?? null
@@ -359,7 +453,18 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
 
       if (!hasValidQuantity || !hasDeliveryAddress || subtotal == null) {
         setShippingQuote(null)
-        setShippingError('')
+        setShippingError(deliveryAddressWarning || '')
+        setShippingLoading(false)
+        inFlightShippingQuoteKeyRef.current = ''
+        return
+      }
+
+      if (!deliveryAddressValid) {
+        setShippingQuote(null)
+        setShippingError(
+          deliveryAddressWarning ||
+            'Vui lòng chọn lại tỉnh/thành và xã/phường hợp lệ để tính phí vận chuyển',
+        )
         setShippingLoading(false)
         inFlightShippingQuoteKeyRef.current = ''
         return
@@ -439,6 +544,8 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
       buyerInfo.address,
       buyerInfo.province,
       buyerInfo.ward,
+      deliveryAddressValid,
+      deliveryAddressWarning,
       quantityNumber,
       subtotal,
       target.batchId,
@@ -451,13 +558,28 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
 
     // ── Handlers ──
     const handleSaveAddress = () => {
+      if (!draftProvinceCode.trim() || !draftProvince.trim()) {
+        setAddressEditError('Vui lòng chọn tỉnh/thành từ danh sách.')
+        return
+      }
+      if (!draftWardCode.trim() || !draftWard.trim()) {
+        setAddressEditError('Vui lòng chọn xã/phường từ danh sách sau khi chọn tỉnh/thành.')
+        return
+      }
+      if (!draftAddress.trim()) {
+        setAddressEditError('Vui lòng nhập địa chỉ chi tiết.')
+        return
+      }
+      setAddressEditError('')
+      setDeliveryAddressWarning('')
+      setShippingError('')
       setBuyerInfo({
         fullName: draftName.trim() || buyerInfo.fullName,
         companyName: buyerInfo.companyName,
         phone: draftPhone.trim() || buyerInfo.phone,
-        province: draftProvince.trim() || buyerInfo.province,
-        ward: draftWard.trim() || buyerInfo.ward,
-        address: draftAddress.trim() || buyerInfo.address,
+        province: draftProvince.trim(),
+        ward: draftWard.trim(),
+        address: draftAddress.trim(),
       })
       setEditingAddress(false)
     }
@@ -473,22 +595,25 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
   setDraftWardCode('')
   setDraftAddress(buyerInfo.address || '')
   setWardOptions([])
+  setAddressEditError('')
   setShowProvinceOptions(false)
   setShowWardOptions(false)
   setEditingAddress(false)
 }
 
 const handleOpenEdit = () => {
+  const matchedProvince = findProvinceByName(provinceOptions, buyerInfo.province)
   setDraftName(buyerInfo.fullName || '')
   setDraftPhone(buyerInfo.phone || '')
   setDraftProvince(buyerInfo.province || '')
   setProvinceSearch(buyerInfo.province || '')
-  setDraftProvinceCode('')
+  setDraftProvinceCode(matchedProvince ? String(matchedProvince.code) : '')
   setDraftWard(buyerInfo.ward || '')
   setWardSearch(buyerInfo.ward || '')
   setDraftWardCode('')
   setDraftAddress(buyerInfo.address || '')
   setWardOptions([])
+  setAddressEditError('')
   setShowProvinceOptions(false)
   setShowWardOptions(false)
   setEditingAddress(true)
@@ -708,6 +833,11 @@ const handleOpenEdit = () => {
                       Thời gian giao dự kiến sẽ được tính từ đơn vị vận chuyển dựa trên địa chỉ nhận hàng và khối
                       lượng đơn hàng.
                     </p>
+                    {deliveryAddressWarning ? (
+                      <p className="mt-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                        {deliveryAddressWarning}
+                      </p>
+                    ) : null}
                     <button
                       type="button"
                       onClick={handleOpenEdit}
@@ -751,6 +881,13 @@ const handleOpenEdit = () => {
                             onBlur={() => window.setTimeout(() => setShowProvinceOptions(false), 150)}
                             onChange={(e) => {
                               setProvinceSearch(e.target.value)
+                              setDraftProvince('')
+                              setDraftProvinceCode('')
+                              setDraftWard('')
+                              setDraftWardCode('')
+                              setWardSearch('')
+                              setWardOptions([])
+                              setAddressEditError('')
                               setShowProvinceOptions(true)
                             }}
                             className="h-10 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
@@ -772,6 +909,9 @@ const handleOpenEdit = () => {
                                       setDraftWardCode('')
                                       setWardSearch('')
                                       setWardOptions([])
+                                      setAddressEditError('')
+                                      setDeliveryAddressWarning('')
+                                      setShippingError('')
                                       setShowProvinceOptions(false)
                                     }}
                                     className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-emerald-50"
@@ -800,6 +940,9 @@ const handleOpenEdit = () => {
                             onBlur={() => window.setTimeout(() => setShowWardOptions(false), 150)}
                             onChange={(e) => {
                               setWardSearch(e.target.value)
+                              setDraftWard('')
+                              setDraftWardCode('')
+                              setAddressEditError('')
                               setShowWardOptions(true)
                             }}
                             className="h-10 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
@@ -817,6 +960,9 @@ const handleOpenEdit = () => {
                                       setDraftWardCode(String(ward.code))
                                       setDraftWard(ward.name)
                                       setWardSearch(ward.name)
+                                      setAddressEditError('')
+                                      setDeliveryAddressWarning('')
+                                      setShippingError('')
                                       setShowWardOptions(false)
                                     }}
                                     className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-emerald-50"
@@ -846,6 +992,11 @@ const handleOpenEdit = () => {
                     ) : null}
                     {!loadingAddressOptions && addressLoadError ? (
                       <p className="text-xs text-slate-500">{addressLoadError}</p>
+                    ) : null}
+                    {addressEditError ? (
+                      <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                        {addressEditError}
+                      </p>
                     ) : null}
                     <div className="flex gap-2">
                       <button
