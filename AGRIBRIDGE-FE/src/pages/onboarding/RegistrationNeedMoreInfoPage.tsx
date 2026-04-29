@@ -11,7 +11,6 @@ import {
 } from '../../services/registrationService'
 import { uploadRegistrationFile } from '../../services/uploadService'
 import {
-  fetchVietnamDistrictsByProvinceCode,
   fetchVietnamProvinces,
   findProvinceByName,
   type VietnamProvinceOption,
@@ -157,19 +156,6 @@ export function RegistrationNeedMoreInfoPage() {
           VN_ADDRESS_OPTIONS.find((item) => item.province === provinceName)?.districts ?? []
         setDistrictOptions(fallbackDistricts)
         return
-      }
-
-      try {
-        const districts = await fetchVietnamDistrictsByProvinceCode(selectedProvince.code)
-        if (!ignore) {
-          setDistrictOptions(districts.map((d) => d.name))
-        }
-      } catch {
-        if (!ignore) {
-          const fallbackDistricts =
-            VN_ADDRESS_OPTIONS.find((item) => item.province === provinceName)?.districts ?? []
-          setDistrictOptions(fallbackDistricts)
-        }
       }
     }
 
