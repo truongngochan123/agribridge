@@ -70,6 +70,7 @@ public record SupplierDashboardResponseDto(
             String orderDate) {
     }
 
+    /** Extended shipment row — contains all fields needed by SupplierDeliveryPage (no hard-coded values). */
     public record ShipmentDto(
             String id,
             String orderRef,
@@ -79,7 +80,17 @@ public record SupplierDashboardResponseDto(
             String eta,
             String cargo,
             int progress,
-            String status) {
+            String status,
+            // Extended fields
+            String shippingFee,
+            String receiverName,
+            String receiverPhone,
+            String receiverAddress,
+            String providerName,
+            String serviceName,
+            String estimatedDeliveryTime,
+            String createdAt,
+            Long rawOrderId) {
     }
 
     public record DebtCustomerDto(

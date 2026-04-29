@@ -477,6 +477,10 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
                 ? (shipment.getShippingMethod() == null ? "N/A" : shipment.getShippingMethod())
                 : (buyer != null ? buyer.getName() : "Khách hàng") + " - " + safeText(order.getDeliveryProvince());
         String cargo = order == null ? "N/A" : formatMoney(order.getTotalAmount());
+        String shippingFeeStr = shipment.getShippingFee() != null ? formatMoney(shipment.getShippingFee()) : "—";
+        String createdAtStr = shipment.getCreatedAt() != null
+                ? shipment.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
+                : "N/A";
 
         return new SupplierDashboardResponseDto.ShipmentDto(
                 "SH-" + shipment.getId(),
@@ -487,8 +491,34 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
                 shipmentEta(shipment),
                 cargo,
                 mapShipmentProgress(shipment.getStatus()),
-                mapShipmentStatus(shipment.getStatus()));
+                mapShipmentStatus(shipment.getStatus()),
+                shippingFeeStr,
+                safeText(shipment.getReceiverName()),
+                safeText(shipment.getReceiverPhone()),
+                buildFullAddress(shipment),
+                safeText(shipment.getProviderName()),
+                safeText(shipment.getServiceName()),
+                safeText(shipment.getEstimatedDeliveryTime()),
+                createdAtStr,
+                order == null ? null : order.getId());
     }
+
+    private String buildFullAddress(ShipmentEntity shipment) {
+        StringBuilder sb = new StringBuilder();
+        if (shipment.getReceiverAddress() != null && !shipment.getReceiverAddress().isBlank()) {
+            sb.append(shipment.getReceiverAddress().trim());
+        }
+        if (shipment.getReceiverWard() != null && !shipment.getReceiverWard().isBlank()) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(shipment.getReceiverWard().trim());
+        }
+        if (shipment.getReceiverProvince() != null && !shipment.getReceiverProvince().isBlank()) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(shipment.getReceiverProvince().trim());
+        }
+        return sb.length() > 0 ? sb.toString() : "N/A";
+    }
+
 
     private SupplierDashboardResponseDto.OrderDto toOrderDto(
             OrderEntity order,

@@ -95,7 +95,17 @@ export interface ShipmentItem {
   eta: string
   cargo: string
   progress: number
-  status: 'Chuẩn bị' | 'Đã lấy hàng' | 'Đang vận chuyển' | 'Đã giao' | 'Sự cố'
+  status: 'Chuẩn bị' | 'Đã rời kho' | 'Đang vận chuyển' | 'Chờ buyer xác nhận' | 'Đã giao' | 'Đã hủy' | 'Sự cố' | string
+  // Extended real-data fields (no more hard-code)
+  shippingFee?: string
+  receiverName?: string
+  receiverPhone?: string
+  receiverAddress?: string
+  providerName?: string
+  serviceName?: string
+  estimatedDeliveryTime?: string
+  createdAt?: string
+  rawOrderId?: number | null
 }
 
 export interface DebtCustomerItem {
