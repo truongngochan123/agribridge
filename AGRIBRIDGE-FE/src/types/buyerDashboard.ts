@@ -27,14 +27,96 @@ export type BuyerAlertCard = {
   tone: 'danger' | 'warning' | 'amber' | 'info'
 }
 
+// ─── Order status mirrors OrderStatusEnum ─────────────────────────────────────
+export type OrderStatus =
+  | 'PENDING_SUPPLIER_CONFIRMATION'
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'SHIPPING'
+  | 'DELIVERED'
+  | 'CANCELLED'
+
+export type OrderItemRow = {
+  batchId: number
+  batchCode: string
+  productId: number
+  productName: string
+  grade?: string
+  size?: string
+  harvestDate?: string
+  quantity: number
+  unit: string
+  price: number
+  subtotal: number
+}
+
 export type BuyerOrderRow = {
-  id: string
+  // ─── Identifiers ──────────────────────────────────────────────────────────
+  id: string            // display code, e.g. ORD-2024-101
+  orderId?: number      // DB numeric id
+
+  // ─── Parties ──────────────────────────────────────────────────────────────
   supplier: string
+  supplierCompanyId?: number
+  buyerCompanyId?: number
+  branch: string
+  branchId?: number
+
+  // ─── Reference ────────────────────────────────────────────────────────────
+  quoteId?: number
+  rfqCode?: string      // e.g. RFQ-2024-025
+
+  // ─── Status ───────────────────────────────────────────────────────────────
+  status: OrderStatus
+
+  // ─── Items ────────────────────────────────────────────────────────────────
+  /** Summary fields kept for backward compat */
   product: string
   quantity: string
-  branch: string
+  items?: OrderItemRow[]
+
+  // ─── Financials ───────────────────────────────────────────────────────────
+  subtotal: number
+  shippingFee?: number
+  totalAmount: number
+  /** Display-ready string, e.g. "42,750,000đ" */
   value: string
-  status: 'Đang giao' | 'Chờ xác nhận' | 'Hoàn thành'
+
+  // ─── Payment ──────────────────────────────────────────────────────────────
+  paymentMethod?: 'ESCROW_TRANSFER' | 'DEPOSIT_50' | 'CREDIT'
+  depositRate?: number
+  depositAmount?: number
+  balanceAmount?: number
+
+  // ─── Delivery address ─────────────────────────────────────────────────────
+  deliveryName?: string
+  deliveryPhone?: string
+  deliveryProvince?: string
+  deliveryDistrict?: string
+  deliveryWard?: string
+  deliveryAddress?: string
+
+  // ─── Shipping provider ────────────────────────────────────────────────────
+  shippingProviderCode?: string
+  shippingProviderName?: string
+  shippingServiceName?: string
+  shippingPayer?: 'BUYER' | 'SUPPLIER' | 'NEGOTIATED'
+  estimatedDeliveryTime?: string
+
+  // ─── Tracking ─────────────────────────────────────────────────────────────
+  trackingEvents?: { title: string; time: string; done: boolean }[]
+
+  // ─── Invoice ──────────────────────────────────────────────────────────────
+  invoiceCode?: string
+  invoicePaidAmount?: number
+  invoiceDueDate?: string
+  invoiceStatus?: 'UNPAID' | 'PARTIAL' | 'PAID'
+
+  // ─── Note ─────────────────────────────────────────────────────────────────
+  note?: string
+
+  // ─── Timestamps ───────────────────────────────────────────────────────────
+  createdAt: string
 }
 
 export type BuyerProductLot = {

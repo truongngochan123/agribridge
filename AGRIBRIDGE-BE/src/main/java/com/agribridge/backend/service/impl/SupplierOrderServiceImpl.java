@@ -159,7 +159,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
                 .shippingFee(request.shippingFee() == null ? BigDecimal.ZERO : request.shippingFee())
                 .trackingCode(normalizeText(request.trackingCode()) == null ? generateTrackingCode(orderId) : normalizeText(request.trackingCode()))
                 .incidentNote(normalizeText(request.note()))
-                .status(ShipmentStatusEnum.PENDING)
+                .status(ShipmentStatusEnum.PREPARING)
                 .feeConfirmed(Boolean.FALSE)
                 .createdAt(now)
                 .build();
@@ -400,7 +400,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
                     yield List.of("VIEW_DETAIL", "CREATE_SHIPMENT", "CANCEL_ORDER");
                 }
                 yield switch (shipmentStatus) {
-                    case PENDING -> List.of("VIEW_DETAIL", "START_SHIPPING");
+                    case PENDING, PREPARING -> List.of("VIEW_DETAIL", "START_SHIPPING");
                     case SHIPPED -> List.of("VIEW_DETAIL", "MARK_IN_TRANSIT");
                     case IN_TRANSIT -> List.of("VIEW_DETAIL", "MARK_ARRIVED", "REPORT_INCIDENT");
                     case WAITING_CONFIRMATION -> List.of("VIEW_DETAIL");
@@ -426,7 +426,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
 
     private void validateShipmentTransition(ShipmentStatusEnum current, ShipmentStatusEnum next) {
         boolean allowed = switch (current) {
-            case PENDING -> next == ShipmentStatusEnum.SHIPPED;
+            case PENDING, PREPARING -> next == ShipmentStatusEnum.SHIPPED;
             case SHIPPED -> next == ShipmentStatusEnum.IN_TRANSIT;
             case IN_TRANSIT -> next == ShipmentStatusEnum.WAITING_CONFIRMATION;
             default -> false;
@@ -462,7 +462,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
     }
 
     private ShipmentStatusEnum normalizeShipmentStatus(ShipmentStatusEnum status) {
-        if (status == null || status == ShipmentStatusEnum.PREPARING) {
+        if (status == null) {
             return ShipmentStatusEnum.PENDING;
         }
         if (status == ShipmentStatusEnum.SHIPPING) {

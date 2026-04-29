@@ -3,6 +3,8 @@ package com.agribridge.backend.config;
 import com.agribridge.backend.dto.ErrorResponseDto;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -19,6 +21,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @Slf4j
 public class GlobalExceptionHandler {
 
+    private static final Pattern SQL_SERVER_TABLE_COLUMN_PATTERN =
+            Pattern.compile("table \"([^\"]+)\", column '([^']+)'", Pattern.CASE_INSENSITIVE);
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponseDto> handleValidationException(MethodArgumentNotValidException exception) {
         Map<String, String> errors = new LinkedHashMap<>();
@@ -27,8 +32,13 @@ public class GlobalExceptionHandler {
             errors.put(fieldError.getField(), fieldError.getDefaultMessage());
         }
 
+        String message = errors.values().stream()
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst()
+                .orElse("Validation failed");
+
         ErrorResponseDto payload = ErrorResponseDto.builder()
-                .message("Validation failed")
+                .message(message)
                 .errors(errors)
                 .build();
 
@@ -50,7 +60,48 @@ public class GlobalExceptionHandler {
             DataIntegrityViolationException exception) {
         log.warn("Data integrity violation", exception);
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ErrorResponseDto.of("Khong the xoa du lieu vi da co thong tin lien ket."));
+                .body(ErrorResponseDto.of(resolveDataIntegrityMessage(exception)));
+    }
+
+    private String resolveDataIntegrityMessage(DataIntegrityViolationException exception) {
+        Throwable mostSpecificCause = exception.getMostSpecificCause();
+        String detail = mostSpecificCause == null ? "" : String.valueOf(mostSpecificCause.getMessage()).toLowerCase();
+
+        if (detail.contains("insert") && detail.contains("orders") && detail.contains("status")) {
+            return "Trạng thái đơn hàng không hợp lệ với ràng buộc dữ liệu hiện tại.";
+        }
+        if (detail.contains("insert") && detail.contains("invoices") && detail.contains("status")) {
+            return "Trạng thái hóa đơn không hợp lệ với ràng buộc dữ liệu hiện tại.";
+        }
+        if (detail.contains("insert") && detail.contains("shipments") && detail.contains("status")) {
+            return "Trạng thái vận chuyển không hợp lệ với ràng buộc dữ liệu hiện tại.";
+        }
+        if (detail.contains("delete") || detail.contains("reference") || detail.contains("foreign key")) {
+            return "Không thể xóa dữ liệu vì đã có thông tin liên kết.";
+        }
+        if (detail.contains("duplicate") || detail.contains("unique")) {
+            return "Dữ liệu đã tồn tại hoặc bị trùng với thông tin hiện có.";
+        }
+
+        String constraintTarget = readSqlServerConstraintTarget(mostSpecificCause);
+        if (constraintTarget != null) {
+            return "Dữ liệu vi phạm ràng buộc tại " + constraintTarget + ".";
+        }
+
+        return "Dữ liệu không hợp lệ hoặc vi phạm ràng buộc trong hệ thống.";
+    }
+
+    private String readSqlServerConstraintTarget(Throwable cause) {
+        if (cause == null || cause.getMessage() == null) {
+            return null;
+        }
+
+        Matcher matcher = SQL_SERVER_TABLE_COLUMN_PATTERN.matcher(cause.getMessage());
+        if (!matcher.find()) {
+            return null;
+        }
+
+        return "bảng " + matcher.group(1) + ", cột " + matcher.group(2);
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

@@ -75,7 +75,7 @@ export type BuyerQuickOrderPayload = {
   estimatedDeliveryTime?: string | null
   shippingPayer?: 'BUYER' | 'SUPPLIER' | 'NEGOTIATED'
   shippingStatus: 'PENDING_QUOTE' | 'QUOTED'
-  orderStatus: 'PENDING_SUPPLIER_CONFIRMATION'
+  orderStatus: 'PENDING'
   note?: string | null
 }
 

@@ -124,6 +124,11 @@
     }
   }
 
+  function readSessionNumber(key: string) {
+    const value = Number(sessionStorage.getItem(key))
+    return Number.isFinite(value) && value > 0 ? value : null
+  }
+
   // ─── Sub-components ───────────────────────────────────────────────────────────
 
   function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -386,6 +391,8 @@
     const estimatedTotal = subtotal != null
       ? subtotal + (shippingFee ?? 0)
       : null
+    const buyerCompanyId = target.buyerCompanyId ?? readSessionNumber('agribridge.auth.companyId')
+    const supplierId = target.supplierId ?? target.supplierCompanyId ?? null
     const depositRate = 50
     const depositAmount = estimatedTotal != null ? estimatedTotal * 0.5 : null
     const balanceAmount = estimatedTotal != null && depositAmount != null ? estimatedTotal - depositAmount : null
@@ -430,7 +437,32 @@
       target.availableQuantity > 0 &&
       quantityNumber > 0 &&
       quantityNumber > target.availableQuantity
+    const validationIssue =
+      !buyerCompanyId
+        ? 'Thiếu thông tin công ty buyer, vui lòng đăng nhập lại.'
+        : !supplierId
+          ? 'Thiếu thông tin nhà cung cấp.'
+          : !target.productId
+            ? 'Thiếu thông tin sản phẩm.'
+            : !target.batchId
+              ? 'Thiếu thông tin lô hàng.'
+              : unitPrice == null
+                ? 'Thiếu đơn giá lô hàng.'
+                : subtotal == null
+                  ? 'Số lượng đặt chưa hợp lệ.'
+                  : !buyerInfo.fullName?.trim()
+                    ? 'Vui lòng cập nhật tên người nhận.'
+                    : !buyerInfo.phone?.trim()
+                      ? 'Vui lòng cập nhật số điện thoại người nhận.'
+                      : !buyerInfo.province?.trim()
+                        ? 'Vui lòng chọn tỉnh/thành giao hàng.'
+                        : !buyerInfo.ward?.trim()
+                          ? 'Vui lòng chọn xã/phường giao hàng.'
+                          : !buyerInfo.address?.trim()
+                            ? 'Vui lòng nhập địa chỉ chi tiết.'
+                            : ''
     const canSubmit =
+      !validationIssue &&
       !showStockError &&
       quantityNumber > 0 &&
       !submitting &&
@@ -495,8 +527,8 @@
 
       const timeoutId = window.setTimeout(() => {
         quoteBuyerShipping({
-          buyerCompanyId: target.buyerCompanyId ?? null,
-          supplierId: target.supplierId ?? target.supplierCompanyId ?? null,
+          buyerCompanyId,
+          supplierId,
           productId: target.productId,
           batchId: target.batchId ?? null,
           quantity: quantityNumber,
@@ -561,13 +593,12 @@
       buyerInfo.ward,
       deliveryAddressValid,
       deliveryAddressWarning,
+      buyerCompanyId,
       quantityNumber,
+      supplierId,
       subtotal,
       target.batchId,
-      target.buyerCompanyId,
       target.productId,
-      target.supplierCompanyId,
-      target.supplierId,
       target.unit,
     ])
 
@@ -638,8 +669,8 @@ const handleOpenEdit = () => {
       if (!canSubmit) return
 
       const payload: BuyerQuickOrderPayload = {
-        buyerCompanyId: target.buyerCompanyId ?? null,
-        supplierId: target.supplierId ?? target.supplierCompanyId ?? null,
+        buyerCompanyId,
+        supplierId,
         productId: target.productId,
         batchId: target.batchId ?? null,
         quantity: quantityNumber,
@@ -663,7 +694,7 @@ const handleOpenEdit = () => {
         estimatedDeliveryTime: effectiveShippingQuote?.estimatedDeliveryTime ?? null,
         shippingPayer: effectiveShippingQuote?.shippingPayer ?? 'BUYER',
         shippingStatus: effectiveShippingQuote ? 'QUOTED' : 'PENDING_QUOTE',
-        orderStatus: 'PENDING_SUPPLIER_CONFIRMATION',
+        orderStatus: 'PENDING',
       }
 
       if (onSubmit) {
@@ -1244,7 +1275,11 @@ const handleOpenEdit = () => {
           </div>
 
           {/* ── Footer ── */}
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-3">
+            <p className="min-w-0 flex-1 text-xs font-semibold text-rose-600">
+              {validationIssue || (showStockError ? 'Số lượng đặt vượt quá tồn kho hiện có.' : '')}
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={onClose}
@@ -1261,6 +1296,7 @@ const handleOpenEdit = () => {
               <PackageCheck className="h-4 w-4" />
               {submitting ? 'Đang xử lý...' : 'Tạo đơn hàng'}
             </button>
+            </div>
           </div>
         </div>
       </div>

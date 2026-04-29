@@ -99,7 +99,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         OrderEntity order = orderRepository.save(OrderEntity.builder()
                 .buyerCompanyId(buyer.getId())
                 .supplierCompanyId(supplier.getId())
-                .status(OrderStatusEnum.PENDING_SUPPLIER_CONFIRMATION)
+                .status(OrderStatusEnum.PENDING)
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
                 .totalAmount(grandTotal)
@@ -125,8 +125,8 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .price(request.unitPrice())
                 .subtotal(subtotal)
                 .build());
-        // PENDING_SUPPLIER_CONFIRMATION: do not decrement real stock yet. Stock should be reserved
-        // or deducted when the supplier confirms the order, depending on the final fulfillment policy.
+        // Do not decrement real stock yet. Stock should be reserved or deducted when the
+        // supplier confirms the order, depending on the final fulfillment policy.
 
         InvoiceEntity invoice = invoiceRepository.save(InvoiceEntity.builder()
                 .orderId(order.getId())
@@ -358,18 +358,14 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .shippingPayer(firstText(request.shippingPayer(), "BUYER"))
                 .shippingFee(shippingFee)
                 .feeConfirmed(shippingFee.compareTo(BigDecimal.ZERO) > 0)
-                .status(ShipmentStatusEnum.PENDING)
+                .status(ShipmentStatusEnum.PREPARING)
                 .incidentNote("Quote only. GHN sandbox fee is stored here; no real waybill has been created.")
                 .createdAt(now)
                 .build();
     }
 
     private InvoiceStatusEnum invoiceStatus(PaymentMethod paymentMethod) {
-        return switch (paymentMethod) {
-            case ESCROW_TRANSFER -> InvoiceStatusEnum.PENDING_PAYMENT;
-            case DEPOSIT_50 -> InvoiceStatusEnum.PENDING_DEPOSIT;
-            case CREDIT -> InvoiceStatusEnum.CREDIT_PENDING;
-        };
+        return InvoiceStatusEnum.UNPAID;
     }
 
     private PaymentMethod parsePaymentMethod(String raw) {
