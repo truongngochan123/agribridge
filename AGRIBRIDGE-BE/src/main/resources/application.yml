@@ -46,8 +46,11 @@ spring:
             enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
 
 logging:
+  file:
+    name: logs/agribridge.log
   level:
     org.hibernate.SQL: warn
+    com.agribridge: debug
 
 cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME:}
