@@ -41,70 +41,65 @@ public class GhnAddressMappingService {
 
     public GhnLocation resolveForGhn(Address address, String role) {
         long start = System.currentTimeMillis();
-        MappingResult mapping = toGhnCompatibleAddress(address);
-        Address ghnAddress = mapping.address();
         log.info(
-                "GHN address mapping: role={}, source={}, originalProvince={}, originalWard={}, originalAddress={}, ghnProvince={}, ghnWard={}",
+                "GHN address mapping: role={}, source=DIRECT_GHN_MASTER_DATA, originalProvince={}, originalWard={}, originalAddress={}, ghnProvince={}, ghnWard={}",
                 role,
-                mapping.source(),
                 address.province(),
                 address.ward(),
                 address.address(),
-                ghnAddress.province(),
-                ghnAddress.ward());
+                address.province(),
+                address.ward());
         try {
-            GhnLocation location = resolveLocation(ghnAddress.province(), ghnAddress.ward(), role);
+            GhnLocation location = resolveLocation(address.province(), address.ward(), role);
             log.info("Resolved GHN {} location in {}ms", role, System.currentTimeMillis() - start);
             return location;
         } catch (IllegalArgumentException ex) {
             log.warn("Failed to resolve GHN {} location in {}ms", role, System.currentTimeMillis() - start);
-            throw unresolvedAddress(role, address, ex);
+            throw new IllegalArgumentException(
+                    "Cannot resolve GHN location: province=" + address.province() + ", ward=" + address.ward(), ex);
         }
     }
 
-    private MappingResult toGhnCompatibleAddress(Address address) {
-        String normalizedProvince = normalizeAdministrativeName(address.province());
-        String normalizedWard = normalizeAdministrativeName(address.ward());
-        String normalizedAddress = normalizeAdministrativeName(address.address());
+    public DebugLocationResponse debugLocation(String provinceName, String wardName) {
+        String normalizedProvince = normalizeAdministrativeName(provinceName);
+        String normalizedWard = normalizeAdministrativeName(wardName);
+        GhnProvince province = findProvince(provinceName, normalizedProvince);
+        List<String> nearProvinceMatches = nearProvinceMatches(normalizedProvince);
 
-        // Temporary compatibility aliases for GHN master data until GHN supports new administrative wards.
-        if ("gia lai".equals(normalizedProvince) && "quy nhon".equals(normalizedWard)) {
-            if (normalizedAddress.contains("tran phu")) {
-                return temporaryAlias("Ph\u01b0\u1eddng Tr\u1ea7n Ph\u00fa", address);
-            }
-            if (normalizedAddress.contains("nguyen hue")) {
-                return temporaryAlias("Ph\u01b0\u1eddng H\u1ea3i C\u1ea3ng", address);
-            }
-            if (normalizedAddress.contains("le loi")) {
-                return temporaryAlias("Ph\u01b0\u1eddng L\u00ea L\u1ee3i", address);
-            }
-            if (normalizedAddress.contains("an duong vuong")) {
-                return temporaryAlias("Ph\u01b0\u1eddng Nguy\u1ec5n V\u0103n C\u1eeb", address);
-            }
-            if (normalizedAddress.contains("xuan dieu")) {
-                return temporaryAlias("Ph\u01b0\u1eddng H\u1ea3i C\u1ea3ng", address);
+        String matchedWard = null;
+        String matchedWardCode = null;
+        Integer matchedDistrictId = null;
+        List<String> nearWardMatches = List.of();
+
+        if (province != null) {
+            List<GhnDistrict> districts = getDistricts().stream()
+                    .filter(district -> district.provinceId() != null && district.provinceId().equals(province.provinceId()))
+                    .toList();
+            nearWardMatches = nearWardMatches(districts, normalizedWard);
+
+            for (GhnDistrict district : districts) {
+                GhnWard ward = findWardInDistrict(district.districtId(), wardName, normalizedWard);
+                if (ward != null) {
+                    matchedWard = ward.wardName();
+                    matchedWardCode = ward.wardCode();
+                    matchedDistrictId = district.districtId();
+                    break;
+                }
             }
         }
 
-        return new MappingResult(address, "DIRECT_GHN_MASTER_DATA");
-    }
-
-    private MappingResult temporaryAlias(String ward, Address originalAddress) {
-        return new MappingResult(
-                new Address("B\u00ecnh \u0110\u1ecbnh", ward, originalAddress.address()),
-                "TEMP_ALIAS_MAPPING");
-    }
-
-    private IllegalArgumentException unresolvedAddress(String role, Address address, Exception cause) {
-        String normalizedRole = "sender".equals(role) ? "sender" : "receiver";
-        String message = "Cannot resolve GHN-compatible " + normalizedRole + " address: province="
-                + address.province()
-                + ", ward="
-                + address.ward()
-                + ", address="
-                + address.address()
-                + ". This address is not mapped to GHN yet. Please choose a supported demo address or configure GHN address mapping.";
-        return new IllegalArgumentException(message, cause);
+        return new DebugLocationResponse(
+                provinceName,
+                wardName,
+                normalizedProvince,
+                normalizedWard,
+                province != null ? province.provinceName() : null,
+                province != null ? province.provinceId() : null,
+                matchedWard,
+                matchedWardCode,
+                matchedDistrictId,
+                nearProvinceMatches,
+                nearWardMatches);
     }
 
     private GhnLocation resolveLocation(String provinceName, String wardName, String role) {
@@ -128,11 +123,15 @@ public class GhnAddressMappingService {
         GhnProvince province = findProvince(provinceName, normalizedProvince);
         if (province == null) {
             log.warn(
+                    "GHN near province matches for {}: {}",
+                    normalizedProvince,
+                    nearProvinceMatches(normalizedProvince));
+            log.warn(
                     "Cannot resolve GHN {} province: province={}, normalizedProvince={}",
                     role,
                     provinceName,
                     normalizedProvince);
-            throw new IllegalArgumentException("Cannot resolve GHN-compatible address");
+            throw new IllegalArgumentException("Cannot resolve GHN location");
         }
 
         List<GhnDistrict> districts = getDistricts().stream()
@@ -143,6 +142,7 @@ public class GhnAddressMappingService {
                 role,
                 province.provinceId(),
                 districts.size());
+        log.info("GHN near ward matches for {}: {}", normalizedWard, nearWardMatches(districts, normalizedWard));
 
         for (GhnDistrict district : districts) {
             GhnWard ward = findWardInDistrict(district.districtId(), wardName, normalizedWard);
@@ -166,7 +166,26 @@ public class GhnAddressMappingService {
                 province.provinceId(),
                 wardName,
                 normalizedWard);
-        throw new IllegalArgumentException("Cannot resolve GHN-compatible address");
+        throw new IllegalArgumentException("Cannot resolve GHN location");
+    }
+
+    private List<String> nearProvinceMatches(String normalizedProvinceName) {
+        return getProvinces().stream()
+                .filter(province -> administrativeNamesMatch(
+                        normalizeAdministrativeName(province.provinceName()), normalizedProvinceName))
+                .map(province -> province.provinceId() + ":" + province.provinceName())
+                .toList();
+    }
+
+    private List<String> nearWardMatches(List<GhnDistrict> districts, String normalizedWardName) {
+        return districts.stream()
+                .flatMap(district -> getWards(district.districtId()).stream()
+                        .filter(ward -> administrativeNamesMatch(
+                                normalizeAdministrativeName(ward.wardName()), normalizedWardName)
+                                || normalizeAdministrativeName(ward.wardName()).contains("quy nhon"))
+                        .map(ward -> district.districtId() + ":" + ward.wardCode() + ":" + ward.wardName()))
+                .limit(20)
+                .toList();
     }
 
     private GhnProvince findProvince(String provinceName, String normalizedProvinceName) {
@@ -294,7 +313,18 @@ public class GhnAddressMappingService {
     public record GhnLocation(Integer districtId, String wardCode) {
     }
 
-    private record MappingResult(Address address, String source) {
+    public record DebugLocationResponse(
+            String inputProvince,
+            String inputWard,
+            String normalizedProvince,
+            String normalizedWard,
+            String matchedProvince,
+            Integer matchedProvinceId,
+            String matchedWard,
+            String matchedWardCode,
+            Integer matchedDistrictId,
+            List<String> nearProvinceMatches,
+            List<String> nearWardMatches) {
     }
 
     private record ProvinceResponse(List<GhnProvince> data) {
