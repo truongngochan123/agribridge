@@ -25,6 +25,7 @@ type CompanyApiModel = {
   address?: string
   province?: string
   district?: string
+  ward?: string | null
   description?: string
   createdAt?: string
   verifiedStatus?: boolean
@@ -53,6 +54,7 @@ export type CurrentUserProfile = {
   website: string
   province: string
   district: string
+  ward?: string | null
   description: string
 }
 
@@ -148,6 +150,7 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
     website: readUnknown(company.website),
     province: readUnknown(company.province),
     district: readUnknown(company.district),
+    ward: readNullable(company.ward),
     description: readUnknown(company.description),
   }
 
@@ -244,6 +247,11 @@ function normalizePhone(value?: string): string {
 function readUnknown(value: unknown): string {
   const text = String(value ?? '').trim()
   return text || 'N/A'
+}
+
+function readNullable(value: unknown): string | null {
+  const text = String(value ?? '').trim()
+  return text && text !== 'N/A' ? text : null
 }
 
 function abbreviateVietnameseName(name: string): string {

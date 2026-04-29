@@ -92,6 +92,9 @@
         get('agribridge.auth.branchProvince') ||
         get('agribridge.auth.companyProvince') ||
         get('agribridge.auth.province'),
+      ward:
+        get('agribridge.auth.companyWard') ||
+        get('agribridge.auth.ward'),
       address: get('agribridge.auth.companyAddress') || get('agribridge.auth.address'),
     }
   }
@@ -183,6 +186,7 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
           if (profile.phone) sessionStorage.setItem('agribridge.auth.phone', profile.phone)
           if (profile.companyName) sessionStorage.setItem('agribridge.auth.companyName', profile.companyName)
           if (profile.province && profile.province !== 'N/A') sessionStorage.setItem('agribridge.auth.companyProvince', profile.province)
+          if (profile.ward && profile.ward !== 'N/A') sessionStorage.setItem('agribridge.auth.companyWard', profile.ward)
           if (profile.address && profile.address !== 'N/A') sessionStorage.setItem('agribridge.auth.companyAddress', profile.address)
 
           setBuyerInfo((prev) => ({
@@ -194,7 +198,7 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
               (profile.province !== 'N/A' ? profile.province : null) ||
               null,
             district: prev.district || null,
-            ward: prev.ward || null,
+            ward: prev.ward || (profile.ward !== 'N/A' ? profile.ward : null) || null,
             address:
               prev.address ||
               (profile.address !== 'N/A' ? profile.address : null) ||
@@ -602,12 +606,11 @@ const handleOpenEdit = () => {
                             Tỉnh/Khu vực
                           </p>
                           <p className="text-sm font-bold text-slate-800">{buyerInfo.province || '--'}</p>
-                          {buyerInfo.district ? (
-                            <p className="text-xs text-slate-500">{buyerInfo.district}</p>
-                          ) : null}
                           {buyerInfo.ward ? (
                             <p className="text-xs text-slate-500">{buyerInfo.ward}</p>
-                          ) : null}
+                          ) : (
+                            <p className="text-xs font-semibold text-amber-600">Thiếu xã/phường, vui lòng cập nhật địa chỉ nhận hàng.</p>
+                          )}
                         </div>
                       </div>
                       <div className="sm:col-span-2">

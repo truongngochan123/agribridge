@@ -142,7 +142,6 @@ export function RegistrationNeedMoreInfoPage() {
   }, [])
 
   useEffect(() => {
-    let ignore = false
     const provinceName = form?.province ?? ''
 
     async function loadDistricts() {
@@ -160,9 +159,6 @@ export function RegistrationNeedMoreInfoPage() {
     }
 
     void loadDistricts()
-    return () => {
-      ignore = true
-    }
   }, [form?.province, selectedProvince])
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
