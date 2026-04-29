@@ -176,7 +176,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
                 .stream()
                 .collect(Collectors.groupingBy(
                         PaymentEntity::getInvoiceId,
-                        Collectors.reducing(BigDecimal.ZERO, PaymentEntity::getAmount, BigDecimal::add)));
+                        Collectors.reducing(BigDecimal.ZERO, this::effectivePaidAmount, BigDecimal::add)));
 
         Map<Long, BigDecimal> outstandingByInvoiceId = new LinkedHashMap<>();
         for (InvoiceEntity invoice : invoices) {
@@ -787,6 +787,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             return "Chờ xác nhận";
         }
         return switch (status) {
+            case PENDING_SUPPLIER_CONFIRMATION -> "Chờ nhà cung cấp xác nhận";
             case PENDING -> "Chờ xác nhận";
             case CONFIRMED -> "Đã xác nhận";
             case SHIPPING -> "Đang giao";
@@ -822,6 +823,13 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             case DELIVERED -> 100;
             case CANCELLED, FAILED -> 45;
         };
+    }
+
+    private BigDecimal effectivePaidAmount(PaymentEntity payment) {
+        if (payment == null) {
+            return BigDecimal.ZERO;
+        }
+        return payment.getPaidAmount() == null ? payment.getAmount() : payment.getPaidAmount();
     }
 
     private String shipmentEta(ShipmentEntity shipment) {

@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -40,8 +41,23 @@ public class PaymentEntity {
     @Column(name = "amount", nullable = false)
     private BigDecimal amount;
 
+    @Column(name = "paid_amount")
+    private BigDecimal paidAmount;
+
     @Column(name = "payment_method")
     private String paymentMethod;
+
+    @Column(name = "payment_type")
+    private String paymentType;
+
+    @Column(name = "status")
+    private String status;
+
+    @Column(name = "escrow_status")
+    private String escrowStatus;
+
+    @Column(name = "due_date")
+    private LocalDate dueDate;
 
     @Column(name = "payment_date", nullable = false)
     private LocalDateTime paymentDate;

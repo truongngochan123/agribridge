@@ -1,9 +1,14 @@
 package com.agribridge.backend.controller;
 
+import com.agribridge.backend.dto.BuyerQuickOrderRequestDto;
+import com.agribridge.backend.dto.BuyerQuickOrderResponseDto;
 import com.agribridge.backend.service.BuyerOrderService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,6 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class BuyerOrderController {
 
     private final BuyerOrderService buyerOrderService;
+
+    @PostMapping("/quick-order")
+    public BuyerQuickOrderResponseDto createQuickOrder(@Valid @RequestBody BuyerQuickOrderRequestDto request) {
+        return buyerOrderService.createQuickOrder(request);
+    }
 
     @PatchMapping("/{orderId}/confirm-received")
     public void confirmReceived(@PathVariable Long orderId, @RequestParam Long companyId) {

@@ -6,6 +6,7 @@ import { BuyerSelectBatchModal } from '../../components/buyer/BuyerSelectBatchMo
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import type { BuyerQuickOrderPayload, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
 import { useToast } from '../../hooks/useToast'
+import { createQuickOrder } from '../../services/buyerOrderService'
 import {
   createBuyerSourcingRfq,
   fetchBuyerSourcingProductBatches,
@@ -481,11 +482,14 @@ export function BuyerSourcingPage() {
     }
   }
 
-  const handleQuickOrderSubmit = async (_payload: BuyerQuickOrderPayload) => {
+  const handleQuickOrderSubmit = async (payload: BuyerQuickOrderPayload) => {
     setQuickOrderSubmitting(true)
     try {
-      showToast('UI đặt hàng đã sẵn sàng, API tạo đơn hàng chưa được kết nối.', 'info')
+      const result = await createQuickOrder(payload)
+      showToast(result.message || 'Tạo đơn hàng thành công', 'success')
       setQuickOrderTarget(null)
+    } catch (requestError) {
+      showToast(readApiErrorMessage(requestError) || 'Không thể tạo đơn hàng.', 'error')
     } finally {
       setQuickOrderSubmitting(false)
     }

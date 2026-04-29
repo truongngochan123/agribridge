@@ -9,5 +9,7 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
 
     List<OrderEntity> findBySupplierCompanyIdOrderByCreatedAtDesc(Long supplierCompanyId);
 
+    List<OrderEntity> findBySupplierCompanyIdAndBuyerCompanyId(Long supplierCompanyId, Long buyerCompanyId);
+
     List<OrderEntity> findByQuoteIdIn(Collection<Long> quoteIds);
 }

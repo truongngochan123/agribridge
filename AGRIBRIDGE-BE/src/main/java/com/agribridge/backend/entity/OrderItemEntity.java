@@ -43,9 +43,18 @@ public class OrderItemEntity {
     @JoinColumn(name = "batch_id", insertable = false, updatable = false)
     private BatchEntity batch;
 
+    @Column(name = "product_id")
+    private Long productId;
+
     @Column(name = "quantity", nullable = false)
     private BigDecimal quantity;
 
+    @Column(name = "unit")
+    private String unit;
+
     @Column(name = "price", nullable = false)
     private BigDecimal price;
+
+    @Column(name = "subtotal")
+    private BigDecimal subtotal;
 }

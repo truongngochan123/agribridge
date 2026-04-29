@@ -195,7 +195,8 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
     }
 
     private void confirmOrder(OrderEntity order) {
-        if (!OrderStatusEnum.PENDING.equals(order.getStatus())) {
+        if (!OrderStatusEnum.PENDING.equals(order.getStatus())
+                && !OrderStatusEnum.PENDING_SUPPLIER_CONFIRMATION.equals(order.getStatus())) {
             throw new IllegalArgumentException("Only pending orders can be confirmed");
         }
         List<OrderItemEntity> items = orderItemRepository.findByOrderIdOrderByIdAsc(order.getId());
@@ -392,6 +393,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         }
         ShipmentStatusEnum shipmentStatus = shipment == null ? null : normalizeShipmentStatus(shipment.getStatus());
         return switch (order.getStatus()) {
+            case PENDING_SUPPLIER_CONFIRMATION -> List.of("VIEW_DETAIL", "CONFIRM_ORDER", "CANCEL_ORDER");
             case PENDING -> List.of("VIEW_DETAIL", "CONFIRM_ORDER", "CANCEL_ORDER");
             case CONFIRMED -> {
                 if (shipment == null || shipmentStatus == ShipmentStatusEnum.CANCELLED || shipmentStatus == ShipmentStatusEnum.FAILED) {
@@ -513,6 +515,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
             return "Chờ xác nhận";
         }
         return switch (status) {
+            case PENDING_SUPPLIER_CONFIRMATION -> "Chờ nhà cung cấp xác nhận";
             case PENDING -> "Chờ xác nhận";
             case CONFIRMED -> "Đã xác nhận";
             case SHIPPING -> "Đang giao";

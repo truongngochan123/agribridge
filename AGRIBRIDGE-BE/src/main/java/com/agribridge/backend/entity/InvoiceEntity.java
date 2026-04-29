@@ -44,11 +44,35 @@ public class InvoiceEntity {
     @Column(name = "invoice_number", nullable = false, unique = true)
     private String invoiceNumber;
 
+    @Column(name = "buyer_company_id")
+    private Long buyerCompanyId;
+
+    @Column(name = "supplier_company_id")
+    private Long supplierCompanyId;
+
+    @Column(name = "subtotal")
+    private BigDecimal subtotal;
+
+    @Column(name = "shipping_fee")
+    private BigDecimal shippingFee;
+
     @Column(name = "total_amount", nullable = false)
     private BigDecimal totalAmount;
 
     @Column(name = "adjusted_amount", nullable = false)
     private BigDecimal adjustedAmount;
+
+    @Column(name = "payment_method")
+    private String paymentMethod;
+
+    @Column(name = "deposit_rate")
+    private BigDecimal depositRate;
+
+    @Column(name = "deposit_amount")
+    private BigDecimal depositAmount;
+
+    @Column(name = "balance_amount")
+    private BigDecimal balanceAmount;
 
     @Column(name = "due_date")
     private LocalDate dueDate;

@@ -68,11 +68,38 @@ public class OrderEntity {
     @Column(name = "total_amount", nullable = false)
     private BigDecimal totalAmount;
 
+    @Column(name = "subtotal")
+    private BigDecimal subtotal;
+
+    @Column(name = "shipping_fee")
+    private BigDecimal shippingFee;
+
+    @Column(name = "payment_method")
+    private String paymentMethod;
+
+    @Column(name = "deposit_rate")
+    private BigDecimal depositRate;
+
+    @Column(name = "deposit_amount")
+    private BigDecimal depositAmount;
+
+    @Column(name = "balance_amount")
+    private BigDecimal balanceAmount;
+
+    @Column(name = "delivery_name")
+    private String deliveryName;
+
+    @Column(name = "delivery_phone")
+    private String deliveryPhone;
+
     @Column(name = "delivery_address")
     private String deliveryAddress;
 
     @Column(name = "delivery_province")
     private String deliveryProvince;
+
+    @Column(name = "delivery_ward")
+    private String deliveryWard;
 
     @Column(name = "note")
     private String note;

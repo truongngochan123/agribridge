@@ -43,6 +43,30 @@ public class ShipmentEntity {
     @Column(name = "carrier_name")
     private String carrierName;
 
+    @Column(name = "provider_code")
+    private String providerCode;
+
+    @Column(name = "provider_name")
+    private String providerName;
+
+    @Column(name = "service_name")
+    private String serviceName;
+
+    @Column(name = "receiver_name")
+    private String receiverName;
+
+    @Column(name = "receiver_phone")
+    private String receiverPhone;
+
+    @Column(name = "receiver_province")
+    private String receiverProvince;
+
+    @Column(name = "receiver_ward")
+    private String receiverWard;
+
+    @Column(name = "receiver_address")
+    private String receiverAddress;
+
     @Column(name = "vehicle_info")
     private String vehicleInfo;
 
@@ -57,6 +81,15 @@ public class ShipmentEntity {
 
     @Column(name = "shipping_method")
     private String shippingMethod;
+
+    @Column(name = "quote_status")
+    private String quoteStatus;
+
+    @Column(name = "estimated_delivery_time")
+    private String estimatedDeliveryTime;
+
+    @Column(name = "shipping_payer")
+    private String shippingPayer;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
