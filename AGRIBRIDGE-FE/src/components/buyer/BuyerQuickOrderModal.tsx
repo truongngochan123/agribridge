@@ -351,10 +351,14 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
               }
             }
           })
-          .catch(() => {
+          .catch((error) => {
             if (!ignore) {
               setShippingQuote(null)
-              setShippingError('Không thể tính phí vận chuyển từ GHN. Vui lòng kiểm tra địa chỉ hoặc cấu hình GHN.')
+              setShippingError(
+                error instanceof Error && error.message
+                  ? error.message
+                  : 'Không thể tính phí vận chuyển từ GHN. Vui lòng kiểm tra địa chỉ hoặc cấu hình GHN.',
+              )
             }
           })
           .finally(() => {

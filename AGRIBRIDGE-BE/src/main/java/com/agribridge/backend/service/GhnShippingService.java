@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Service
 @Slf4j
@@ -27,7 +28,7 @@ public class GhnShippingService {
     private static final String DISTRICT_PATH = "/shiip/public-api/master-data/district";
     private static final String WARD_PATH = "/shiip/public-api/master-data/ward";
     private static final String FEE_PATH = "/shiip/public-api/v2/shipping-order/fee";
-    private static final String STANDARD_SERVICE = "Dịch vụ tiêu chuẩn";
+    private static final String STANDARD_SERVICE = "D\u1ecbch v\u1ee5 ti\u00eau chu\u1ea9n";
     private static final Pattern DIACRITICS = Pattern.compile("\\p{M}+");
 
     private final RestClient restClient;
@@ -62,6 +63,15 @@ public class GhnShippingService {
         String fromWard = firstText(request.fromWard(), defaultFromWard);
         String fromAddress = firstText(request.fromAddress(), defaultFromAddress);
 
+        log.info(
+                "GHN quote request address: toProvince={}, toWard={}, toAddress={}, defaultFromProvince={}, defaultFromWard={}, defaultFromAddress={}",
+                request.toProvince(),
+                request.toWard(),
+                request.toAddress(),
+                defaultFromProvince,
+                defaultFromWard,
+                defaultFromAddress);
+
         if (!StringUtils.hasText(fromProvince)
                 || !StringUtils.hasText(fromWard)
                 || !StringUtils.hasText(fromAddress)
@@ -72,15 +82,8 @@ public class GhnShippingService {
         }
 
         try {
-            GhnLocation from = resolveLocation(fromProvince, fromWard);
-            GhnLocation to = resolveLocation(request.toProvince(), request.toWard());
-
-            if (from == null) {
-                throw new IllegalArgumentException("Cannot resolve GHN sender location");
-            }
-            if (to == null) {
-                throw new IllegalArgumentException("Cannot resolve GHN receiver location");
-            }
+            GhnLocation from = resolveLocation(fromProvince, fromWard, "sender");
+            GhnLocation to = resolveLocation(request.toProvince(), request.toWard(), "receiver");
 
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("service_type_id", 2);
@@ -112,7 +115,7 @@ public class GhnShippingService {
 
             return new ShippingQuoteResponse(
                     "GHN",
-                    "Giao Hàng Nhanh",
+                    "Giao H\u00e0ng Nhanh",
                     STANDARD_SERVICE,
                     total,
                     "Theo GHN",
@@ -120,50 +123,114 @@ public class GhnShippingService {
                     null,
                     "BUYER",
                     true);
+        } catch (RestClientResponseException ex) {
+            log.warn("GHN API returned error: status={}, body={}", ex.getStatusCode(), ex.getResponseBodyAsString());
+            throw new IllegalStateException("GHN shipping quote request failed: " + ex.getStatusCode(), ex);
         } catch (RestClientException ex) {
+            log.warn("GHN API request failed: {}", ex.getMessage());
             throw new IllegalStateException("GHN shipping quote request failed", ex);
         }
     }
 
     private void validateGhnConfig() {
+        log.info(
+                "GHN config check: apiBaseUrl={}, tokenConfigured={}, shopId={}, defaultFromProvinceConfigured={}, defaultFromWardConfigured={}, defaultFromAddressConfigured={}",
+                apiBaseUrl,
+                StringUtils.hasText(token),
+                shopId,
+                StringUtils.hasText(defaultFromProvince),
+                StringUtils.hasText(defaultFromWard),
+                StringUtils.hasText(defaultFromAddress));
+
         if (!SANDBOX_BASE_URL.equals(apiBaseUrl) || !StringUtils.hasText(token) || !StringUtils.hasText(shopId)) {
             throw new IllegalStateException("GHN token/shopId is not configured");
         }
     }
 
-    private GhnLocation resolveLocation(String provinceName, String wardName) {
-        GhnProvince province = findProvince(provinceName);
+    private GhnLocation resolveLocation(String provinceName, String wardName, String role) {
+        String normalizedProvince = normalizeAdministrativeName(provinceName);
+        String normalizedWard = normalizeAdministrativeName(wardName);
+        log.info(
+                "Resolving GHN {} location: provinceInput={}, normalizedProvince={}, wardInput={}, normalizedWard={}",
+                role,
+                provinceName,
+                normalizedProvince,
+                wardName,
+                normalizedWard);
+
+        GhnProvince province = findProvince(provinceName, normalizedProvince);
         if (province == null) {
-            return null;
+            log.warn(
+                    "Cannot resolve GHN {} province: province={}, normalizedProvince={}",
+                    role,
+                    provinceName,
+                    normalizedProvince);
+            throw new IllegalArgumentException(
+                    "Cannot resolve GHN " + role + " location: province=" + provinceName + ", ward=" + wardName);
         }
+
+        log.info(
+                "Matched GHN {} province: provinceId={}, provinceName={}",
+                role,
+                province.provinceId(),
+                province.provinceName());
 
         List<GhnDistrict> districts = getDistricts().stream()
                 .filter(district -> district.provinceId() != null && district.provinceId().equals(province.provinceId()))
                 .toList();
+        log.info(
+                "GHN {} province district count: provinceId={}, districtCount={}",
+                role,
+                province.provinceId(),
+                districts.size());
 
         for (GhnDistrict district : districts) {
-            GhnWard ward = findWardInDistrict(district.districtId(), wardName);
+            GhnWard ward = findWardInDistrict(district.districtId(), wardName, normalizedWard);
             if (ward != null) {
+                log.info(
+                        "Matched GHN {} ward: districtId={}, wardCode={}, wardName={}",
+                        role,
+                        district.districtId(),
+                        ward.wardCode(),
+                        ward.wardName());
                 return new GhnLocation(district.districtId(), ward.wardCode());
             }
         }
 
-        return null;
+        log.warn(
+                "Cannot resolve GHN {} ward in matched province: province={}, provinceId={}, ward={}, normalizedWard={}",
+                role,
+                provinceName,
+                province.provinceId(),
+                wardName,
+                normalizedWard);
+        String message = "Cannot resolve GHN " + role + " location: province=" + provinceName + ", ward=" + wardName;
+        if ("receiver".equals(role)) {
+            message += ". GHN master data does not support this new ward yet.";
+        }
+        throw new IllegalArgumentException(message);
     }
 
-    private GhnProvince findProvince(String provinceName) {
+    private GhnProvince findProvince(String provinceName, String normalizedProvinceName) {
         ProvinceResponse response = restClient.get()
                 .uri(apiBaseUrl + PROVINCE_PATH)
                 .header("Token", token)
                 .retrieve()
                 .body(ProvinceResponse.class);
 
-        String target = normalizeAdministrativeName(provinceName);
         List<GhnProvince> provinces = response != null && response.data() != null ? response.data() : List.of();
-        return provinces.stream()
-                .filter(province -> administrativeNamesMatch(normalizeAdministrativeName(province.provinceName()), target))
+        GhnProvince matched = provinces.stream()
+                .filter(province -> administrativeNamesMatch(
+                        normalizeAdministrativeName(province.provinceName()), normalizedProvinceName))
                 .findFirst()
                 .orElse(null);
+        log.info(
+                "GHN province lookup: input={}, normalized={}, totalProvinces={}, matched={}",
+                provinceName,
+                normalizedProvinceName,
+                provinces.size(),
+                matched != null ? matched.provinceName() : null);
+        return matched;
     }
 
     private List<GhnDistrict> getDistricts() {
@@ -176,7 +243,7 @@ public class GhnShippingService {
         return response != null && response.data() != null ? response.data() : List.of();
     }
 
-    private GhnWard findWardInDistrict(Integer districtId, String wardName) {
+    private GhnWard findWardInDistrict(Integer districtId, String wardName, String normalizedWardName) {
         if (districtId == null) {
             return null;
         }
@@ -187,12 +254,21 @@ public class GhnShippingService {
                 .retrieve()
                 .body(WardResponse.class);
 
-        String target = normalizeAdministrativeName(wardName);
         List<GhnWard> wards = response != null && response.data() != null ? response.data() : List.of();
-        return wards.stream()
-                .filter(ward -> administrativeNamesMatch(normalizeAdministrativeName(ward.wardName()), target))
+        GhnWard matched = wards.stream()
+                .filter(ward -> administrativeNamesMatch(normalizeAdministrativeName(ward.wardName()), normalizedWardName))
                 .findFirst()
                 .orElse(null);
+        if (matched != null) {
+            log.info(
+                    "GHN ward lookup matched: districtId={}, input={}, normalized={}, wardCode={}, wardName={}",
+                    districtId,
+                    wardName,
+                    normalizedWardName,
+                    matched.wardCode(),
+                    matched.wardName());
+        }
+        return matched;
     }
 
     private static boolean administrativeNamesMatch(String normalizedA, String normalizedB) {
@@ -213,10 +289,10 @@ public class GhnShippingService {
             return "";
         }
 
-        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD);
+        String normalized = value.replace('Đ', 'D').replace('đ', 'd');
+        normalized = Normalizer.normalize(normalized, Normalizer.Form.NFD);
         normalized = DIACRITICS.matcher(normalized).replaceAll("");
         normalized = normalized.toLowerCase(Locale.ROOT)
-                .replace('đ', 'd')
                 .replaceAll("\\b(tinh|thanh pho|tp|quan|huyen|thi xa|thi tran|phuong|xa)\\b", "")
                 .replaceAll("[^a-z0-9]+", " ")
                 .trim();

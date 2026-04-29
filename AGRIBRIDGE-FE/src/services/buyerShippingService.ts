@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { apiClient } from './apiClient'
 
 export type BuyerShippingQuoteRequest = {
@@ -35,6 +36,16 @@ export type BuyerShippingQuote = {
 export async function quoteBuyerShipping(
   payload: BuyerShippingQuoteRequest,
 ): Promise<BuyerShippingQuote> {
-  const response = await apiClient.post('/api/buyer/shipping/quote', payload)
-  return response.data?.data ?? response.data
+  try {
+    const response = await apiClient.post('/api/buyer/shipping/quote', payload)
+    return response.data?.data ?? response.data
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message = error.response?.data?.message
+      if (typeof message === 'string' && message.trim()) {
+        throw new Error(message)
+      }
+    }
+    throw error
+  }
 }
