@@ -39,9 +39,12 @@ export type BuyerQuickOrderBuyerInfo = {
 export type BuyerCreditLimit = {
   paymentTermDays: number
   creditLimit?: number | null
+  remainingCredit?: number | null
   isBlocked?: boolean
   blockedReason?: string | null
 }
+
+export type BuyerPaymentMethod = 'ESCROW_TRANSFER' | 'DEPOSIT_50' | 'CREDIT'
 
 // ─── Payload sent on submit ───────────────────────────────────────────────────
 
@@ -60,7 +63,10 @@ export type BuyerQuickOrderPayload = {
   deliveryDistrict?: string | null
   deliveryWard?: string | null
   deliveryAddress: string
-  paymentMethod: 'BANK_TRANSFER' | 'CREDIT'
+  paymentMethod: BuyerPaymentMethod
+  depositRate?: number | null
+  depositAmount?: number | null
+  balanceAmount?: number | null
   creditTermDays?: number | null
   shippingFee: number | null
   shippingProviderCode?: string | null

@@ -1,7 +1,6 @@
   import {
     AlertCircle,
     AlertTriangle,
-    CreditCard,
     Edit2,
     MapPin,
     PackageCheck,
@@ -24,6 +23,7 @@
   import { resolveUploadedFileUrl } from '../../services/uploadService'
   import type {
     BuyerCreditLimit,
+    BuyerPaymentMethod,
     BuyerQuickOrderBuyerInfo,
     BuyerQuickOrderPayload,
     BuyerQuickOrderTarget,
@@ -65,12 +65,6 @@
     const parsed = new Date(value)
     if (Number.isNaN(parsed.getTime())) return value
     return parsed.toLocaleDateString('vi-VN')
-  }
-
-  function dateAfterDays(days: number): string {
-    const d = new Date()
-    d.setDate(d.getDate() + days)
-    return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
   }
 
   function estimateWeightInGram(quantity: number, unit?: string | null) {
@@ -175,7 +169,7 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
     const [addressLoadError, setAddressLoadError] = useState('')
 
     // ── Payment method state ──
-    const [paymentMethod, setPaymentMethod] = useState<'BANK_TRANSFER' | 'CREDIT'>('BANK_TRANSFER')
+    const [paymentMethod, setPaymentMethod] = useState<BuyerPaymentMethod>('ESCROW_TRANSFER')
     const [shippingQuote, setShippingQuote] = useState<BuyerShippingQuote | null>(null)
     const [shippingLoading, setShippingLoading] = useState(false)
     const [shippingError, setShippingError] = useState('')
@@ -293,6 +287,26 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
     const estimatedTotal = subtotal != null
       ? subtotal + (shippingFee ?? 0)
       : null
+    const depositRate = 50
+    const depositAmount = estimatedTotal != null ? estimatedTotal * 0.5 : null
+    const balanceAmount = estimatedTotal != null && depositAmount != null ? estimatedTotal - depositAmount : null
+    const remainingCredit = creditLimit?.remainingCredit ?? creditLimit?.creditLimit ?? null
+    const creditDisabledReason = !creditLimit
+      ? 'Nhà cung cấp chưa cấp công nợ cho buyer này.'
+      : creditLimit.isBlocked
+        ? creditLimit.blockedReason || 'Công nợ đang bị tạm khóa.'
+        : estimatedTotal != null && remainingCredit != null && estimatedTotal > remainingCredit
+          ? 'Không đủ hạn mức công nợ.'
+          : ''
+    const isCreditDisabled = Boolean(creditDisabledReason)
+    const paymentMethodLabel =
+      paymentMethod === 'DEPOSIT_50'
+        ? 'Đặt cọc 50%'
+        : paymentMethod === 'CREDIT'
+          ? creditLimit
+            ? `Công nợ ${creditLimit.paymentTermDays} ngày`
+            : 'Công nợ'
+          : 'Chuyển khoản qua sàn'
     const estimatedDeliveryTime =
       realGhnQuote?.estimatedDeliveryTime ||
       (realGhnQuote?.estimatedDaysMin != null && realGhnQuote?.estimatedDaysMax != null
@@ -317,7 +331,11 @@ const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
       target.availableQuantity > 0 &&
       quantityNumber > 0 &&
       quantityNumber > target.availableQuantity
-    const canSubmit = !showStockError && quantityNumber > 0 && !submitting
+    const canSubmit =
+      !showStockError &&
+      quantityNumber > 0 &&
+      !submitting &&
+      !(paymentMethod === 'CREDIT' && isCreditDisabled)
 
     const heroImage = useMemo(() => {
       if (!target.imageUrl) return PLACEHOLDER_IMAGE
@@ -494,6 +512,9 @@ const handleOpenEdit = () => {
         deliveryWard: buyerInfo.ward || null,
         deliveryAddress: buyerInfo.address || '',
         paymentMethod,
+        depositRate: paymentMethod === 'DEPOSIT_50' ? depositRate : null,
+        depositAmount: paymentMethod === 'DEPOSIT_50' ? depositAmount : null,
+        balanceAmount: paymentMethod === 'DEPOSIT_50' ? balanceAmount : null,
         creditTermDays: paymentMethod === 'CREDIT' && creditLimit ? creditLimit.paymentTermDays : null,
         shippingFee: realGhnQuote?.estimatedShippingFee ?? null,
         shippingProviderCode: realGhnQuote?.providerCode ?? null,
@@ -898,59 +919,90 @@ const handleOpenEdit = () => {
                     <input
                       type="radio"
                       name="paymentMethod"
-                      value="BANK_TRANSFER"
-                      checked={paymentMethod === 'BANK_TRANSFER'}
-                      onChange={() => setPaymentMethod('BANK_TRANSFER')}
+                      value="ESCROW_TRANSFER"
+                      checked={paymentMethod === 'ESCROW_TRANSFER'}
+                      onChange={() => setPaymentMethod('ESCROW_TRANSFER')}
                       className="mt-0.5 h-4 w-4 accent-emerald-600"
                     />
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">Chuyển khoản sau khi nhà cung cấp xác nhận</p>
-                      <p className="mt-0.5 text-xs text-slate-500">Thanh toán khi nhận được xác nhận đơn hàng</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-bold text-slate-800">Chuyển khoản qua sàn</p>
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">Khuyến nghị</span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-500">Sàn tạm giữ thanh toán và chỉ giải ngân cho nhà cung cấp sau khi đơn hàng hoàn tất.</p>
+                    </div>
+                  </label>
+
+                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition has-[:checked]:border-emerald-400 has-[:checked]:bg-emerald-50/50 border-slate-200">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="DEPOSIT_50"
+                      checked={paymentMethod === 'DEPOSIT_50'}
+                      onChange={() => setPaymentMethod('DEPOSIT_50')}
+                      className="mt-0.5 h-4 w-4 accent-emerald-600"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-bold text-slate-800">Đặt cọc 50%</p>
+                        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold uppercase text-teal-700">Giảm rủi ro</span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-500">Đặt cọc 50% qua sàn. Phần còn lại thanh toán trước khi nhận hàng hoặc khi đơn sẵn sàng giao.</p>
+                      {paymentMethod === 'DEPOSIT_50' ? (
+                        <div className="mt-2 grid gap-1 text-xs text-slate-600 sm:grid-cols-2">
+                          <p>Tiền cọc 50%: <span className="font-bold text-slate-800">{formatMoney(depositAmount)}</span></p>
+                          <p>Còn lại: <span className="font-bold text-slate-800">{formatMoney(balanceAmount)}</span></p>
+                        </div>
+                      ) : null}
                     </div>
                   </label>
 
                   {/* Option: Credit */}
-                  {creditLimit && !creditLimit.isBlocked ? (
-                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition has-[:checked]:border-emerald-400 has-[:checked]:bg-emerald-50/50 border-slate-200">
-                      <input
-                        type="radio"
-                        name="paymentMethod"
-                        value="CREDIT"
-                        checked={paymentMethod === 'CREDIT'}
-                        onChange={() => setPaymentMethod('CREDIT')}
-                        className="mt-0.5 h-4 w-4 accent-emerald-600"
-                      />
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">
-                          Công nợ {creditLimit.paymentTermDays} ngày
-                        </p>
+                  <label
+                    className={`flex items-start gap-3 rounded-xl border p-3 transition ${
+                      isCreditDisabled
+                        ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-75'
+                        : 'cursor-pointer border-slate-200 has-[:checked]:border-emerald-400 has-[:checked]:bg-emerald-50/50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="CREDIT"
+                      checked={paymentMethod === 'CREDIT'}
+                      onChange={() => setPaymentMethod('CREDIT')}
+                      disabled={isCreditDisabled}
+                      className="mt-0.5 h-4 w-4 accent-emerald-600 disabled:cursor-not-allowed"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-bold text-slate-800">Công nợ</p>
+                        {creditLimit && !isCreditDisabled ? (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600">
+                            Công nợ {creditLimit.paymentTermDays} ngày
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-500">Thanh toán sau theo hạn mức được cấp.</p>
+                      {isCreditDisabled ? (
+                        <p className="mt-1 text-xs font-semibold text-rose-600">{creditDisabledReason}</p>
+                      ) : creditLimit ? (
                         <div className="mt-1 space-y-0.5 text-xs text-slate-500">
-                          {creditLimit.creditLimit != null ? (
-                            <p>Hạn mức công nợ: <span className="font-semibold text-slate-700">{formatMoney(creditLimit.creditLimit)}</span></p>
+                          {remainingCredit != null ? (
+                            <p>
+                              Hạn mức còn lại:{' '}
+                              <span className="font-semibold text-slate-700">{formatMoney(remainingCredit)}</span>
+                            </p>
                           ) : null}
                           <p>
-                            Ngày đến hạn dự kiến:{' '}
-                            <span className="font-semibold text-slate-700">{creditDueLabel}</span>{' '}
-                            ({dateAfterDays(creditLimit.paymentTermDays)})
+                            Kỳ hạn:{' '}
+                            <span className="font-semibold text-slate-700">{creditLimit.paymentTermDays} ngày</span>
+                            {creditDueLabel ? ` · Dự kiến ${creditDueLabel}` : ''}
                           </p>
                         </div>
-                      </div>
-                    </label>
-                  ) : creditLimit?.isBlocked ? (
-                    <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
-                      <p className="flex items-center gap-2 text-sm font-bold text-rose-700">
-                        <CreditCard className="h-4 w-4" />
-                        Công nợ bị tạm khóa
-                      </p>
-                      {creditLimit.blockedReason ? (
-                        <p className="mt-1 text-xs text-rose-600">{creditLimit.blockedReason}</p>
                       ) : null}
                     </div>
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3">
-                      <p className="text-xs text-slate-500">Nhà cung cấp chưa cấp công nợ cho buyer này.</p>
-                    </div>
-                  )}
+                  </label>
                 </div>
               </div>
             </section>
@@ -980,22 +1032,34 @@ const handleOpenEdit = () => {
                 <SummaryRow label="Phí vận chuyển" value={shippingFee != null ? formatMoney(shippingFee) : 'Chưa tính'} />
                 <div className="border-t border-emerald-200 pt-2">
                   <SummaryRow
-                    label="Tổng tạm tính"
+                    label="Tổng thanh toán"
                     value={estimatedTotal != null ? formatMoney(estimatedTotal) : '--'}
                     accent
                   />
                 </div>
+                {paymentMethod === 'DEPOSIT_50' ? (
+                  <>
+                    <SummaryRow label="Tiền cọc 50%" value={depositAmount != null ? formatMoney(depositAmount) : '--'} />
+                    <SummaryRow label="Còn lại" value={balanceAmount != null ? formatMoney(balanceAmount) : '--'} />
+                  </>
+                ) : null}
                 <SummaryRow
                   label="Phương thức thanh toán"
-                  value={
-                    paymentMethod === 'CREDIT' && creditLimit
-                      ? `Công nợ ${creditLimit.paymentTermDays} ngày`
-                      : 'Chuyển khoản'
-                  }
+                  value={paymentMethodLabel}
                 />
                 <p className="pt-1 text-[11px] italic text-emerald-700/70">
-                  Tổng cuối cùng có thể thay đổi sau khi phí vận chuyển được tính từ đơn vị vận chuyển.
+                  Khoản thanh toán được chuyển vào tài khoản sàn và được tạm giữ cho đến khi đơn hàng hoàn tất.
                 </p>
+                {paymentMethod === 'DEPOSIT_50' ? (
+                  <p className="text-[11px] italic text-emerald-700/70">
+                    Bạn chỉ cần thanh toán trước 50% sau khi tạo đơn. Phần còn lại sẽ được thanh toán theo yêu cầu của nhà cung cấp hoặc trước khi nhận hàng.
+                  </p>
+                ) : null}
+                {paymentMethod === 'CREDIT' ? (
+                  <p className="text-[11px] italic text-emerald-700/70">
+                    Đơn hàng sử dụng công nợ sẽ được theo dõi hạn thanh toán theo kỳ hạn đã cấp.
+                  </p>
+                ) : null}
               </div>
             </section>
           </div>
