@@ -1,5 +1,6 @@
 import { AlertCircle, Eye, FileText, MapPin, Phone, Printer, Receipt, Truck, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { BuyerPanel, BuyerStatusPill } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import { useToast } from '../../hooks/useToast'
@@ -25,6 +26,7 @@ function formatDate(value?: string | null) {
 
 export function BuyerOrdersPage() {
   const { showToast } = useToast()
+  const [searchParams] = useSearchParams()
   const [orders, setOrders] = useState<BuyerOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -39,15 +41,26 @@ export function BuyerOrdersPage() {
       setLoading(true)
       setError('')
       const data = await fetchBuyerOrders()
-      setOrders(data)
-      setSelectedOrderId((current) => current || data[0]?.id || '')
+      const targetOrderId = Number(searchParams.get('orderId') || '')
+      if (Number.isFinite(targetOrderId) && targetOrderId > 0) {
+        const detail = await fetchBuyerOrder(targetOrderId)
+        const merged = data.some((item) => item.orderId === detail.orderId)
+          ? data.map((item) => (item.orderId === detail.orderId ? detail : item))
+          : [detail, ...data]
+        setOrders(merged)
+        setSelectedOrderId(detail.id)
+        setOpenDetail(true)
+      } else {
+        setOrders(data)
+        setSelectedOrderId((current) => current || data[0]?.id || '')
+      }
     } catch (requestError) {
       setOrders([])
       setError(readApiErrorMessage(requestError) || 'Không thể tải danh sách đơn hàng.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [searchParams])
 
   useEffect(() => {
     void loadOrders()

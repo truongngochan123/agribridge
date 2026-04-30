@@ -10,5 +10,11 @@ public interface BranchRepository extends JpaRepository<BranchEntity, Long> {
 
     List<BranchEntity> findByIdIn(Collection<Long> ids);
 
+    List<BranchEntity> findByCompanyIdOrderByCreatedAtDesc(Long companyId);
+
     Optional<BranchEntity> findByIdAndCompanyId(Long id, Long companyId);
+
+    boolean existsByCompanyIdAndNameIgnoreCase(Long companyId, String name);
+
+    boolean existsByCompanyIdAndNameIgnoreCaseAndIdNot(Long companyId, String name, Long id);
 }

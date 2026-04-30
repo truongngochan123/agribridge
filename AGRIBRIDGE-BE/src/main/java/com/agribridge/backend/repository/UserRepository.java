@@ -24,4 +24,10 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     Optional<UserEntity> findFirstByCompanyIdAndRole(Long companyId, UserRoleEnum role);
 
     List<UserEntity> findByCompanyIdInAndRole(Collection<Long> companyIds, UserRoleEnum role);
+
+    List<UserEntity> findByCompanyIdAndBranchIdOrderByCreatedAtDesc(Long companyId, Long branchId);
+
+    boolean existsByBranchId(Long branchId);
+
+    long countByCompanyIdAndBranchId(Long companyId, Long branchId);
 }

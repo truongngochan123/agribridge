@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 public record BuyerQuickOrderRequestDto(
         @NotNull(message = "buyerCompanyId is required") Long buyerCompanyId,
         @NotNull(message = "supplierId is required") Long supplierId,
+        Long branchId,
         @NotNull(message = "productId is required") Long productId,
         @NotNull(message = "batchId is required") Long batchId,
         @NotNull(message = "quantity is required") @Positive(message = "quantity must be greater than 0") BigDecimal quantity,

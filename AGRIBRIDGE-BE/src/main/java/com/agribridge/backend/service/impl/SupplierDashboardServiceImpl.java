@@ -837,7 +837,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             case WAITING_CONFIRMATION -> "Chờ buyer xác nhận";
             case DELIVERED -> "Đã giao";
             case CANCELLED -> "Đã hủy";
-            case FAILED -> "Sự cố";
+            case INCIDENT, FAILED -> "Sự cố";
         };
     }
 
@@ -851,7 +851,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             case IN_TRANSIT, SHIPPING -> 65;
             case WAITING_CONFIRMATION -> 85;
             case DELIVERED -> 100;
-            case CANCELLED, FAILED -> 45;
+            case CANCELLED, INCIDENT, FAILED -> 45;
         };
     }
 

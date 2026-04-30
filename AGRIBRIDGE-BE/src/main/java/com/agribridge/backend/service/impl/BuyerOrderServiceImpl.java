@@ -109,6 +109,11 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .orElseThrow(() -> new IllegalArgumentException("Buyer company not found"));
         CompanyEntity supplier = companyRepository.findById(request.supplierId())
                 .orElseThrow(() -> new IllegalArgumentException("Supplier company not found"));
+        if (request.branchId() != null) {
+            BranchEntity branch = branchRepository.findByIdAndCompanyId(request.branchId(), buyer.getId())
+                    .filter(item -> Boolean.TRUE.equals(item.getIsActive()))
+                    .orElseThrow(() -> new IllegalArgumentException("Branch is inactive or does not belong to this buyer"));
+        }
         ProductEntity product = productRepository.findById(request.productId())
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
         BatchEntity batch = batchRepository.findById(request.batchId())
@@ -142,6 +147,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         OrderEntity order = orderRepository.save(OrderEntity.builder()
                 .buyerCompanyId(buyer.getId())
                 .supplierCompanyId(supplier.getId())
+                .branchId(request.branchId())
                 .status(OrderStatusEnum.PENDING)
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)

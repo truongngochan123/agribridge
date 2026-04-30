@@ -9,5 +9,6 @@ public enum ShipmentStatusEnum {
     PREPARING,
     SHIPPING,
     DELIVERED,
+    INCIDENT,
     FAILED
 }

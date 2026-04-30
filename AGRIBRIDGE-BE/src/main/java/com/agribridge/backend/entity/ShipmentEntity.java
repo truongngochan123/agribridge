@@ -88,6 +88,18 @@ public class ShipmentEntity {
     @Column(name = "estimated_delivery_time")
     private String estimatedDeliveryTime;
 
+    @Column(name = "estimated_delivery_at")
+    private LocalDateTime estimatedDeliveryAt;
+
+    @Column(name = "current_location")
+    private String currentLocation;
+
+    @Column(name = "current_lat")
+    private BigDecimal currentLat;
+
+    @Column(name = "current_lng")
+    private BigDecimal currentLng;
+
     @Column(name = "shipping_payer")
     private String shippingPayer;
 
@@ -100,6 +112,16 @@ public class ShipmentEntity {
 
     @Column(name = "delivered_at")
     private LocalDateTime deliveredAt;
+
+    @Column(name = "confirmed_received_at")
+    private LocalDateTime confirmedReceivedAt;
+
+    @Column(name = "confirmed_received_by_user_id")
+    private Long confirmedReceivedByUserId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "confirmed_received_by_user_id", insertable = false, updatable = false)
+    private UserEntity confirmedReceivedByUser;
 
     @Column(name = "shipping_fee")
     private BigDecimal shippingFee;

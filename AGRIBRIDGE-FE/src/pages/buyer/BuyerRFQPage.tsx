@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { BuyerPanel } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import {
@@ -51,6 +52,7 @@ const emptyForm: RfqFormState = {
 }
 
 export function BuyerRFQPage() {
+  const [searchParams] = useSearchParams()
   const [rfqs, setRfqs] = useState<BuyerRfqListItem[]>([])
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState('')
@@ -81,6 +83,7 @@ export function BuyerRFQPage() {
   const [submittingCreate, setSubmittingCreate] = useState(false)
   const [submittingUpdate, setSubmittingUpdate] = useState(false)
   const [cancelling, setCancelling] = useState<number | null>(null)
+  const [openedRfqParam, setOpenedRfqParam] = useState('')
 
   const loadRfqs = useCallback(async () => {
     setLoadingList(true)
@@ -104,13 +107,7 @@ export function BuyerRFQPage() {
     void loadRfqs()
   }, [loadRfqs])
 
-  const openCreateForm = () => {
-    setFormMode('create')
-    setEditingRfqId(null)
-    setForm(emptyForm)
-    setFormError(null)
-  }
-
+  
   const openUpdateForm = async (rfq: BuyerRfqListItem | BuyerRfqDetail) => {
     setFormMode('update')
     setEditingRfqId(rfq.id)
@@ -175,6 +172,14 @@ export function BuyerRFQPage() {
       setLoadingOrders(false)
     }
   }
+
+  useEffect(() => {
+    const rfqId = searchParams.get('rfqId') || ''
+    const parsed = Number(rfqId)
+    if (!rfqId || openedRfqParam === rfqId || !Number.isFinite(parsed) || parsed <= 0) return
+    setOpenedRfqParam(rfqId)
+    void openDetail(parsed)
+  }, [openedRfqParam, searchParams])
 
   const handleSearch = () => {
     setAppliedKeyword(keyword.trim())
@@ -269,7 +274,6 @@ export function BuyerRFQPage() {
         activeKey="rfq"
         title="RFQ & Báo giá"
         subtitle="Quản lý yêu cầu báo giá và so sánh"
-        actions={<div className="flex justify-end"><button className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60" onClick={openCreateForm}>+ Tạo RFQ mới</button></div>}
       >
         <BuyerPanel title="Yêu cầu Báo giá của tôi" right={<p className="text-xs text-emerald-700/70">Quản lý các yêu cầu báo giá và so sánh nhà cung cấp</p>}>
           <div className="mb-3 grid gap-2 md:grid-cols-[1fr_160px_auto_auto]">
