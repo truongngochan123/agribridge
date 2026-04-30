@@ -1,61 +1,267 @@
-import { useState } from 'react'
-import { buyerRfqCards } from '../../data/buyerRfqData'
+import { useCallback, useEffect, useState } from 'react'
 import { BuyerPanel } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import {
+  cancelBuyerRfq,
+  convertQuoteToOrder,
+  createBuyerRfq,
+  getBuyerRfqCompare,
+  getBuyerRfqDetail,
+  getBuyerRfqOrders,
+  getBuyerRfqs,
+  updateBuyerRfq,
+} from '../../services/buyerRfqApi'
+import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
+import type {
+  BuyerQuoteCompareItem,
+  BuyerRfqCompareResponse,
+  BuyerRfqDetail,
+  BuyerRfqListItem,
+  BuyerRfqOrderItem,
+  CreateBuyerRfqRequest,
+  UpdateBuyerRfqRequest,
+} from '../../types/buyerRfq'
+
+type RfqFormMode = 'create' | 'update'
+
+type RfqFormState = {
+  title: string
+  productId: string
+  categoryId: string
+  branchId: string
+  quantity: string
+  unit: string
+  province: string
+  deliveryDate: string
+  expiredAt: string
+  description: string
+}
+
+const emptyForm: RfqFormState = {
+  title: '',
+  productId: '',
+  categoryId: '',
+  branchId: '',
+  quantity: '',
+  unit: 'kg',
+  province: '',
+  deliveryDate: '',
+  expiredAt: '',
+  description: '',
+}
 
 export function BuyerRFQPage() {
-  const [openCompare, setOpenCompare] = useState(false)
-  const [activeRfqId, setActiveRfqId] = useState(buyerRfqCards[0]?.id ?? '')
+  const [rfqs, setRfqs] = useState<BuyerRfqListItem[]>([])
+  const [keyword, setKeyword] = useState('')
+  const [status, setStatus] = useState('')
+  const [appliedKeyword, setAppliedKeyword] = useState('')
+  const [appliedStatus, setAppliedStatus] = useState('')
+  const [loadingList, setLoadingList] = useState(false)
+  const [listError, setListError] = useState<string | null>(null)
 
-  const activeRfq = buyerRfqCards.find((item) => item.id === activeRfqId) ?? buyerRfqCards[0]
+  const [detail, setDetail] = useState<BuyerRfqDetail | null>(null)
+  const [detailError, setDetailError] = useState<string | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
-  const compareCards = [
-    {
-      supplier: 'Trang trại Biển Xanh',
-      rating: '4.8 (156 đơn)',
-      tags: ['Giá tốt nhất', 'Uy tín cao', 'Có công nợ'],
-      price: '285.000đ',
-      total: '85.500.000đ',
-      lot: 'LOT-TS-240115',
-      gradeSize: 'A+ / 20-25 con/kg',
-      harvest: '2024-01-10',
-      delivery: '2024-01-17',
-      eta: '2 ngày',
-      incoterms: 'DAP - Giao tại địa chỉ',
-      shipping: 'Miễn phí',
-      payment: 'Công nợ 7 ngày',
-    },
-    {
-      supplier: 'HTX Thủy Sản Sóc Trăng',
-      rating: '4.6 (89 đơn)',
-      tags: ['Giao nhanh'],
-      price: '280.000đ',
-      total: '84.000.000đ',
-      lot: 'LOT-TS-240112',
-      gradeSize: 'A+ / 18-22 con/kg',
-      harvest: '2024-01-12',
-      delivery: '2024-01-19',
-      eta: '4 ngày',
-      incoterms: 'EXW - Lấy tại kho',
-      shipping: '2,500,000đ',
-      payment: 'Thanh toán 70% trước',
-    },
-    {
-      supplier: 'Công ty TNHH Miền Tây',
-      rating: '4.9 (234 đơn)',
-      tags: ['Công nợ dài hạn', 'Rating cao nhất'],
-      price: '275.000đ',
-      total: '82.500.000đ',
-      lot: 'LOT-TS-240110',
-      gradeSize: 'A / 25-30 con/kg',
-      harvest: '2024-01-09',
-      delivery: '2024-01-18',
-      eta: '3 ngày',
-      incoterms: 'DAP - Giao tại địa chỉ',
-      shipping: 'Miễn phí',
-      payment: 'Công nợ 14 ngày',
-    },
-  ]
+  const [compareData, setCompareData] = useState<BuyerRfqCompareResponse | null>(null)
+  const [compareError, setCompareError] = useState<string | null>(null)
+  const [loadingCompare, setLoadingCompare] = useState(false)
+  const [selectedQuoteId, setSelectedQuoteId] = useState<number | null>(null)
+  const [converting, setConverting] = useState(false)
+
+  const [orders, setOrders] = useState<BuyerRfqOrderItem[]>([])
+  const [ordersRfqId, setOrdersRfqId] = useState<number | null>(null)
+  const [ordersError, setOrdersError] = useState<string | null>(null)
+  const [loadingOrders, setLoadingOrders] = useState(false)
+
+  const [formMode, setFormMode] = useState<RfqFormMode | null>(null)
+  const [editingRfqId, setEditingRfqId] = useState<number | null>(null)
+  const [form, setForm] = useState<RfqFormState>(emptyForm)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [submittingCreate, setSubmittingCreate] = useState(false)
+  const [submittingUpdate, setSubmittingUpdate] = useState(false)
+  const [cancelling, setCancelling] = useState<number | null>(null)
+
+  const loadRfqs = useCallback(async () => {
+    setLoadingList(true)
+    setListError(null)
+    try {
+      const data = await getBuyerRfqs({
+        page: 0,
+        size: 20,
+        keyword: appliedKeyword,
+        status: appliedStatus,
+      })
+      setRfqs(data.content ?? [])
+    } catch (error) {
+      setListError(readApiErrorMessage(error) ?? 'Không thể tải danh sách RFQ')
+    } finally {
+      setLoadingList(false)
+    }
+  }, [appliedKeyword, appliedStatus])
+
+  useEffect(() => {
+    void loadRfqs()
+  }, [loadRfqs])
+
+  const openCreateForm = () => {
+    setFormMode('create')
+    setEditingRfqId(null)
+    setForm(emptyForm)
+    setFormError(null)
+  }
+
+  const openUpdateForm = async (rfq: BuyerRfqListItem | BuyerRfqDetail) => {
+    setFormMode('update')
+    setEditingRfqId(rfq.id)
+    setFormError(null)
+    const current = 'description' in rfq ? rfq : await safeLoadDetail(rfq.id)
+    setForm({
+      title: current?.title ?? rfq.title ?? '',
+      productId: String(current?.productId ?? rfq.productId ?? ''),
+      categoryId: String(current?.categoryId ?? rfq.categoryId ?? ''),
+      branchId: String(current?.branchId ?? rfq.branchId ?? ''),
+      quantity: String(current?.quantity ?? rfq.quantity ?? ''),
+      unit: current?.unit ?? rfq.unit ?? 'kg',
+      province: current?.province ?? rfq.province ?? '',
+      deliveryDate: toDateInput(current?.deliveryDate ?? rfq.deliveryDate),
+      expiredAt: toDateTimeInput(current?.deadline ?? current?.expiredAt ?? rfq.deadline ?? rfq.expiredAt),
+      description: current?.description ?? '',
+    })
+  }
+
+  const safeLoadDetail = async (rfqId: number) => {
+    try {
+      return await getBuyerRfqDetail(rfqId)
+    } catch {
+      return null
+    }
+  }
+
+  const openDetail = async (rfqId: number) => {
+    setLoadingDetail(true)
+    setDetailError(null)
+    try {
+      setDetail(await getBuyerRfqDetail(rfqId))
+    } catch (error) {
+      setDetailError(readApiErrorMessage(error) ?? 'Không thể tải chi tiết RFQ')
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
+  const openCompare = async (rfqId: number) => {
+    setLoadingCompare(true)
+    setCompareError(null)
+    setSelectedQuoteId(null)
+    try {
+      setCompareData(await getBuyerRfqCompare(rfqId))
+    } catch (error) {
+      setCompareError(readApiErrorMessage(error) ?? 'Không thể tải báo giá')
+    } finally {
+      setLoadingCompare(false)
+    }
+  }
+
+  const openOrders = async (rfqId: number) => {
+    setOrdersRfqId(rfqId)
+    setLoadingOrders(true)
+    setOrdersError(null)
+    try {
+      setOrders(await getBuyerRfqOrders(rfqId))
+    } catch (error) {
+      setOrdersError(readApiErrorMessage(error) ?? 'Không thể tải đơn hàng của RFQ')
+    } finally {
+      setLoadingOrders(false)
+    }
+  }
+
+  const handleSearch = () => {
+    setAppliedKeyword(keyword.trim())
+    setAppliedStatus(status)
+  }
+
+  const handleRefresh = () => {
+    setKeyword('')
+    setStatus('')
+    setAppliedKeyword('')
+    setAppliedStatus('')
+  }
+
+  const submitForm = async () => {
+    const validation = validateForm(form, formMode)
+    if (validation) {
+      setFormError(validation)
+      return
+    }
+
+    setFormError(null)
+    try {
+      if (formMode === 'create') {
+        setSubmittingCreate(true)
+        await createBuyerRfq(buildCreatePayload(form))
+        alert('Tạo RFQ thành công')
+      } else if (formMode === 'update' && editingRfqId) {
+        setSubmittingUpdate(true)
+        await updateBuyerRfq(editingRfqId, buildUpdatePayload(form))
+        alert('Cập nhật RFQ thành công')
+        if (detail?.id === editingRfqId) {
+          setDetail(await getBuyerRfqDetail(editingRfqId))
+        }
+      }
+      setFormMode(null)
+      setEditingRfqId(null)
+      await loadRfqs()
+    } catch (error) {
+      setFormError(readApiErrorMessage(error) ?? 'Không thể lưu RFQ')
+    } finally {
+      setSubmittingCreate(false)
+      setSubmittingUpdate(false)
+    }
+  }
+
+  const handleCancelRfq = async (rfqId: number) => {
+    if (!window.confirm('Bạn chắc chắn muốn hủy RFQ này?')) return
+    setCancelling(rfqId)
+    try {
+      await cancelBuyerRfq(rfqId)
+      alert('Đã hủy RFQ')
+      await loadRfqs()
+      if (detail?.id === rfqId) {
+        setDetail(null)
+      }
+    } catch (error) {
+      alert(readApiErrorMessage(error) ?? 'Không thể hủy RFQ')
+    } finally {
+      setCancelling(null)
+    }
+  }
+
+  const handleConvert = async () => {
+    if (!compareData || selectedQuoteId == null) return
+    if (!window.confirm('Bạn muốn chuyển báo giá này thành đơn hàng?')) return
+
+    setConverting(true)
+    try {
+      const response = await convertQuoteToOrder(compareData.rfq.id, selectedQuoteId, {
+        deliveryAddress: compareData.rfq.deliveryAddress || '',
+        deliveryProvince: compareData.rfq.province || '',
+        note: 'Tạo đơn từ báo giá đã chọn',
+        createInvoice: true,
+      })
+      alert(`Đã chuyển báo giá thành đơn hàng. Order #${response.orderId}${response.invoiceId ? `, Invoice #${response.invoiceId}` : ''}`)
+      setCompareData(null)
+      setSelectedQuoteId(null)
+      await loadRfqs()
+    } catch (error) {
+      setCompareError(readApiErrorMessage(error) ?? 'Không thể chuyển báo giá thành đơn hàng')
+    } finally {
+      setConverting(false)
+    }
+  }
+
+  const formTitle = formMode === 'create' ? 'Tạo RFQ mới' : 'Sửa RFQ'
+  const formSubmitting = submittingCreate || submittingUpdate
 
   return (
     <>
@@ -63,44 +269,61 @@ export function BuyerRFQPage() {
         activeKey="rfq"
         title="RFQ & Báo giá"
         subtitle="Quản lý yêu cầu báo giá và so sánh"
-        actions={<div className="flex justify-end"><button className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">+ Tạo RFQ mới</button></div>}
+        actions={<div className="flex justify-end"><button className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60" onClick={openCreateForm}>+ Tạo RFQ mới</button></div>}
       >
         <BuyerPanel title="Yêu cầu Báo giá của tôi" right={<p className="text-xs text-emerald-700/70">Quản lý các yêu cầu báo giá và so sánh nhà cung cấp</p>}>
+          <div className="mb-3 grid gap-2 md:grid-cols-[1fr_160px_auto_auto]">
+            <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm theo sản phẩm, tiêu đề, tỉnh..." className="rounded-lg border border-emerald-100 px-3 py-2 text-sm outline-none focus:border-emerald-400" />
+            <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-lg border border-emerald-100 px-3 py-2 text-sm outline-none focus:border-emerald-400">
+              <option value="">Tất cả trạng thái</option>
+              <option value="OPEN">OPEN</option>
+              <option value="CLOSED">CLOSED</option>
+              <option value="CANCELLED">CANCELLED</option>
+            </select>
+            <button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60" onClick={handleSearch} disabled={loadingList}>Tìm kiếm</button>
+            <button className="rounded-lg border border-emerald-300 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-60" onClick={handleRefresh} disabled={loadingList}>Làm mới</button>
+          </div>
+
+          {loadingList ? <StateBox text="Đang tải RFQ..." /> : null}
+          {listError && !loadingList ? <ErrorBox message={listError} onRetry={loadRfqs} /> : null}
+          {!loadingList && !listError && rfqs.length === 0 ? <StateBox text="Chưa có yêu cầu báo giá nào" /> : null}
+
           <div className="space-y-3">
-            {buyerRfqCards.map((item) => (
+            {rfqs.map((item) => (
               <article key={item.id} className="rounded-xl border border-emerald-100 bg-white p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-xl font-extrabold text-emerald-950">{item.id}</h4>
-                      <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">{item.status}</span>
-                      <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">{item.quoteCount} báo giá</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="text-xl font-extrabold text-emerald-950">{item.code || rfqCode(item.id)}</h4>
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">{item.status || 'N/A'}</span>
+                      <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">{item.quoteCount ?? 0} báo giá</span>
                     </div>
-                    <p className="mt-1 text-xs text-emerald-700/70">Tạo ngày: {item.createdAt}</p>
+                    <p className="mt-1 text-xs text-emerald-700/70">Tạo ngày: {formatDate(item.createdAt)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-emerald-700/70">Hạn chót</p>
-                    <p className="text-xs font-semibold text-emerald-900">{item.deadline}</p>
+                    <p className="text-xs font-semibold text-emerald-900">{formatDate(item.deadline ?? item.expiredAt)}</p>
                   </div>
                 </div>
 
                 <div className="mt-3 grid gap-2 md:grid-cols-3">
-                  <div className="rounded-lg bg-emerald-50 p-2.5"><p className="text-xs text-emerald-700/70">Sản phẩm</p><p className="text-sm font-semibold">{item.product}</p></div>
-                  <div className="rounded-lg bg-emerald-50 p-2.5"><p className="text-xs text-emerald-700/70">Số lượng</p><p className="text-sm font-semibold">{item.quantity}</p></div>
-                  <div className="rounded-lg bg-emerald-50 p-2.5"><p className="text-xs text-emerald-700/70">Giá mục tiêu</p><p className="text-sm font-semibold">{item.targetPrice}</p></div>
+                  <InfoTile label="Sản phẩm" value={item.product || 'Chưa có'} />
+                  <InfoTile label="Số lượng" value={`${formatNumber(item.quantity)} ${item.unit || ''}`.trim()} />
+                  <InfoTile label="Giá mục tiêu" value={item.targetPrice == null ? 'Chưa đặt' : formatCurrency(item.targetPrice)} />
                 </div>
 
-                <div className="mt-3 flex gap-2">
-                  <button
-                    className="flex-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"
-                    onClick={() => {
-                      setActiveRfqId(item.id)
-                      setOpenCompare(true)
-                    }}
-                  >
-                    So sánh báo giá ({item.quoteCount})
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button className="flex-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60" onClick={() => openCompare(item.id)} disabled={loadingCompare}>
+                    So sánh báo giá ({item.quoteCount ?? 0})
                   </button>
-                  <button className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-semibold text-emerald-700">Xem chi tiết</button>
+                  <button className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-semibold text-emerald-700 disabled:opacity-60" onClick={() => openDetail(item.id)} disabled={loadingDetail}>Xem chi tiết</button>
+                  <button className="rounded-lg border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-700" onClick={() => openUpdateForm(item)}>Sửa</button>
+                  {canCancel(item.status) ? (
+                    <button className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-60" onClick={() => handleCancelRfq(item.id)} disabled={cancelling === item.id}>
+                      {cancelling === item.id ? 'Đang hủy...' : 'Hủy RFQ'}
+                    </button>
+                  ) : null}
+                  <button className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-60" onClick={() => openOrders(item.id)} disabled={loadingOrders}>Đơn hàng</button>
                 </div>
               </article>
             ))}
@@ -108,77 +331,447 @@ export function BuyerRFQPage() {
         </BuyerPanel>
       </BuyerShell>
 
-      {openCompare ? (
-        <div className="fixed inset-0 z-[80] bg-black/35 p-4" onClick={() => setOpenCompare(false)}>
-          <div className="mx-auto mt-3 w-[96vw] max-w-[1180px] overflow-hidden rounded-2xl bg-white" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between border-b border-slate-200 p-3">
-              <div>
-                <h3 className="text-2xl font-extrabold text-slate-900">So sánh báo giá - {activeRfq?.id}</h3>
-                <p className="mt-0.5 text-xs text-slate-600">{activeRfq?.product} - {activeRfq?.quantity}</p>
-              </div>
-              <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={() => setOpenCompare(false)}>x</button>
-            </div>
+      {loadingCompare ? <Overlay><StateBox text="Đang tải báo giá..." /></Overlay> : null}
+      {compareError && !compareData && !loadingCompare ? <ToastModal title="Lỗi báo giá" message={compareError} onClose={() => setCompareError(null)} /> : null}
+      {compareData ? (
+        <CompareModal
+          data={compareData}
+          error={compareError}
+          selectedQuoteId={selectedQuoteId}
+          converting={converting}
+          onSelect={setSelectedQuoteId}
+          onClose={() => {
+            setCompareData(null)
+            setCompareError(null)
+            setSelectedQuoteId(null)
+          }}
+          onConvert={handleConvert}
+        />
+      ) : null}
 
-            <div className="grid gap-2 border-b border-slate-200 p-3 text-xs md:grid-cols-4">
-              <p>Giá mục tiêu: <span className="font-bold">{activeRfq?.targetPrice}</span></p>
-              <p>Hạn chót: <span className="font-bold">{activeRfq?.deadline}</span></p>
-              <p>Địa chỉ giao: <span className="font-bold">Chi nhánh Cầu Giấy, 123 Đường Cầu Giấy, Hà Nội</span></p>
-              <p>Nhận: <span className="font-bold text-emerald-700">3 báo giá</span></p>
-            </div>
+      {(loadingDetail || detail || detailError) ? (
+        <DetailModal
+          detail={detail}
+          loading={loadingDetail}
+          error={detailError}
+          onClose={() => {
+            setDetail(null)
+            setDetailError(null)
+          }}
+          onEdit={(rfq) => openUpdateForm(rfq)}
+          onCancel={(rfqId) => handleCancelRfq(rfqId)}
+          onCompare={(rfqId) => openCompare(rfqId)}
+        />
+      ) : null}
 
-            <div className="grid gap-2 p-3 lg:grid-cols-3">
-              {compareCards.map((card) => (
-                <article key={card.supplier} className="rounded-xl border border-slate-200 p-2.5">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-lg font-extrabold text-slate-900">{card.supplier}</p>
-                      <p className="text-xs text-slate-500">⭐ {card.rating}</p>
-                    </div>
-                    <input type="radio" name="selectedQuote" className="mt-1.5 h-4 w-4 accent-emerald-600" />
-                  </div>
+      {formMode ? (
+        <FormModal
+          title={formTitle}
+          form={form}
+          error={formError}
+          submitting={formSubmitting}
+          onChange={setForm}
+          onClose={() => {
+            setFormMode(null)
+            setEditingRfqId(null)
+            setFormError(null)
+          }}
+          onSubmit={submitForm}
+        />
+      ) : null}
 
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {card.tags.map((tag) => (
-                      <span key={tag} className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700">{tag}</span>
-                    ))}
-                  </div>
-
-                  <div className="mt-2 rounded-lg bg-blue-50 p-2 text-center">
-                    <p className="text-[28px] font-extrabold text-blue-600">{card.price}</p>
-                    <p className="text-xs">per kg</p>
-                    <p className="text-xs text-slate-500">Tổng: {card.total}</p>
-                  </div>
-
-                  <div className="mt-2 space-y-1 text-xs">
-                    <InfoRow label="Mã lô" value={card.lot} />
-                    <InfoRow label="Grade/Size" value={card.gradeSize} />
-                    <InfoRow label="Thu hoạch" value={card.harvest} />
-                    <InfoRow label="Giao hàng" value={card.delivery} />
-                    <InfoRow label="Thời gian" value={card.eta} />
-                    <InfoRow label="Incoterms" value={card.incoterms} />
-                    <InfoRow label="Phí ship" value={card.shipping} />
-                    <InfoRow label="Thanh toán" value={card.payment} />
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            <div className="flex justify-between border-t border-slate-200 p-3">
-              <button className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700" onClick={() => setOpenCompare(false)}>Đóng</button>
-              <button className="rounded-lg bg-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-500">Chuyển thành đơn hàng</button>
-            </div>
-          </div>
-        </div>
+      {ordersRfqId ? (
+        <OrdersModal
+          rfqId={ordersRfqId}
+          orders={orders}
+          loading={loadingOrders}
+          error={ordersError}
+          onClose={() => {
+            setOrdersRfqId(null)
+            setOrders([])
+            setOrdersError(null)
+          }}
+        />
       ) : null}
     </>
   )
 }
 
+function CompareModal({
+  data,
+  error,
+  selectedQuoteId,
+  converting,
+  onSelect,
+  onClose,
+  onConvert,
+}: {
+  data: BuyerRfqCompareResponse
+  error: string | null
+  selectedQuoteId: number | null
+  converting: boolean
+  onSelect: (quoteId: number) => void
+  onClose: () => void
+  onConvert: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/35 p-4" onClick={onClose}>
+      <div className="mx-auto mt-3 max-h-[92vh] w-[96vw] max-w-[1180px] overflow-y-auto rounded-2xl bg-white" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between border-b border-slate-200 p-3">
+          <div>
+            <h3 className="text-2xl font-extrabold text-slate-900">So sánh báo giá - {data.rfq.code || rfqCode(data.rfq.id)}</h3>
+            <p className="mt-0.5 text-xs text-slate-600">{data.rfq.product || 'Chưa có sản phẩm'} - {formatNumber(data.rfq.quantity)} {data.rfq.unit || ''}</p>
+          </div>
+          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose}>x</button>
+        </div>
+
+        <div className="grid gap-2 border-b border-slate-200 p-3 text-xs md:grid-cols-4">
+          <p>Giá mục tiêu: <span className="font-bold">{data.rfq.targetPrice == null ? 'Chưa đặt' : formatCurrency(data.rfq.targetPrice)}</span></p>
+          <p>Hạn chót: <span className="font-bold">{formatDate(data.rfq.deadline)}</span></p>
+          <p>Địa chỉ giao: <span className="font-bold">{data.rfq.deliveryAddress || data.rfq.province || 'Chưa có'}</span></p>
+          <p>Nhận: <span className="font-bold text-emerald-700">{data.quotes.length} báo giá</span></p>
+        </div>
+
+        {error ? <p className="mx-3 mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{error}</p> : null}
+        {data.quotes.length === 0 ? (
+          <StateBox text="Chưa có báo giá nào cho RFQ này" />
+        ) : (
+          <div className="grid gap-2 p-3 lg:grid-cols-3">
+            {data.quotes.map((quote) => (
+              <QuoteCard key={quote.id} quote={quote} checked={selectedQuoteId === quote.id} onSelect={() => onSelect(quote.id)} />
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-between border-t border-slate-200 p-3">
+          <button className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700" onClick={onClose}>Đóng</button>
+          <button className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white disabled:bg-slate-200 disabled:text-slate-500" disabled={!selectedQuoteId || converting} onClick={onConvert}>
+            {converting ? 'Đang chuyển...' : 'Chuyển thành đơn hàng'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function QuoteCard({ quote, checked, onSelect }: { quote: BuyerQuoteCompareItem; checked: boolean; onSelect: () => void }) {
+  return (
+    <article className="rounded-xl border border-slate-200 p-2.5">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-lg font-extrabold text-slate-900">{quote.supplierName || 'Nhà cung cấp'}</p>
+          <p className="text-xs text-slate-500">
+            {quote.supplierRating == null ? 'Chưa có đánh giá' : `${quote.supplierRating}/5`} {quote.supplierOrderCount ? `(${quote.supplierOrderCount} đơn)` : ''}
+          </p>
+        </div>
+        <input type="radio" name="selectedQuote" checked={checked} onChange={onSelect} className="mt-1.5 h-4 w-4 accent-emerald-600" />
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-1">
+        {(quote.tags ?? []).map((tag) => (
+          <span key={tag} className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700">{tag}</span>
+        ))}
+      </div>
+
+      <div className="mt-2 rounded-lg bg-blue-50 p-2 text-center">
+        <p className="text-[28px] font-extrabold text-blue-600">{formatCurrency(quote.price)}</p>
+        <p className="text-xs">per kg</p>
+        <p className="text-xs text-slate-500">Tổng: {formatCurrency(quote.total)}</p>
+      </div>
+
+      <div className="mt-2 space-y-1 text-xs">
+        <InfoRow label="Mã lô" value={quote.batchCode || 'Chưa có'} />
+        <InfoRow label="Grade/Size" value={quote.gradeSize || 'Chưa có'} />
+        <InfoRow label="Thu hoạch" value={formatDate(quote.harvestDate)} />
+        <InfoRow label="Giao hàng" value={formatDate(quote.estimatedDeliveryDate)} />
+        <InfoRow label="Thời gian" value={quote.deliveryDays == null ? 'Chưa có' : `${quote.deliveryDays} ngày`} />
+        <InfoRow label="Phí ship" value={quote.shippingFee == null ? 'Chưa cập nhật' : formatCurrency(quote.shippingFee)} />
+        <InfoRow label="Thanh toán" value={quote.paymentTerm || quote.note || 'Chưa có'} />
+        <InfoRow label="Trạng thái" value={quote.status || 'Chưa có'} />
+      </div>
+    </article>
+  )
+}
+
+function DetailModal({
+  detail,
+  loading,
+  error,
+  onClose,
+  onEdit,
+  onCancel,
+  onCompare,
+}: {
+  detail: BuyerRfqDetail | null
+  loading: boolean
+  error: string | null
+  onClose: () => void
+  onEdit: (rfq: BuyerRfqDetail) => void
+  onCancel: (rfqId: number) => void
+  onCompare: (rfqId: number) => void
+}) {
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/35 p-4" onClick={onClose}>
+      <div className="mx-auto mt-8 w-[94vw] max-w-2xl rounded-2xl bg-white p-4" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <h3 className="text-xl font-extrabold text-slate-900">Chi tiết RFQ</h3>
+          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose}>x</button>
+        </div>
+        {loading ? <StateBox text="Đang tải chi tiết RFQ..." /> : null}
+        {error ? <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p> : null}
+        {detail ? (
+          <>
+            <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+              <InfoRow label="Mã RFQ" value={detail.code || rfqCode(detail.id)} />
+              <InfoRow label="Trạng thái" value={detail.status || 'Chưa có'} />
+              <InfoRow label="Tiêu đề" value={detail.title || 'Chưa có'} />
+              <InfoRow label="Sản phẩm" value={detail.product || 'Chưa có'} />
+              <InfoRow label="Product ID" value={String(detail.productId ?? 'Chưa có')} />
+              <InfoRow label="Category ID" value={String(detail.categoryId ?? 'Chưa có')} />
+              <InfoRow label="Số lượng" value={`${formatNumber(detail.quantity)} ${detail.unit || ''}`.trim()} />
+              <InfoRow label="Tỉnh" value={detail.province || 'Chưa có'} />
+              <InfoRow label="Chi nhánh" value={detail.branch?.name || detail.branch?.address || 'Chưa có'} />
+              <InfoRow label="Ngày giao" value={formatDate(detail.deliveryDate)} />
+              <InfoRow label="Hết hạn" value={formatDate(detail.deadline ?? detail.expiredAt)} />
+              <InfoRow label="Ngày tạo" value={formatDateTime(detail.createdAt)} />
+              <InfoRow label="Báo giá" value={`${detail.quoteCount ?? 0}`} />
+            </div>
+            <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm">
+              <p className="text-xs font-semibold text-slate-500">Mô tả</p>
+              <p className="mt-1 text-slate-800">{detail.description || 'Chưa có'}</p>
+            </div>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              {canEdit(detail.status) ? <button className="rounded-lg border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-700" onClick={() => onEdit(detail)}>Sửa RFQ</button> : null}
+              {canCancel(detail.status) ? <button className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700" onClick={() => onCancel(detail.id)}>Hủy RFQ</button> : null}
+              <button className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white" onClick={() => onCompare(detail.id)}>Xem báo giá</button>
+              <button className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700" onClick={onClose}>Đóng</button>
+            </div>
+          </>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function FormModal({
+  title,
+  form,
+  error,
+  submitting,
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  title: string
+  form: RfqFormState
+  error: string | null
+  submitting: boolean
+  onChange: (form: RfqFormState) => void
+  onClose: () => void
+  onSubmit: () => void
+}) {
+  const setField = (field: keyof RfqFormState, value: string) => onChange({ ...form, [field]: value })
+  return (
+    <div className="fixed inset-0 z-[90] bg-black/35 p-4" onClick={onClose}>
+      <div className="mx-auto mt-6 max-h-[92vh] w-[94vw] max-w-2xl overflow-y-auto rounded-2xl bg-white p-4" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <h3 className="text-xl font-extrabold text-slate-900">{title}</h3>
+          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose}>x</button>
+        </div>
+        {error ? <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p> : null}
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <FormField label="Tiêu đề" value={form.title} onChange={(value) => setField('title', value)} />
+          <FormField label="Product ID" type="number" value={form.productId} onChange={(value) => setField('productId', value)} />
+          <FormField label="Category ID" type="number" value={form.categoryId} onChange={(value) => setField('categoryId', value)} />
+          <FormField label="Branch ID" type="number" value={form.branchId} onChange={(value) => setField('branchId', value)} />
+          <FormField label="Số lượng" type="number" value={form.quantity} onChange={(value) => setField('quantity', value)} />
+          <FormField label="Đơn vị" value={form.unit} onChange={(value) => setField('unit', value)} />
+          <FormField label="Tỉnh giao" value={form.province} onChange={(value) => setField('province', value)} />
+          <FormField label="Ngày giao" type="date" value={form.deliveryDate} onChange={(value) => setField('deliveryDate', value)} />
+          <FormField label="Hạn RFQ" type="datetime-local" value={form.expiredAt} onChange={(value) => setField('expiredAt', value)} />
+          <label className="md:col-span-2">
+            <span className="text-xs font-semibold text-slate-600">Mô tả</span>
+            <textarea value={form.description} onChange={(event) => setField('description', event.target.value)} className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400" />
+          </label>
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button className="rounded-lg border border-slate-300 px-4 py-1.5 text-xs font-semibold text-slate-700" onClick={onClose} disabled={submitting}>Đóng</button>
+          <button className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-60" onClick={onSubmit} disabled={submitting}>{submitting ? 'Đang lưu...' : 'Lưu RFQ'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function OrdersModal({ rfqId, orders, loading, error, onClose }: { rfqId: number; orders: BuyerRfqOrderItem[]; loading: boolean; error: string | null; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/35 p-4" onClick={onClose}>
+      <div className="mx-auto mt-10 w-[94vw] max-w-2xl rounded-2xl bg-white p-4" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <h3 className="text-xl font-extrabold text-slate-900">Đơn hàng từ {rfqCode(rfqId)}</h3>
+          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose}>x</button>
+        </div>
+        {loading ? <StateBox text="Đang tải đơn hàng..." /> : null}
+        {error ? <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p> : null}
+        {!loading && !error && orders.length === 0 ? <StateBox text="RFQ này chưa được chuyển thành đơn hàng" /> : null}
+        <div className="mt-3 space-y-2">
+          {orders.map((order) => (
+            <article key={order.orderId} className="rounded-lg border border-slate-200 p-3 text-sm">
+              <InfoRow label="Order ID" value={String(order.orderId)} />
+              <InfoRow label="Quote ID" value={String(order.quoteId ?? 'Chưa có')} />
+              <InfoRow label="Supplier" value={order.supplierName || 'Chưa có'} />
+              <InfoRow label="Tổng tiền" value={formatCurrency(order.totalAmount)} />
+              <InfoRow label="Trạng thái" value={order.orderStatus || 'Chưa có'} />
+              <InfoRow label="Ngày tạo" value={formatDateTime(order.createdAt)} />
+            </article>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-lg bg-emerald-50 p-2.5"><p className="text-xs text-emerald-700/70">{label}</p><p className="text-sm font-semibold">{value}</p></div>
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <p className="grid grid-cols-[82px_1fr] gap-1 border-b border-slate-100 pb-1">
+    <p className="grid grid-cols-[92px_1fr] gap-1 border-b border-slate-100 pb-1">
       <span className="text-slate-500">{label}</span>
       <span className="font-semibold text-slate-800">{value}</span>
     </p>
   )
+}
+
+function FormField({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+  return (
+    <label>
+      <span className="text-xs font-semibold text-slate-600">{label}</span>
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400" />
+    </label>
+  )
+}
+
+function StateBox({ text }: { text: string }) {
+  return <div className="my-3 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/60 p-5 text-center text-sm font-semibold text-emerald-800">{text}</div>
+}
+
+function ErrorBox({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="my-3 rounded-xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">
+      <p className="font-semibold">{message}</p>
+      <button className="mt-2 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white" onClick={onRetry}>Thử lại</button>
+    </div>
+  )
+}
+
+function Overlay({ children }: { children: React.ReactNode }) {
+  return <div className="fixed inset-0 z-[80] bg-black/35 p-4"><div className="mx-auto mt-16 max-w-md rounded-2xl bg-white p-4">{children}</div></div>
+}
+
+function ToastModal({ title, message, onClose }: { title: string; message: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/35 p-4" onClick={onClose}>
+      <div className="mx-auto mt-16 max-w-md rounded-2xl bg-white p-4" onClick={(event) => event.stopPropagation()}>
+        <h3 className="text-lg font-extrabold text-slate-900">{title}</h3>
+        <p className="mt-2 text-sm text-slate-700">{message}</p>
+        <button className="mt-4 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white" onClick={onClose}>Đóng</button>
+      </div>
+    </div>
+  )
+}
+
+function validateForm(form: RfqFormState, mode: RfqFormMode | null): string | null {
+  if (!form.title.trim()) return 'title không được để trống'
+  const quantity = Number(form.quantity)
+  if (!Number.isFinite(quantity) || quantity <= 0) return 'quantity phải lớn hơn 0'
+  if (mode === 'create' && !form.productId.trim() && !form.categoryId.trim()) return 'productId hoặc categoryId phải có ít nhất một'
+  if (form.expiredAt && new Date(form.expiredAt).getTime() <= Date.now()) return 'expiredAt phải lớn hơn hiện tại'
+  if (mode === 'create' && !form.expiredAt) return 'expiredAt không được để trống'
+  return null
+}
+
+function buildCreatePayload(form: RfqFormState): CreateBuyerRfqRequest {
+  return {
+    title: form.title.trim(),
+    productId: optionalNumber(form.productId),
+    categoryId: optionalNumber(form.categoryId),
+    branchId: optionalNumber(form.branchId),
+    quantity: Number(form.quantity),
+    unit: form.unit.trim(),
+    province: form.province.trim() || null,
+    deliveryDate: form.deliveryDate || null,
+    expiredAt: new Date(form.expiredAt).toISOString(),
+    description: form.description.trim() || null,
+  }
+}
+
+function buildUpdatePayload(form: RfqFormState): UpdateBuyerRfqRequest {
+  return {
+    title: form.title.trim(),
+    quantity: Number(form.quantity),
+    unit: form.unit.trim(),
+    province: form.province.trim() || null,
+    deliveryDate: form.deliveryDate || null,
+    expiredAt: form.expiredAt ? new Date(form.expiredAt).toISOString() : null,
+    description: form.description.trim() || null,
+    branchId: optionalNumber(form.branchId),
+  }
+}
+
+function optionalNumber(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function canCancel(status?: string | null) {
+  const normalized = status?.toUpperCase()
+  return normalized === 'OPEN' || normalized === 'PENDING'
+}
+
+function canEdit(status?: string | null) {
+  return canCancel(status)
+}
+
+function rfqCode(id?: number | null) {
+  return `RFQ-${String(id ?? 0).padStart(6, '0')}`
+}
+
+function formatCurrency(value?: number | null) {
+  if (value == null) return 'Chưa có'
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
+}
+
+function formatNumber(value?: number | null) {
+  if (value == null) return 'Chưa có'
+  return new Intl.NumberFormat('vi-VN').format(value)
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return 'Chưa có'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Chưa có'
+  return date.toLocaleDateString('vi-VN')
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return 'Chưa có'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Chưa có'
+  return date.toLocaleString('vi-VN')
+}
+
+function toDateInput(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
+}
+
+function toDateTimeInput(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 16)
 }

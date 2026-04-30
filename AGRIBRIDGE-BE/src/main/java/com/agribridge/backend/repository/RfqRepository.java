@@ -5,6 +5,9 @@ import com.agribridge.backend.entity.enums.RfqStatusEnum;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +18,29 @@ public interface RfqRepository extends JpaRepository<RfqEntity, Long> {
         List<RfqEntity> findByIdIn(Collection<Long> ids);
 
         boolean existsByProductId(Long productId);
+
+        Optional<RfqEntity> findByIdAndBuyerCompanyId(Long id, Long buyerCompanyId);
+
+        @Query("""
+                        SELECT r
+                        FROM RfqEntity r
+                        LEFT JOIN r.product p
+                        WHERE r.buyerCompanyId = :buyerCompanyId
+                          AND (:status IS NULL OR r.status = :status)
+                          AND (
+                                :keyword IS NULL
+                             OR LOWER(r.title) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                             OR LOWER(COALESCE(r.description, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                             OR LOWER(COALESCE(r.province, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                             OR LOWER(COALESCE(p.name, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                          )
+                        ORDER BY r.createdAt DESC, r.id DESC
+                        """)
+        Page<RfqEntity> findByBuyerCompanyIdForBuyerPage(
+                        @Param("buyerCompanyId") Long buyerCompanyId,
+                        @Param("status") RfqStatusEnum status,
+                        @Param("keyword") String keyword,
+                        Pageable pageable);
 
         @Modifying(clearAutomatically = true, flushAutomatically = true)
         @Query("update RfqEntity rfq set rfq.productId = null where rfq.productId = :productId")
