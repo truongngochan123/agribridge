@@ -1,8 +1,12 @@
 package com.agribridge.backend.service.impl;
 
+import com.agribridge.backend.dto.BuyerOrderDto;
 import com.agribridge.backend.dto.BuyerQuickOrderRequestDto;
 import com.agribridge.backend.dto.BuyerQuickOrderResponseDto;
+import com.agribridge.backend.dto.CreateBuyerComplaintRequestDto;
 import com.agribridge.backend.entity.BatchEntity;
+import com.agribridge.backend.entity.BranchEntity;
+import com.agribridge.backend.entity.ComplaintEntity;
 import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.CreditLimitEntity;
 import com.agribridge.backend.entity.InvoiceEntity;
@@ -13,10 +17,13 @@ import com.agribridge.backend.entity.ProductEntity;
 import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.ShipmentEventEntity;
 import com.agribridge.backend.entity.enums.BatchStatusEnum;
+import com.agribridge.backend.entity.enums.ComplaintStatusEnum;
 import com.agribridge.backend.entity.enums.InvoiceStatusEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
 import com.agribridge.backend.entity.enums.ShipmentStatusEnum;
 import com.agribridge.backend.repository.BatchRepository;
+import com.agribridge.backend.repository.BranchRepository;
+import com.agribridge.backend.repository.ComplaintRepository;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.CreditLimitRepository;
 import com.agribridge.backend.repository.InvoiceRepository;
@@ -27,13 +34,21 @@ import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.ShipmentEventRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
 import com.agribridge.backend.service.BuyerOrderService;
+import com.agribridge.backend.service.CurrentUserService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +59,9 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
 
     private static final BigDecimal SUBTOTAL_TOLERANCE = new BigDecimal("1.00");
     private static final DateTimeFormatter INVOICE_TS = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+    private static final DateTimeFormatter DISPLAY_TIME = new DateTimeFormatterBuilder()
+            .appendPattern("dd/MM HH:mm")
+            .toFormatter();
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -55,6 +73,31 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
     private final BatchRepository batchRepository;
     private final CompanyRepository companyRepository;
     private final CreditLimitRepository creditLimitRepository;
+    private final BranchRepository branchRepository;
+    private final ComplaintRepository complaintRepository;
+    private final CurrentUserService currentUserService;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BuyerOrderDto> getCurrentBuyerOrders() {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
+        List<OrderEntity> orders = orderRepository.findByBuyerCompanyIdOrderByCreatedAtDesc(buyerCompanyId);
+        return mapOrders(orders);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BuyerOrderDto getCurrentBuyerOrder(Long orderId) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+        if (!buyerCompanyId.equals(order.getBuyerCompanyId())) {
+            throw new IllegalArgumentException("Order does not belong to this buyer");
+        }
+        return mapOrders(List.of(order)).stream()
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+    }
 
     @Override
     @Transactional
@@ -203,6 +246,232 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .description("Buyer đã xác nhận nhận hàng")
                 .eventTime(now)
                 .build());
+    }
+
+    @Override
+    @Transactional
+    public void confirmReceived(Long orderId) {
+        confirmReceived(currentUserService.requireCurrentBuyerCompanyId(), orderId);
+    }
+
+    @Override
+    @Transactional
+    public BuyerOrderDto.ComplaintDto createComplaint(Long orderId, CreateBuyerComplaintRequestDto request) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
+        Long currentUserId = currentUserService.requireCurrentUser().getId();
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+        if (!buyerCompanyId.equals(order.getBuyerCompanyId())) {
+            throw new IllegalArgumentException("Order does not belong to this buyer");
+        }
+        if (request.batchId() != null) {
+            boolean batchBelongsToOrder = orderItemRepository.findByOrderIdOrderByIdAsc(orderId).stream()
+                    .anyMatch(item -> request.batchId().equals(item.getBatchId()));
+            if (!batchBelongsToOrder) {
+                throw new IllegalArgumentException("Batch does not belong to this order");
+            }
+        }
+
+        ComplaintEntity complaint = complaintRepository.save(ComplaintEntity.builder()
+                .orderId(orderId)
+                .batchId(request.batchId())
+                .createdByUserId(currentUserId)
+                .title(trim(request.title()))
+                .description(trim(request.description()))
+                .status(ComplaintStatusEnum.OPEN)
+                .severity(firstText(request.severity(), "MEDIUM"))
+                .createdAt(LocalDateTime.now())
+                .build());
+        return mapComplaint(complaint);
+    }
+
+    private List<BuyerOrderDto> mapOrders(List<OrderEntity> orders) {
+        if (orders.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> orderIds = orders.stream().map(OrderEntity::getId).filter(Objects::nonNull).toList();
+        Map<Long, List<OrderItemEntity>> itemsByOrder = orderItemRepository.findByOrderIdIn(orderIds).stream()
+                .collect(Collectors.groupingBy(OrderItemEntity::getOrderId));
+        Map<Long, InvoiceEntity> invoiceByOrder = latestByOrder(invoiceRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds), InvoiceEntity::getOrderId, InvoiceEntity::getCreatedAt);
+        List<Long> invoiceIds = invoiceByOrder.values().stream().map(InvoiceEntity::getId).filter(Objects::nonNull).toList();
+        Map<Long, List<PaymentEntity>> paymentsByInvoice = invoiceIds.isEmpty()
+                ? Map.of()
+                : paymentRepository.findByInvoiceIdInOrderByPaymentDateDesc(invoiceIds).stream()
+                        .collect(Collectors.groupingBy(PaymentEntity::getInvoiceId));
+        Map<Long, ShipmentEntity> shipmentByOrder = latestByOrder(shipmentRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds), ShipmentEntity::getOrderId, ShipmentEntity::getCreatedAt);
+        Map<Long, List<ComplaintEntity>> complaintsByOrder = complaintRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds).stream()
+                .collect(Collectors.groupingBy(ComplaintEntity::getOrderId));
+        Map<Long, BranchEntity> branchesById = branchRepository.findByIdIn(
+                        orders.stream().map(OrderEntity::getBranchId).filter(Objects::nonNull).toList()).stream()
+                .collect(Collectors.toMap(BranchEntity::getId, Function.identity()));
+        Map<Long, CompanyEntity> companiesById = companyRepository.findAllById(
+                        orders.stream()
+                                .flatMap(order -> List.of(order.getSupplierCompanyId(), order.getBuyerCompanyId()).stream())
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toSet())).stream()
+                .collect(Collectors.toMap(CompanyEntity::getId, Function.identity()));
+
+        List<OrderItemEntity> allItems = itemsByOrder.values().stream().flatMap(Collection::stream).toList();
+        Map<Long, ProductEntity> productsById = productRepository.findAllById(
+                        allItems.stream().map(OrderItemEntity::getProductId).filter(Objects::nonNull).collect(Collectors.toSet())).stream()
+                .collect(Collectors.toMap(ProductEntity::getId, Function.identity()));
+        Map<Long, BatchEntity> batchesById = batchRepository.findAllById(
+                        allItems.stream().map(OrderItemEntity::getBatchId).filter(Objects::nonNull).collect(Collectors.toSet())).stream()
+                .collect(Collectors.toMap(BatchEntity::getId, Function.identity()));
+
+        Map<Long, List<BuyerOrderDto.TrackingEventDto>> trackingByShipment = new HashMap<>();
+        for (ShipmentEntity shipment : shipmentByOrder.values()) {
+            trackingByShipment.put(shipment.getId(), shipmentEventRepository.findByShipmentIdOrderByEventTimeAsc(shipment.getId()).stream()
+                    .map(event -> new BuyerOrderDto.TrackingEventDto(
+                            firstText(event.getDescription(), event.getStatus()),
+                            formatDateTime(event.getEventTime()),
+                            true,
+                            event.getStatus(),
+                            event.getLocation()))
+                    .toList());
+        }
+
+        return orders.stream()
+                .map(order -> mapOrder(
+                        order,
+                        itemsByOrder.getOrDefault(order.getId(), List.of()),
+                        invoiceByOrder.get(order.getId()),
+                        shipmentByOrder.get(order.getId()),
+                        trackingByShipment,
+                        paymentsByInvoice,
+                        complaintsByOrder.getOrDefault(order.getId(), List.of()),
+                        branchesById,
+                        companiesById,
+                        productsById,
+                        batchesById))
+                .toList();
+    }
+
+    private BuyerOrderDto mapOrder(
+            OrderEntity order,
+            List<OrderItemEntity> items,
+            InvoiceEntity invoice,
+            ShipmentEntity shipment,
+            Map<Long, List<BuyerOrderDto.TrackingEventDto>> trackingByShipment,
+            Map<Long, List<PaymentEntity>> paymentsByInvoice,
+            List<ComplaintEntity> complaints,
+            Map<Long, BranchEntity> branchesById,
+            Map<Long, CompanyEntity> companiesById,
+            Map<Long, ProductEntity> productsById,
+            Map<Long, BatchEntity> batchesById) {
+        List<BuyerOrderDto.ItemDto> itemDtos = items.stream()
+                .map(item -> mapItem(item, productsById.get(item.getProductId()), batchesById.get(item.getBatchId())))
+                .toList();
+        BigDecimal paidAmount = invoice == null
+                ? BigDecimal.ZERO
+                : paymentsByInvoice.getOrDefault(invoice.getId(), List.of()).stream()
+                        .map(payment -> payment.getPaidAmount() == null ? BigDecimal.ZERO : payment.getPaidAmount())
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BranchEntity branch = branchesById.get(order.getBranchId());
+        CompanyEntity supplier = companiesById.get(order.getSupplierCompanyId());
+        List<BuyerOrderDto.TrackingEventDto> trackingEvents = shipment == null
+                ? List.of(new BuyerOrderDto.TrackingEventDto("Order created", formatDateTime(order.getCreatedAt()), true, order.getStatus().name(), null))
+                : trackingByShipment.getOrDefault(shipment.getId(), List.of());
+        if (trackingEvents.isEmpty()) {
+            trackingEvents = List.of(new BuyerOrderDto.TrackingEventDto("Shipment created", formatDateTime(shipment.getCreatedAt()), true, shipment.getStatus().name(), null));
+        }
+
+        return new BuyerOrderDto(
+                orderCode(order.getId()),
+                order.getId(),
+                supplier == null ? "N/A" : supplier.getName(),
+                order.getSupplierCompanyId(),
+                order.getBuyerCompanyId(),
+                branchName(order, branch),
+                order.getBranchId(),
+                order.getQuoteId(),
+                order.getQuoteId() == null ? null : "RFQ-" + order.getQuoteId(),
+                order.getStatus().name(),
+                summarizeProduct(itemDtos),
+                summarizeQuantity(itemDtos),
+                itemDtos,
+                safeAmount(order.getSubtotal()),
+                safeAmount(order.getShippingFee()),
+                safeAmount(order.getTotalAmount()),
+                formatMoney(safeAmount(order.getTotalAmount())),
+                order.getPaymentMethod(),
+                order.getDepositRate(),
+                order.getDepositAmount(),
+                order.getBalanceAmount(),
+                order.getDeliveryName(),
+                order.getDeliveryPhone(),
+                order.getDeliveryProvince(),
+                null,
+                order.getDeliveryWard(),
+                order.getDeliveryAddress(),
+                shipment == null ? null : shipment.getProviderCode(),
+                shipment == null ? null : firstText(shipment.getProviderName(), shipment.getCarrierName()),
+                shipment == null ? null : firstText(shipment.getServiceName(), shipment.getShippingMethod()),
+                shipment == null ? null : shipment.getShippingPayer(),
+                shipment == null ? null : shipment.getEstimatedDeliveryTime(),
+                trackingEvents,
+                shipment == null ? null : shipment.getDriverName(),
+                shipment == null ? null : shipment.getDriverPhone(),
+                shipment == null ? null : shipment.getVehicleInfo(),
+                shipment == null ? null : shipment.getTrackingCode(),
+                invoice == null ? null : invoice.getInvoiceNumber(),
+                paidAmount,
+                invoice == null ? null : invoice.getDueDate(),
+                invoice == null || invoice.getStatus() == null ? null : invoice.getStatus().name(),
+                invoice == null ? List.of() : paymentsByInvoice.getOrDefault(invoice.getId(), List.of()).stream().map(this::mapPayment).toList(),
+                complaints.stream().map(this::mapComplaint).toList(),
+                order.getNote(),
+                order.getCreatedAt());
+    }
+
+    private BuyerOrderDto.ItemDto mapItem(OrderItemEntity item, ProductEntity product, BatchEntity batch) {
+        return new BuyerOrderDto.ItemDto(
+                item.getBatchId(),
+                batch == null ? "LOT-" + item.getBatchId() : firstText(batch.getQrCode(), "LOT-" + batch.getId()),
+                item.getProductId(),
+                product == null ? "N/A" : product.getName(),
+                batch == null ? null : batch.getGrade(),
+                batch == null ? null : batch.getSize(),
+                batch == null ? null : batch.getHarvestDate(),
+                item.getQuantity(),
+                firstText(item.getUnit(), product == null ? null : product.getUnit()),
+                item.getPrice(),
+                safeAmount(item.getSubtotal()));
+    }
+
+    private BuyerOrderDto.PaymentDto mapPayment(PaymentEntity payment) {
+        return new BuyerOrderDto.PaymentDto(
+                payment.getId(),
+                payment.getAmount(),
+                payment.getPaidAmount(),
+                payment.getPaymentMethod(),
+                payment.getPaymentType(),
+                payment.getStatus(),
+                payment.getEscrowStatus(),
+                payment.getDueDate(),
+                payment.getPaymentDate(),
+                payment.getNote());
+    }
+
+    private BuyerOrderDto.ComplaintDto mapComplaint(ComplaintEntity complaint) {
+        return new BuyerOrderDto.ComplaintDto(
+                complaint.getId(),
+                complaint.getBatchId(),
+                complaint.getTitle(),
+                complaint.getDescription(),
+                complaint.getStatus() == null ? null : complaint.getStatus().name(),
+                complaint.getSeverity(),
+                complaint.getResolution(),
+                complaint.getCreatedAt(),
+                complaint.getResolvedAt());
+    }
+
+    private <T> Map<Long, T> latestByOrder(List<T> values, Function<T, Long> orderId, Function<T, LocalDateTime> createdAt) {
+        return values.stream().collect(Collectors.toMap(
+                orderId,
+                Function.identity(),
+                (left, right) -> Comparator.nullsLast(LocalDateTime::compareTo).compare(createdAt.apply(left), createdAt.apply(right)) >= 0 ? left : right));
     }
 
     private void validateRequest(BuyerQuickOrderRequestDto request) {
@@ -396,6 +665,46 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
 
     private String orderCode(Long orderId) {
         return orderId == null ? "ORD-N/A" : "ORD-" + orderId;
+    }
+
+    private String branchName(OrderEntity order, BranchEntity branch) {
+        if (branch != null) {
+            return branch.getName();
+        }
+        return firstText(order.getDeliveryAddress(), "N/A");
+    }
+
+    private String summarizeProduct(List<BuyerOrderDto.ItemDto> items) {
+        if (items.isEmpty()) {
+            return "N/A";
+        }
+        String firstName = firstText(items.get(0).productName(), "N/A");
+        return items.size() == 1 ? firstName : firstName + " +" + (items.size() - 1);
+    }
+
+    private String summarizeQuantity(List<BuyerOrderDto.ItemDto> items) {
+        if (items.isEmpty()) {
+            return "0";
+        }
+        return items.stream()
+                .map(item -> formatNumber(item.quantity()) + " " + firstText(item.unit(), ""))
+                .collect(Collectors.joining(", "));
+    }
+
+    private String formatMoney(BigDecimal value) {
+        return String.format(Locale.US, "%,.0f", value == null ? BigDecimal.ZERO : value) + "d";
+    }
+
+    private String formatNumber(BigDecimal value) {
+        if (value == null) {
+            return "0";
+        }
+        BigDecimal normalized = value.stripTrailingZeros();
+        return normalized.scale() <= 0 ? normalized.toPlainString() : normalized.toPlainString();
+    }
+
+    private String formatDateTime(LocalDateTime value) {
+        return value == null ? "" : value.format(DISPLAY_TIME);
     }
 
     private String firstText(String first, String fallback) {

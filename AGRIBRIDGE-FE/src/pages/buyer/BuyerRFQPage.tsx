@@ -94,7 +94,7 @@ export function BuyerRFQPage() {
       })
       setRfqs(data.content ?? [])
     } catch (error) {
-      setListError(readApiErrorMessage(error) ?? 'Không thể tải danh sách RFQ')
+      setListError(formatBuyerRfqError(error, 'Không thể tải danh sách RFQ'))
     } finally {
       setLoadingList(false)
     }
@@ -144,7 +144,7 @@ export function BuyerRFQPage() {
     try {
       setDetail(await getBuyerRfqDetail(rfqId))
     } catch (error) {
-      setDetailError(readApiErrorMessage(error) ?? 'Không thể tải chi tiết RFQ')
+      setDetailError(formatBuyerRfqError(error, 'Không thể tải chi tiết RFQ'))
     } finally {
       setLoadingDetail(false)
     }
@@ -157,7 +157,7 @@ export function BuyerRFQPage() {
     try {
       setCompareData(await getBuyerRfqCompare(rfqId))
     } catch (error) {
-      setCompareError(readApiErrorMessage(error) ?? 'Không thể tải báo giá')
+      setCompareError(formatBuyerRfqError(error, 'Không thể tải báo giá'))
     } finally {
       setLoadingCompare(false)
     }
@@ -170,7 +170,7 @@ export function BuyerRFQPage() {
     try {
       setOrders(await getBuyerRfqOrders(rfqId))
     } catch (error) {
-      setOrdersError(readApiErrorMessage(error) ?? 'Không thể tải đơn hàng của RFQ')
+      setOrdersError(formatBuyerRfqError(error, 'Không thể tải đơn hàng của RFQ'))
     } finally {
       setLoadingOrders(false)
     }
@@ -213,7 +213,7 @@ export function BuyerRFQPage() {
       setEditingRfqId(null)
       await loadRfqs()
     } catch (error) {
-      setFormError(readApiErrorMessage(error) ?? 'Không thể lưu RFQ')
+      setFormError(formatBuyerRfqError(error, 'Không thể lưu RFQ'))
     } finally {
       setSubmittingCreate(false)
       setSubmittingUpdate(false)
@@ -231,7 +231,7 @@ export function BuyerRFQPage() {
         setDetail(null)
       }
     } catch (error) {
-      alert(readApiErrorMessage(error) ?? 'Không thể hủy RFQ')
+      alert(formatBuyerRfqError(error, 'Không thể hủy RFQ'))
     } finally {
       setCancelling(null)
     }
@@ -254,7 +254,7 @@ export function BuyerRFQPage() {
       setSelectedQuoteId(null)
       await loadRfqs()
     } catch (error) {
-      setCompareError(readApiErrorMessage(error) ?? 'Không thể chuyển báo giá thành đơn hàng')
+      setCompareError(formatBuyerRfqError(error, 'Không thể chuyển báo giá thành đơn hàng'))
     } finally {
       setConverting(false)
     }
@@ -690,6 +690,15 @@ function validateForm(form: RfqFormState, mode: RfqFormMode | null): string | nu
   if (form.expiredAt && new Date(form.expiredAt).getTime() <= Date.now()) return 'expiredAt phải lớn hơn hiện tại'
   if (mode === 'create' && !form.expiredAt) return 'expiredAt không được để trống'
   return null
+}
+
+function formatBuyerRfqError(error: unknown, fallback: string) {
+  const message = readApiErrorMessage(error)
+  if (message === 'UNAUTHORIZED') return 'Bạn cần đăng nhập bằng tài khoản buyer để xem RFQ.'
+  if (message === 'COMPANY_IS_NOT_BUYER') return 'Tài khoản hiện tại không phải buyer.'
+  if (message === 'USER_HAS_NO_COMPANY') return 'Tài khoản chưa gắn với công ty.'
+  if (message === 'COMPANY_NOT_FOUND') return 'Không tìm thấy công ty của tài khoản hiện tại.'
+  return message ?? fallback
 }
 
 function buildCreatePayload(form: RfqFormState): CreateBuyerRfqRequest {

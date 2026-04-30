@@ -28,6 +28,9 @@ export function storeAuthSession(payload: AuthResponse, fallback?: string | { ph
   if (payload.companyType) {
     sessionStorage.setItem('agribridge.auth.companyType', payload.companyType)
   }
+  if (payload.accessToken) {
+    sessionStorage.setItem('agribridge.auth.accessToken', payload.accessToken)
+  }
   if (fallbackPhone) {
     sessionStorage.setItem('agribridge.auth.phone', fallbackPhone)
   }

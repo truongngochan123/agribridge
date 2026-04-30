@@ -13,23 +13,22 @@ import java.util.List;
 
 public interface BuyerRfqService {
 
-    Page<BuyerRfqListItemResponse> getRfqs(Long buyerCompanyId, String status, String keyword, int page, int size);
+    Page<BuyerRfqListItemResponse> getRfqs(String status, String keyword, int page, int size);
 
-    BuyerRfqDetailResponse getRfq(Long buyerCompanyId, Long rfqId);
+    BuyerRfqDetailResponse getRfq(Long rfqId);
 
-    BuyerRfqCompareResponse compareQuotes(Long buyerCompanyId, Long rfqId);
+    BuyerRfqCompareResponse compareQuotes(Long rfqId);
 
-    BuyerRfqDetailResponse createRfq(Long buyerCompanyId, CreateBuyerRfqRequest request);
+    BuyerRfqDetailResponse createRfq(CreateBuyerRfqRequest request);
 
-    BuyerRfqDetailResponse updateRfq(Long buyerCompanyId, Long rfqId, UpdateBuyerRfqRequest request);
+    BuyerRfqDetailResponse updateRfq(Long rfqId, UpdateBuyerRfqRequest request);
 
-    void cancelRfq(Long buyerCompanyId, Long rfqId);
+    void cancelRfq(Long rfqId);
 
     ConvertQuoteToOrderResponse convertQuoteToOrder(
-            Long buyerCompanyId,
             Long rfqId,
             Long quoteId,
             ConvertQuoteToOrderRequest request);
 
-    List<ConvertQuoteToOrderResponse> getRfqOrders(Long buyerCompanyId, Long rfqId);
+    List<ConvertQuoteToOrderResponse> getRfqOrders(Long rfqId);
 }

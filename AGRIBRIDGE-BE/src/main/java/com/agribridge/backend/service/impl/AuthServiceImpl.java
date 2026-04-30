@@ -25,6 +25,7 @@ import com.agribridge.backend.repository.CompanyImageRepository;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.UserRepository;
 import com.agribridge.backend.service.AuthService;
+import com.agribridge.backend.service.AuthTokenService;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -71,6 +72,7 @@ public class AuthServiceImpl implements AuthService {
     private final CompanyImageRepository companyImageRepository;
     private final JdbcTemplate jdbcTemplate;
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    private final AuthTokenService authTokenService;
 
     @Value("${app.mail.enabled:false}")
     private boolean mailEnabled;
@@ -151,6 +153,7 @@ public class AuthServiceImpl implements AuthService {
 
         clearRegistrationOtpState(normalizedLoginEmail);
 
+        AuthTokenService.TokenIssue token = authTokenService.issueToken(user.getId());
         AuthResponseDto response = AuthResponseDto.builder()
                 .status(STATUS_PENDING)
                 .message("Supplier registration completed. Waiting admin verification.")
@@ -161,6 +164,8 @@ public class AuthServiceImpl implements AuthService {
                 .trustLevel(company.getTrustLevel())
                 .creditLimit(company.getCreditLimit())
                 .canUseCredit(false)
+                .accessToken(token.accessToken())
+                .tokenExpiresAt(token.expiresAt())
                 .build();
         log.info("Registered supplier successfully companyId={} userId={}", company.getId(), user.getId());
         return response;
@@ -226,6 +231,7 @@ public class AuthServiceImpl implements AuthService {
                 .createdAt(LocalDateTime.now())
                 .build())));
 
+        AuthTokenService.TokenIssue token = authTokenService.issueToken(user.getId());
         return AuthResponseDto.builder()
                 .status(STATUS_SUCCESS)
                 .message("Buyer registration completed.")
@@ -236,6 +242,8 @@ public class AuthServiceImpl implements AuthService {
                 .trustLevel(company.getTrustLevel())
                 .creditLimit(company.getCreditLimit())
                 .canUseCredit(canUseCredit(company))
+                .accessToken(token.accessToken())
+                .tokenExpiresAt(token.expiresAt())
                 .build();
     }
 
@@ -255,7 +263,7 @@ public class AuthServiceImpl implements AuthService {
         }
         AuthCompanySnapshot company = loadAuthCompany(user.companyId())
                 .orElseThrow(() -> new IllegalArgumentException("Company not found for user"));
-        AuthResponseDto response = buildAuthResponse(company, user.userId());
+        AuthResponseDto response = buildAuthResponse(company, user.userId(), true);
         log.info("Authenticated user successfully email={} userId={} companyId={} status={}",
                 normalizedEmail, user.userId(), user.companyId(), response.getStatus());
         return response;
@@ -318,16 +326,17 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found for email: " + normalizedEmail));
         AuthCompanySnapshot company = loadAuthCompany(user.companyId())
                 .orElseThrow(() -> new IllegalArgumentException("Company not found for user"));
-        AuthResponseDto response = buildAuthResponse(company, user.userId());
+        AuthResponseDto response = buildAuthResponse(company, user.userId(), false);
         log.info("Checked registration status email={} userId={} status={}", normalizedEmail, user.userId(),
                 response.getStatus());
         return response;
     }
 
-    private AuthResponseDto buildAuthResponse(AuthCompanySnapshot company, Long userId) {
+    private AuthResponseDto buildAuthResponse(AuthCompanySnapshot company, Long userId, boolean issueToken) {
         VerificationStatusEnum verificationStatus = company.verificationStatus() == null
                 ? VerificationStatusEnum.PENDING
                 : company.verificationStatus();
+        AuthTokenService.TokenIssue token = issueToken ? authTokenService.issueToken(userId) : null;
 
         if (verificationStatus == VerificationStatusEnum.PENDING) {
             return AuthResponseDto.builder()
@@ -343,6 +352,8 @@ public class AuthServiceImpl implements AuthService {
                     .trustLevel(company.trustLevel())
                     .creditLimit(company.creditLimit())
                     .canUseCredit(false)
+                    .accessToken(token == null ? null : token.accessToken())
+                    .tokenExpiresAt(token == null ? null : token.expiresAt())
                     .build();
         }
 
@@ -360,6 +371,8 @@ public class AuthServiceImpl implements AuthService {
                     .trustLevel(company.trustLevel())
                     .creditLimit(company.creditLimit())
                     .canUseCredit(false)
+                    .accessToken(token == null ? null : token.accessToken())
+                    .tokenExpiresAt(token == null ? null : token.expiresAt())
                     .build();
         }
 
@@ -377,6 +390,8 @@ public class AuthServiceImpl implements AuthService {
                     .trustLevel(company.trustLevel())
                     .creditLimit(company.creditLimit())
                     .canUseCredit(false)
+                    .accessToken(token == null ? null : token.accessToken())
+                    .tokenExpiresAt(token == null ? null : token.expiresAt())
                     .build();
         }
 
@@ -397,6 +412,8 @@ public class AuthServiceImpl implements AuthService {
                 .trustLevel(company.trustLevel())
                 .creditLimit(company.creditLimit())
                 .canUseCredit(canUseCredit(company))
+                .accessToken(token == null ? null : token.accessToken())
+                .tokenExpiresAt(token == null ? null : token.expiresAt())
                 .build();
     }
 

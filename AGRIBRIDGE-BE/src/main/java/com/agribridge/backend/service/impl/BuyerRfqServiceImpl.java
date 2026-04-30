@@ -18,7 +18,6 @@ import com.agribridge.backend.entity.OrderItemEntity;
 import com.agribridge.backend.entity.ProductEntity;
 import com.agribridge.backend.entity.QuoteEntity;
 import com.agribridge.backend.entity.RfqEntity;
-import com.agribridge.backend.entity.enums.CompanyTypeEnum;
 import com.agribridge.backend.entity.enums.InvoiceStatusEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
 import com.agribridge.backend.entity.enums.RfqStatusEnum;
@@ -34,6 +33,7 @@ import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.QuoteRepository;
 import com.agribridge.backend.repository.RfqRepository;
 import com.agribridge.backend.service.BuyerRfqService;
+import com.agribridge.backend.service.CurrentUserService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -67,7 +67,6 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
     private static final String RFQ_ALREADY_CONVERTED = "RFQ_ALREADY_CONVERTED";
     private static final String QUOTE_NOT_AVAILABLE = "QUOTE_NOT_AVAILABLE";
     private static final String BRANCH_NOT_BELONG_TO_BUYER = "BRANCH_NOT_BELONG_TO_BUYER";
-    private static final String ACCESS_DENIED = "ACCESS_DENIED";
     private static final String QUOTE_ACCEPTED = "ACCEPTED";
     private static final String QUOTE_REJECTED = "REJECTED";
     private static final String QUOTE_CANCELLED = "CANCELLED";
@@ -84,11 +83,12 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final CompanyRepository companyRepository;
+    private final CurrentUserService currentUserService;
 
     @Override
     @Transactional(readOnly = true)
-    public Page<BuyerRfqListItemResponse> getRfqs(Long buyerCompanyId, String status, String keyword, int page, int size) {
-        validateBuyerCompany(buyerCompanyId);
+    public Page<BuyerRfqListItemResponse> getRfqs(String status, String keyword, int page, int size) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
         RfqStatusEnum parsedStatus = parseStatus(status);
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(Math.min(size, 100), 1));
         Page<RfqEntity> rfqs = rfqRepository.findByBuyerCompanyIdForBuyerPage(
@@ -102,16 +102,16 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
 
     @Override
     @Transactional(readOnly = true)
-    public BuyerRfqDetailResponse getRfq(Long buyerCompanyId, Long rfqId) {
-        validateBuyerCompany(buyerCompanyId);
+    public BuyerRfqDetailResponse getRfq(Long rfqId) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
         RfqEntity rfq = findBuyerRfq(buyerCompanyId, rfqId);
         return toDetail(rfq, quoteRepository.countByRfqId(rfqId));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public BuyerRfqCompareResponse compareQuotes(Long buyerCompanyId, Long rfqId) {
-        validateBuyerCompany(buyerCompanyId);
+    public BuyerRfqCompareResponse compareQuotes(Long rfqId) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
         RfqEntity rfq = findBuyerRfq(buyerCompanyId, rfqId);
         BranchEntity branch = loadBranch(rfq.getBranchId()).orElse(null);
         List<QuoteEntity> quotes = quoteRepository.findByRfqIdOrderByCreatedAtDesc(rfqId);
@@ -156,8 +156,8 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
 
     @Override
     @Transactional
-    public BuyerRfqDetailResponse createRfq(Long buyerCompanyId, CreateBuyerRfqRequest request) {
-        validateBuyerCompany(buyerCompanyId);
+    public BuyerRfqDetailResponse createRfq(CreateBuyerRfqRequest request) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
         if (request.productId() == null && request.categoryId() == null) {
             throw new IllegalArgumentException("productId or categoryId is required");
         }
@@ -196,8 +196,8 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
 
     @Override
     @Transactional
-    public BuyerRfqDetailResponse updateRfq(Long buyerCompanyId, Long rfqId, UpdateBuyerRfqRequest request) {
-        validateBuyerCompany(buyerCompanyId);
+    public BuyerRfqDetailResponse updateRfq(Long rfqId, UpdateBuyerRfqRequest request) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
         RfqEntity rfq = findBuyerRfq(buyerCompanyId, rfqId);
         if (RfqStatusEnum.CLOSED.equals(rfq.getStatus())) {
             throw new IllegalArgumentException(RFQ_ALREADY_CONVERTED);
@@ -244,8 +244,8 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
 
     @Override
     @Transactional
-    public void cancelRfq(Long buyerCompanyId, Long rfqId) {
-        validateBuyerCompany(buyerCompanyId);
+    public void cancelRfq(Long rfqId) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
         RfqEntity rfq = findBuyerRfq(buyerCompanyId, rfqId);
         if (RfqStatusEnum.CLOSED.equals(rfq.getStatus()) || hasOrderForRfq(rfqId)) {
             throw new IllegalArgumentException(RFQ_ALREADY_CONVERTED);
@@ -258,11 +258,10 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
     @Override
     @Transactional
     public ConvertQuoteToOrderResponse convertQuoteToOrder(
-            Long buyerCompanyId,
             Long rfqId,
             Long quoteId,
             ConvertQuoteToOrderRequest request) {
-        validateBuyerCompany(buyerCompanyId);
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
         RfqEntity rfq = findBuyerRfq(buyerCompanyId, rfqId);
         if (RfqStatusEnum.CLOSED.equals(rfq.getStatus()) || hasOrderForRfq(rfqId)) {
             throw new IllegalArgumentException(RFQ_ALREADY_CONVERTED);
@@ -294,7 +293,7 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
         String deliveryProvince = firstText(request == null ? null : request.deliveryProvince(), rfq.getProvince());
 
         OrderEntity order = orderRepository.save(OrderEntity.builder()
-                .buyerCompanyId(rfq.getBuyerCompanyId())
+                .buyerCompanyId(buyerCompanyId)
                 .supplierCompanyId(quote.getSupplierCompanyId())
                 .branchId(rfq.getBranchId())
                 .quoteId(quote.getId())
@@ -353,8 +352,8 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ConvertQuoteToOrderResponse> getRfqOrders(Long buyerCompanyId, Long rfqId) {
-        validateBuyerCompany(buyerCompanyId);
+    public List<ConvertQuoteToOrderResponse> getRfqOrders(Long rfqId) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
         findBuyerRfq(buyerCompanyId, rfqId);
         List<Long> quoteIds = quoteRepository.findByRfqIdOrderByCreatedAtDesc(rfqId).stream()
                 .map(QuoteEntity::getId)
@@ -471,17 +470,6 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
                 quote.getNote(),
                 quote.getNote(),
                 quote.getStatus());
-    }
-
-    private void validateBuyerCompany(Long buyerCompanyId) {
-        if (buyerCompanyId == null) {
-            throw new IllegalArgumentException(ACCESS_DENIED + ": buyer company is required");
-        }
-        CompanyEntity company = companyRepository.findById(buyerCompanyId)
-                .orElseThrow(() -> new IllegalArgumentException(ACCESS_DENIED));
-        if (!CompanyTypeEnum.BUYER.equals(company.getCompanyType())) {
-            throw new IllegalArgumentException(ACCESS_DENIED);
-        }
     }
 
     private RfqEntity findBuyerRfq(Long buyerCompanyId, Long rfqId) {

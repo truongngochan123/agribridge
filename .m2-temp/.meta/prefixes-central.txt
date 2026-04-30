@@ -668,6 +668,7 @@
 /com/alvazan
 /com/alviere
 /com/alvonellos
+/com/alx4j
 /com/alzakharov
 /com/amadeus
 /com/amap
@@ -2789,6 +2790,7 @@
 /com/danielflower
 /com/danielfrak
 /com/danielgmyers
+/com/danielkkrafft
 /com/danielsanrocha
 /com/danielsomerfield
 /com/danieltrinh
@@ -3901,6 +3903,7 @@
 /com/fazecast
 /com/fazpass
 /com/fbksoft
+/com/fcfspace
 /com/fcibook
 /com/fdflib
 /com/fdsapi
@@ -4294,6 +4297,7 @@
 /com/gamemorefun
 /com/gamergrotte
 /com/gametathya
+/com/gamezop
 /com/gammapeit
 /com/gammarer
 /com/ganpengyu
@@ -7394,6 +7398,7 @@
 /com/metriport
 /com/metroipo
 /com/metronom
+/com/metronome
 /com/metsci
 /com/mewebstudio
 /com/mfizz
@@ -8538,6 +8543,7 @@
 /com/orientechnologies
 /com/originalflipster
 /com/originate
+/com/originlang
 /com/oripwk
 /com/orkestapay
 /com/oroarmor
@@ -8816,6 +8822,7 @@
 /com/perihelios
 /com/perikov
 /com/perimeterx
+/com/perk-net
 /com/permeagility
 /com/permguard
 /com/permutive
@@ -11117,6 +11124,7 @@
 /com/tapglue
 /com/tappgo
 /com/tappx
+/com/tapresearch
 /com/tapstream
 /com/taptap
 /com/taptrack
@@ -11258,6 +11266,7 @@
 /com/tesera
 /com/teskalabs
 /com/teslagov
+/com/tesote
 /com/test
 /com/test-ape
 /com/testautomationguru
@@ -13186,6 +13195,7 @@
 /com/zoomulus
 /com/zooxoos
 /com/zopa
+/com/zorrodev
 /com/zp4rker
 /com/zqqbot
 /com/zqzqq
@@ -15370,6 +15380,7 @@
 /io/seal
 /io/seald
 /io/sealights
+/io/sealsecurity
 /io/searchbox
 /io/seata
 /io/seats
@@ -16212,6 +16223,7 @@
 /net/amullins
 /net/amygdalum
 /net/analyse
+/net/anchorkit
 /net/andimiller
 /net/andreaskluth
 /net/andrebrov
@@ -19974,6 +19986,7 @@
 /org/ktargeter
 /org/ktmcp
 /org/ktorm
+/org/kttn
 /org/kuali
 /org/kualigan
 /org/kubek2k

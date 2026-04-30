@@ -1,6 +1,7 @@
 package com.agribridge.backend.config;
 
 import com.agribridge.backend.dto.ErrorResponseDto;
+import com.agribridge.backend.exception.ApiException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -53,6 +54,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ErrorResponseDto> handleIllegalStateException(IllegalStateException exception) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ErrorResponseDto.of(exception.getMessage()));
+    }
+
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<ErrorResponseDto> handleApiException(ApiException exception) {
+        return ResponseEntity.status(exception.getStatus()).body(ErrorResponseDto.of(exception.getMessage()));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

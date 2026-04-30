@@ -63,6 +63,8 @@ export type AuthResponse = {
   trustLevel?: string
   creditLimit?: number
   canUseCredit?: boolean
+  accessToken?: string
+  tokenExpiresAt?: string
 }
 
 export type TaxCodeLookupResponse = {

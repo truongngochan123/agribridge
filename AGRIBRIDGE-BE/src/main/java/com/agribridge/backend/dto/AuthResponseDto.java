@@ -1,6 +1,7 @@
 package com.agribridge.backend.dto;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -20,4 +21,6 @@ public class AuthResponseDto {
     private String trustLevel;
     private BigDecimal creditLimit;
     private boolean canUseCredit;
+    private String accessToken;
+    private Instant tokenExpiresAt;
 }

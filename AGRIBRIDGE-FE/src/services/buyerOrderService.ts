@@ -1,5 +1,40 @@
 import type { BuyerQuickOrderPayload } from '../components/buyer/buyerQuickOrderTypes'
+import type { BuyerOrderRow } from '../types/buyerDashboard'
 import { apiClient } from './apiClient'
+
+export type BuyerOrderComplaint = {
+  id: number
+  batchId?: number | null
+  title?: string | null
+  description: string
+  status?: string | null
+  severity?: string | null
+  resolution?: string | null
+  createdAt: string
+  resolvedAt?: string | null
+}
+
+export type BuyerOrderPayment = {
+  id: number
+  amount?: number | null
+  paidAmount?: number | null
+  paymentMethod?: string | null
+  paymentType?: string | null
+  status?: string | null
+  escrowStatus?: string | null
+  dueDate?: string | null
+  paymentDate?: string | null
+  note?: string | null
+}
+
+export type BuyerOrder = BuyerOrderRow & {
+  driverName?: string | null
+  driverPhone?: string | null
+  vehicleInfo?: string | null
+  trackingCode?: string | null
+  payments?: BuyerOrderPayment[]
+  complaints?: BuyerOrderComplaint[]
+}
 
 export type BuyerQuickOrderResponse = {
   orderId: number
@@ -20,5 +55,27 @@ export async function createQuickOrder(payload: BuyerQuickOrderPayload): Promise
   const response = await apiClient.post('/api/buyer/orders/quick-order', payload, {
     timeout: 20000,
   })
+  return response.data?.data ?? response.data
+}
+
+export async function fetchBuyerOrders(): Promise<BuyerOrder[]> {
+  const response = await apiClient.get('/api/buyer/orders')
+  return response.data?.data ?? response.data
+}
+
+export async function fetchBuyerOrder(orderId: number): Promise<BuyerOrder> {
+  const response = await apiClient.get(`/api/buyer/orders/${orderId}`)
+  return response.data?.data ?? response.data
+}
+
+export async function confirmBuyerOrderReceived(orderId: number): Promise<void> {
+  await apiClient.patch(`/api/buyer/orders/${orderId}/confirm-received`)
+}
+
+export async function createBuyerOrderComplaint(
+  orderId: number,
+  payload: { batchId?: number | null; title: string; description: string; severity?: string },
+): Promise<BuyerOrderComplaint> {
+  const response = await apiClient.post(`/api/buyer/orders/${orderId}/complaints`, payload)
   return response.data?.data ?? response.data
 }
