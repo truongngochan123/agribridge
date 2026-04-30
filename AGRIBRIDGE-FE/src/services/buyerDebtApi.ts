@@ -1,0 +1,107 @@
+import { apiClient } from './apiClient'
+
+export type BuyerDebtKpi = {
+  id: string
+  label: string
+  value: number
+  displayValue: string
+}
+
+export type BuyerDebtSupplier = {
+  supplierId: number
+  supplierName: string
+  invoiceCount: number
+  unpaidInvoiceCount: number
+  overdueInvoiceCount: number
+  totalAmount: number
+  paidAmount: number
+  remainingAmount: number
+  overdueAmount: number
+  dueSoonAmount: number
+  dueSoonInvoiceCount: number
+  creditLimit: number
+  paymentTermDays?: number | null
+  limitUsage: number
+  isBlocked: boolean
+  blockedReason?: string | null
+  status: 'OVERDUE' | 'WARNING' | 'BLOCKED' | 'NORMAL'
+  statusLabel: string
+}
+
+export type BuyerDebtInvoice = {
+  invoiceId: number
+  invoiceNumber: string
+  orderId: number
+  orderRef: string
+  createdAt: string
+  dueDate?: string | null
+  totalAmount: number
+  adjustedAmount: number
+  paidAmount: number
+  remainingAmount: number
+  status?: string | null
+  statusLabel: string
+  overdueDays: number
+}
+
+export type BuyerDebtPayment = {
+  paymentId: number
+  invoiceId: number
+  amount: number
+  paymentDate: string
+  paymentMethod?: string | null
+  note?: string | null
+  confirmedBy?: string | null
+}
+
+export type BuyerDebtAdjustment = {
+  adjustmentId: number
+  invoiceId: number
+  amount: number
+  adjustmentType?: string | null
+  description?: string | null
+  createdAt: string
+}
+
+export type BuyerDebtOverview = {
+  kpis: BuyerDebtKpi[]
+  suppliers: BuyerDebtSupplier[]
+}
+
+export type BuyerDebtSupplierDetail = {
+  summary: BuyerDebtSupplier
+  invoices: BuyerDebtInvoice[]
+  payments: BuyerDebtPayment[]
+  adjustments: BuyerDebtAdjustment[]
+}
+
+export type BuyerDebtPaymentPayload = {
+  invoiceId: number
+  amount: number
+  paymentMethod: string
+  paymentDate: string
+  note?: string
+}
+
+export async function fetchBuyerDebts(): Promise<BuyerDebtOverview> {
+  const response = await apiClient.get('/api/buyer/debts')
+  return response.data?.data ?? response.data
+}
+
+export async function fetchBuyerDebtSupplierDetail(supplierId: number): Promise<BuyerDebtSupplierDetail> {
+  const response = await apiClient.get(`/api/buyer/debts/suppliers/${supplierId}`)
+  return response.data?.data ?? response.data
+}
+
+export async function createBuyerDebtPayment(payload: BuyerDebtPaymentPayload) {
+  const response = await apiClient.post('/api/buyer/debts/payments', payload)
+  return response.data?.data ?? response.data
+}
+
+export async function exportBuyerDebts(params: { supplierId?: number; status?: string; fromDate?: string; toDate?: string } = {}) {
+  const response = await apiClient.get('/api/buyer/debts/export', {
+    params: Object.fromEntries(Object.entries(params).filter(([, value]) => value && value !== 'all')),
+    responseType: 'blob',
+  })
+  return response.data as Blob
+}
