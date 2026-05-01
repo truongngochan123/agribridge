@@ -3,19 +3,30 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 cd /d "%~dp0"
 
+REM ===== Java config =====
+set "JAVA_HOME=C:\Program Files\Java\jdk-25.0.3"
+set "PATH=%JAVA_HOME%\bin;%PATH%"
+
+REM ===== Backend config =====
 set "PORT=8081"
 set "LOCAL_ENV_FILE=.env.local"
 
 if not defined JAVA_HOME (
   echo [ERROR] JAVA_HOME is not set.
   echo [HINT] Configure JAVA_HOME to your JDK root, for example:
-  echo        setx JAVA_HOME "C:\Program Files\Java\jdk-25"
+  echo        setx JAVA_HOME "C:\Program Files\Java\jdk-25.0.3"
   exit /b 1
 )
 
 if not exist "%JAVA_HOME%\bin\java.exe" (
   echo [ERROR] JAVA_HOME is invalid: %JAVA_HOME%
   echo [HINT] JAVA_HOME must point to the JDK root folder and contain bin\java.exe.
+  exit /b 1
+)
+
+if not exist "%JAVA_HOME%\bin\javac.exe" (
+  echo [ERROR] JDK is invalid: %JAVA_HOME%
+  echo [HINT] JAVA_HOME must point to a full JDK folder and contain bin\javac.exe.
   exit /b 1
 )
 
@@ -32,8 +43,11 @@ if /I "%BE_LOCAL_CLEAN_PORT%"=="true" (
 )
 
 echo [INFO] Using JAVA_HOME=%JAVA_HOME%
+echo [INFO] Java version:
+"%JAVA_HOME%\bin\java.exe" -version
+
 echo [INFO] Starting backend with Spring profile local on port %PORT%...
-call .\mvnw.cmd -Dmaven.test.skip=true spring-boot:run -Dspring-boot.run.profiles=local
+call mvn -e -Dmaven.test.skip=true spring-boot:run -Dspring-boot.run.profiles=local
 exit /b %errorlevel%
 
 :cleanup_port

@@ -1,8 +1,10 @@
 import { buyerMarketPrices } from '../../data/buyerMarketPriceData'
 import { BuyerPanel } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function BuyerMarketPricePage() {
+  usePageTitle('Giá thị trường')
   return (
     <BuyerShell activeKey="market" title="Giá thị trường" subtitle="Theo dõi giá thị trường theo lô">
       <BuyerPanel

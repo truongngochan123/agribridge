@@ -1,8 +1,10 @@
 import { buyerDebtKpis, buyerDebtSuppliers } from '../../data/buyerDebtData'
 import { BuyerKpiCards, BuyerPanel } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function BuyerDebtPage() {
+  usePageTitle('Quản lý Công nợ')
   return (
     <BuyerShell activeKey="debt" title="Quản lý Công nợ" subtitle="Quản lý công nợ phải trả theo workflow">
       <BuyerKpiCards items={buyerDebtKpis} />

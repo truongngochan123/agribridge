@@ -1,7 +1,8 @@
-﻿import { Check, Eye, Search } from 'lucide-react'
+import { Check, Eye, Search } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Pencil, Plus, Trash2, X } from 'lucide-react'
 import { AdminShell } from '../../components/admin/AdminShell'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   createAdminDispute,
   deleteAdminDispute,
@@ -60,6 +61,7 @@ function createInitialFormState(item?: AdminDisputeItem | null): FormState {
 }
 
 export function AdminDisputesPage() {
+  usePageTitle('Quản lý tranh chấp')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<AdminDisputeStatus | 'ALL'>('ALL')
   const [disputes, setDisputes] = useState<AdminDisputeItem[]>([])

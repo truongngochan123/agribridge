@@ -1,5 +1,6 @@
-﻿import { AlertTriangle, Boxes, DollarSign, Package, Pencil, Plus, ShoppingCart, Trash2, User, UserPlus, X } from 'lucide-react'
+import { AlertTriangle, Boxes, DollarSign, Package, Pencil, Plus, ShoppingCart, Trash2, User, UserPlus, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import { AdminShell } from '../../components/admin/AdminShell'
 import { adminTimeFilters } from '../../data/adminDashboardData'
 import {
@@ -88,6 +89,7 @@ function createInitialQuickStatForm(item?: AdminQuickStat | null): QuickStatForm
 }
 
 export function AdminOverviewPage() {
+  usePageTitle('Tổng quan hệ thống')
   const [filter, setFilter] = useState<AdminTimeFilter>('30d')
   const [overview, setOverview] = useState<AdminOverviewPayload | null>(null)
   const [loading, setLoading] = useState(true)

@@ -2,8 +2,10 @@ import { Link } from 'react-router-dom'
 import { buyerDashboardAlerts, buyerDashboardKpis, buyerRecentOrders } from '../../data/buyerDashboardData'
 import { BuyerAlertCards, BuyerKpiCards, BuyerOrdersTable, BuyerPanel } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function BuyerDashboardPage() {
+  usePageTitle('Tổng quan')
   return (
     <BuyerShell activeKey="overview" title="Tổng quan" subtitle="Theo dõi hoạt động mua hàng của bạn">
       <BuyerKpiCards items={buyerDashboardKpis} />

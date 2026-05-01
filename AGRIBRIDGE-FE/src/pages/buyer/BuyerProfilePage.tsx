@@ -11,10 +11,12 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 type BuyerProfileTab = 'personal' | 'business' | 'security' | 'notifications'
 
 export function BuyerProfilePage() {
+  usePageTitle('Thông tin cá nhân')
   const [tab, setTab] = useState<BuyerProfileTab>('personal')
 
   return (

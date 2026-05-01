@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 import { SupplierPanel, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useToast } from '../../hooks/useToast'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   createSupplierShipment,
   fetchSupplierOrders,
@@ -83,6 +84,7 @@ function emptyShipmentForm(): CreateSupplierShipmentRequest {
 }
 
 export function SupplierOrdersPage() {
+  usePageTitle('Đơn hàng')
   const { showToast, showConfirm } = useToast()
   const [orders, setOrders] = useState<SupplierOrderRow[]>([])
   const [loading, setLoading] = useState(true)

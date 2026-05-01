@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { VN_ADDRESS_OPTIONS } from '../../data/vnAddress'
 import { clearAuthSession, getStoredAuthSession, storeAuthSession } from '../../services/authSession'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   fetchRegistrationResubmitDraft,
   normalizeUploadedUrls,
@@ -71,6 +72,7 @@ function buildFormState(draft: RegistrationResubmitDraft): FormState {
 }
 
 export function RegistrationNeedMoreInfoPage() {
+  usePageTitle('Cập nhật thêm thông tin')
   const navigate = useNavigate()
   const session = getStoredAuthSession()
   const [draft, setDraft] = useState<RegistrationResubmitDraft | null>(null)

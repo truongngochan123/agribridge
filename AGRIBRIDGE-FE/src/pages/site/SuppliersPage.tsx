@@ -2,8 +2,10 @@ import { MapPin, Search, ShieldCheck, Star } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { trustedSuppliers } from '../../data/site'
 import { PublicPageLayout } from '../../components/site/PublicPageLayout'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function SuppliersPage() {
+  usePageTitle('Nhà cung cấp uy tín')
   return (
     <PublicPageLayout title="Nhà cung cấp uy tín" subtitle="Kết nối với các nhà cung cấp nông hải sản chất lượng cao trên toàn quốc">
       <section className="rounded-2xl border border-[#D9E1EA] bg-white p-4">

@@ -2,8 +2,10 @@ import { Download } from 'lucide-react'
 import { SupplierPanel, SupplierStatCard, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useSupplierDashboardData } from './useSupplierDashboardData'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function SupplierOverviewPage() {
+  usePageTitle('Tổng quan')
   const { data, loading, error } = useSupplierDashboardData()
   const cards = data?.overviewCards ?? []
   const revenues = data?.monthlyRevenue ?? []

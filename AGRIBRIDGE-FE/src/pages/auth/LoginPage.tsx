@@ -1,8 +1,9 @@
-﻿import { ChartLine, LockKeyhole, Mail, ShieldCheck, Users } from 'lucide-react'
+import { ChartLine, LockKeyhole, Mail, ShieldCheck, Users } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { login } from '../../services/authService'
 import { storeAuthSession } from '../../services/authSession'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 const SIMPLE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -20,6 +21,7 @@ function validatePassword(value: string): string {
 }
 
 export function LoginPage() {
+  usePageTitle('Đăng nhập')
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

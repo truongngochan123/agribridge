@@ -2,6 +2,7 @@ import { CircleHelp, ShoppingCart, Store } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Header } from '../../components/Header'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import { checkRegistrationAvailability, lookupCompanyByTaxCode, type RegistrationDraft } from '../../services/authService'
 import { uploadRegistrationFile } from '../../services/uploadService'
 
@@ -56,6 +57,7 @@ function validateBusinessField(field: keyof BusinessFieldErrors, value: string, 
 }
 
 export function SupplierRegistrationBusinessInfoPage() {
+  usePageTitle('Đăng ký - Thông tin doanh nghiệp')
   const { role } = useParams<{ role: string }>()
   const navigate = useNavigate()
   const currentRole = role === 'buyer' ? 'buyer' : 'supplier'

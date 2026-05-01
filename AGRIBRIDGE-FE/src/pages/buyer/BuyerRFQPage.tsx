@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { BuyerPanel } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   cancelBuyerRfq,
   convertQuoteToOrder,
@@ -51,6 +52,7 @@ const emptyForm: RfqFormState = {
 }
 
 export function BuyerRFQPage() {
+  usePageTitle('Yêu cầu báo giá')
   const [rfqs, setRfqs] = useState<BuyerRfqListItem[]>([])
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState('')

@@ -19,6 +19,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { BatchFormFields, EMPTY_BATCH_FORM, type BatchFormState } from '../../components/supplier/BatchFormFields'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useToast } from '../../hooks/useToast'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   createBatchForExistingProduct,
   deleteSupplierBatch,
@@ -108,6 +109,7 @@ function formatPriceLabel(value: number, unit: string): string {
 }
 
 export function SupplierLotListPage() {
+  usePageTitle('Danh sách lô hàng')
   const { productId } = useParams<{ productId: string }>()
   const navigate = useNavigate()
   const { showToast, showConfirm } = useToast()

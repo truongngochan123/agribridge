@@ -2,8 +2,10 @@ import { Download } from 'lucide-react'
 import { SupplierPanel, SupplierStatCard } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useSupplierDashboardData } from './useSupplierDashboardData'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function SupplierReportsPage() {
+  usePageTitle('Báo cáo')
   const { data, loading, error } = useSupplierDashboardData()
   const revenues = data?.monthlyRevenue ?? []
   const cards = data?.overviewCards ?? []

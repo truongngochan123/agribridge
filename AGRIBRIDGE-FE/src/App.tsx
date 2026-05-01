@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { ProtectedAppRoute, VerificationStateRoute } from './components/auth/ProtectedAppRoute'
+import { ProtectedAdminRoute } from './components/auth/ProtectedAdminRoute'
 import { HomePage } from './pages/HomePage'
 import { SupplierRegistrationBusinessInfoPage } from './pages/onboarding/SupplierRegistrationBusinessInfoPage'
 import { SupplierRegistrationContactVerificationPage } from './pages/onboarding/SupplierRegistrationContactVerificationPage'
@@ -36,6 +37,7 @@ import { AdminOverviewPage } from './pages/admin/AdminOverviewPage'
 import { AdminUsersPage } from './pages/admin/AdminUsersPage'
 import { AdminRegistrationsPage } from './pages/admin/AdminRegistrationsPage'
 import { AdminDisputesPage } from './pages/admin/AdminDisputesPage'
+import { AdminLoginPage } from './pages/admin/AdminLoginPage'
 import { PublicBatchTracePage } from './pages/public/PublicBatchTracePage'
 
 function App() {
@@ -96,10 +98,11 @@ function App() {
       <Route path="/buyer/market-price" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerMarketPricePage /></ProtectedAppRoute>} />
       <Route path="/buyer/lots/:lotId" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerLotDetailPage /></ProtectedAppRoute>} />
       <Route path="/buyer/profile" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerProfilePage /></ProtectedAppRoute>} />
-      <Route path="/admin/overview" element={<AdminOverviewPage />} />
-      <Route path="/admin/users" element={<AdminUsersPage />} />
-      <Route path="/admin/registrations" element={<AdminRegistrationsPage />} />
-      <Route path="/admin/disputes" element={<AdminDisputesPage />} />
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/overview" element={<ProtectedAdminRoute><AdminOverviewPage /></ProtectedAdminRoute>} />
+      <Route path="/admin/users" element={<ProtectedAdminRoute><AdminUsersPage /></ProtectedAdminRoute>} />
+      <Route path="/admin/registrations" element={<ProtectedAdminRoute><AdminRegistrationsPage /></ProtectedAdminRoute>} />
+      <Route path="/admin/disputes" element={<ProtectedAdminRoute><AdminDisputesPage /></ProtectedAdminRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

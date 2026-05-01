@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useCurrentUserProfile } from '../../hooks/useCurrentUserProfile'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import { clearCurrentUserProfileCache } from '../../services/currentUserService'
 import {
   addCertificate,
@@ -34,6 +35,7 @@ const MAX_UPLOAD_SIZE_BYTES = 2 * 1024 * 1024
 const MAX_CERTIFICATE_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
 
 export function SupplierProfilePage() {
+  usePageTitle('Hồ sơ nhà cung cấp')
   const [tab, setTab] = useState<SupplierProfileTab>('personal')
   const { profile, loading, reloadProfile } = useCurrentUserProfile()
   const [assets, setAssets] = useState<CompanyProfileAssets>({ farmImages: [], certificates: [] })

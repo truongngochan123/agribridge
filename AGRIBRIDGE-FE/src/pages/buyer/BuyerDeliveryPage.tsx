@@ -2,8 +2,10 @@ import { Phone } from 'lucide-react'
 import { buyerShipments } from '../../data/buyerDeliveryData'
 import { BuyerPanel } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function BuyerDeliveryPage() {
+  usePageTitle('Theo dõi Giao hàng')
   return (
     <BuyerShell activeKey="delivery" title="Theo dõi Giao hàng" subtitle="Theo dõi vận chuyển realtime">
       <BuyerPanel

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ChallengesSection } from '../components/ChallengesSection'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { DualCTASection } from '../components/DualCTASection'
 import { Footer } from '../components/Footer'
 import { Header } from '../components/Header'
@@ -32,6 +33,7 @@ import type {
 } from '../types/home'
 
 export function HomePage() {
+  usePageTitle('Nền tảng nông sản sạch AgriBridge')
   const [stats, setStats] = useState<HeroStats>(fallbackStats)
   const [features, setFeatures] = useState<FeatureItem[]>(fallbackFeatures)
   const [steps, setSteps] = useState<StepItem[]>(fallbackSteps)

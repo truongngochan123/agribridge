@@ -6,3 +6,4 @@ target/
 .env
 .env.local
 .env.*.local
+run-be-local.cmd

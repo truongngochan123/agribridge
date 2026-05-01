@@ -17,6 +17,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { AdminShell } from '../../components/admin/AdminShell'
 import { fetchAdminUsers, lockAdminUser, unlockAdminUser } from '../../services/adminService'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import type { AdminUserRow } from '../../types/admin'
 
 type UserFilterKey = 'ALL' | 'ACTIVE' | 'BLOCKED' | 'SUPPLIER' | 'BUYER'
@@ -52,6 +53,7 @@ function getAvatarColor(name: string | null | undefined): string {
 }
 
 export function AdminUsersPage() {
+  usePageTitle('Quản lý người dùng')
   const [rows, setRows] = useState<AdminUserRow[]>([])
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')

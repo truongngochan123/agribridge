@@ -2,6 +2,7 @@ import { ExternalLink, Loader2, Plus, Upload, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { SupplierPanel, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   createBatchForExistingProduct,
   createProductWithFirstBatch,
@@ -108,6 +109,7 @@ function createDefaultBatchForm(): BatchFormState {
 }
 
 export function SupplierProductsLotsPage() {
+  usePageTitle('Sản phẩm & Lô hàng')
   const { data, loading, error } = useSupplierDashboardData()
   const lots = data?.productLots ?? []
 

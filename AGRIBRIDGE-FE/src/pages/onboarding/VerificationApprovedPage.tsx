@@ -1,6 +1,7 @@
 import { Check, MessageSquareQuote, Plus, UserRound } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { CenteredStatusLayout } from '../../components/onboarding/CenteredStatusLayout'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 const nextSteps = [
   {
@@ -21,6 +22,7 @@ const nextSteps = [
 ]
 
 export function VerificationApprovedPage() {
+  usePageTitle('Hồ sơ được duyệt')
   return (
     <CenteredStatusLayout>
       {/* Success status card */}

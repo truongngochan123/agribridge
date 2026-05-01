@@ -1,10 +1,12 @@
-﻿import { Clock3 } from 'lucide-react'
+import { Clock3 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { CenteredStatusLayout } from '../../components/onboarding/CenteredStatusLayout'
 import { checkRegistrationStatusByEmail } from '../../services/authService'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function VerificationPendingPage() {
+  usePageTitle('Hồ sơ đang chờ duyệt')
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const currentRole = searchParams.get('role') === 'buyer' ? 'buyer' : 'supplier'

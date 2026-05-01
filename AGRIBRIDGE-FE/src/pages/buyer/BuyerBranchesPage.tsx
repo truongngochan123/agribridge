@@ -2,8 +2,10 @@ import { MoreVertical, Store } from 'lucide-react'
 import { buyerBranches } from '../../data/buyerBranchesData'
 import { BuyerPanel } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function BuyerBranchesPage() {
+  usePageTitle('Quản lý Chi nhánh')
   return (
     <BuyerShell
       activeKey="branches"

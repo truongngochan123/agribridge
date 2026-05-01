@@ -12,6 +12,7 @@ import { SupplierPanel, SupplierStatusPill } from '../../components/supplier/Sup
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useSupplierDashboardData } from './useSupplierDashboardData'
 import { useToast } from '../../hooks/useToast'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
 import type { RfqMessage } from '../../types/rfqChat'
 import type { RfqItem } from '../../types/supplierDashboard'
@@ -116,6 +117,7 @@ function quoteBadgeLabel(rfq: RfqItem): string {
 }
 
 export function SupplierRfqQuotesPage() {
+  usePageTitle('Yêu cầu báo giá')
   const { data, loading, error, reload } = useSupplierDashboardData()
   const { showToast, showConfirm } = useToast()
   const rfqItems = data?.rfqItems ?? []

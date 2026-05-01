@@ -1,7 +1,8 @@
-﻿import { UploadCloud } from 'lucide-react'
+import { UploadCloud } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Header } from '../../components/Header'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   checkRegistrationAvailability,
   registerAccount,
@@ -129,7 +130,7 @@ function extractApiErrorMessage(error: unknown): string {
   const maybeNetworkError = error as { code?: string; message?: string; response?: ApiErrorResponse }
   if (!('response' in maybeNetworkError) || !maybeNetworkError.response) {
     if (maybeNetworkError.code === 'ERR_NETWORK') {
-      return 'Không thể kết nối đến máy chủ (localhost:8081). Vui lòng kiểm tra backend đang chạy.'
+      return 'Không thể kết nối đến máy chủ (localhost:8025). Vui lòng kiểm tra backend đang chạy.'
     }
     return maybeNetworkError.message ?? 'Đăng ký thất bại, vui lòng thử lại.'
   }
@@ -153,6 +154,7 @@ function extractApiErrorMessage(error: unknown): string {
 }
 
 export function SupplierRegistrationContactVerificationPage() {
+  usePageTitle('Đăng ký - Xác minh liên lạc')
   const { role } = useParams<{ role: string }>()
   const navigate = useNavigate()
   const currentRole = role === 'buyer' ? 'buyer' : 'supplier'
