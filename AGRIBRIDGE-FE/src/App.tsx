@@ -37,6 +37,7 @@ import { AdminOverviewPage } from './pages/admin/AdminOverviewPage'
 import { AdminUsersPage } from './pages/admin/AdminUsersPage'
 import { AdminRegistrationsPage } from './pages/admin/AdminRegistrationsPage'
 import { AdminDisputesPage } from './pages/admin/AdminDisputesPage'
+import { AdminProfilePage } from './pages/admin/AdminProfilePage'
 import { AdminLoginPage } from './pages/admin/AdminLoginPage'
 import { PublicBatchTracePage } from './pages/public/PublicBatchTracePage'
 
@@ -103,6 +104,7 @@ function App() {
       <Route path="/admin/users" element={<ProtectedAdminRoute><AdminUsersPage /></ProtectedAdminRoute>} />
       <Route path="/admin/registrations" element={<ProtectedAdminRoute><AdminRegistrationsPage /></ProtectedAdminRoute>} />
       <Route path="/admin/disputes" element={<ProtectedAdminRoute><AdminDisputesPage /></ProtectedAdminRoute>} />
+      <Route path="/admin/profile" element={<ProtectedAdminRoute><AdminProfilePage /></ProtectedAdminRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

@@ -1,8 +1,9 @@
+import { isAxiosError } from 'axios'
 import { Eye, EyeOff, LockKeyhole, Mail, ShieldAlert } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { login } from '../../services/authService'
-import { storeAuthSession } from '../../services/authSession'
+import { getStoredAuthSession, storeAuthSession } from '../../services/authSession'
 import { usePageTitle } from '../../hooks/usePageTitle'
 
 const SIMPLE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -31,6 +32,18 @@ export function AdminLoginPage() {
   const [emailError, setEmailError] = useState('')
   const [passwordError, setPasswordError] = useState('')
 
+  useEffect(() => {
+    const session = getStoredAuthSession()
+    if (!session || session.status !== 'SUCCESS') {
+      return
+    }
+
+    const companyType = String(session.companyType ?? '').toLowerCase()
+    if (companyType === 'admin' || companyType === 'system') {
+      navigate('/admin/overview', { replace: true })
+    }
+  }, [navigate])
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError('')
@@ -56,10 +69,11 @@ export function AdminLoginPage() {
       }
 
       storeAuthSession(result, { email: normalizedEmail })
-      navigate('/admin/overview')
-    } catch (loginError: any) {
-      const message =
-        loginError?.response?.data?.message ?? 'Đăng nhập thất bại, vui lòng thử lại.'
+      navigate('/admin/overview', { replace: true })
+    } catch (loginError: unknown) {
+      const message = isAxiosError(loginError)
+        ? loginError.response?.data?.message ?? 'Đăng nhập thất bại, vui lòng thử lại.'
+        : 'Đăng nhập thất bại, vui lòng thử lại.'
       setError(message)
     } finally {
       setSubmitting(false)
@@ -74,14 +88,7 @@ export function AdminLoginPage() {
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-[300px] w-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-700/10 blur-[100px]" />
 
       {/* Grid overlay */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.03]"
-        style={{
-          backgroundImage:
-            'linear-gradient(#22c55e 1px, transparent 1px), linear-gradient(90deg, #22c55e 1px, transparent 1px)',
-          backgroundSize: '48px 48px',
-        }}
-      />
+      <div className="admin-login-grid-overlay" />
 
       {/* Card */}
       <div className="relative z-10 mx-4 w-full max-w-[460px]">

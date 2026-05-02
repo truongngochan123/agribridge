@@ -65,6 +65,67 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
     return cachedProfile
   }
 
+  const companyTypeRaw = (sessionStorage.getItem('agribridge.auth.companyType') ?? '').trim()
+  const normalizedCompanyType = companyTypeRaw.toLowerCase()
+  if (normalizedCompanyType === 'admin' || normalizedCompanyType === 'system') {
+    let userIdRaw = sessionStorage.getItem('agribridge.auth.userId')
+    let userId = userIdRaw ? Number(userIdRaw) : undefined
+    if (!userId) {
+      hydrateSessionFromAuthPayload()
+      userIdRaw = sessionStorage.getItem('agribridge.auth.userId')
+      userId = userIdRaw ? Number(userIdRaw) : undefined
+    }
+
+    const emailFromSession = (sessionStorage.getItem('agribridge.auth.email') ?? '').trim()
+    const nameFromSession = (sessionStorage.getItem('agribridge.auth.name') ?? '').trim()
+
+    let user: UserApiModel | undefined
+    if (userId) {
+      try {
+        const userResponse = await apiClient.get<UserApiModel>(`/api/users/${userId}`)
+        user = userResponse.data
+      } catch (error) {
+        console.error('GET /api/users/:id failed', error)
+        user = undefined
+      }
+    }
+
+    const fullName = user?.fullName || nameFromSession || 'Quản trị viên'
+    const email = user?.email || emailFromSession || 'admin@agribridge.vn'
+    const phone = user?.phone || 'N/A'
+    const joinedAtSource = user?.createdAt
+    const resolvedUserId = user?.id ?? userId
+    const profile: CurrentUserProfile = {
+      userId: resolvedUserId,
+      companyId: undefined,
+      fullName,
+      shortName: abbreviateVietnameseName(fullName),
+      email,
+      phone,
+      roleLabel: mapRoleLabel(companyTypeRaw),
+      companyName: 'AgriBridge',
+      taxCode: 'N/A',
+      address: 'N/A',
+      ownerName: fullName,
+      companyTypeLabel: mapCompanyTypeLabel(companyTypeRaw),
+      businessTypeLabel: 'N/A',
+      accountCode: resolvedUserId ? `ADM-${String(resolvedUserId).padStart(6, '0')}` : 'ADM-000000',
+      joinedAt: formatDate(joinedAtSource),
+      statusLabel: 'Đang hoạt động',
+      initials: makeInitials(fullName),
+      registrationNumber: 'N/A',
+      establishedYear: 'N/A',
+      website: 'N/A',
+      province: 'N/A',
+      district: 'N/A',
+      ward: null,
+      description: 'N/A',
+    }
+
+    cachedProfile = profile
+    return profile
+  }
+
   const companyIdRaw = sessionStorage.getItem('agribridge.auth.companyId')
   let companyId = companyIdRaw ? Number(companyIdRaw) : undefined
   const phoneFromSession = (sessionStorage.getItem('agribridge.auth.phone') ?? '').trim()
@@ -200,20 +261,28 @@ function makeInitials(name: string): string {
 }
 
 function mapRoleLabel(companyType?: string): string {
-  if ((companyType ?? '').toLowerCase() === 'supplier') {
+  const normalizedCompanyType = (companyType ?? '').toLowerCase()
+  if (normalizedCompanyType === 'admin' || normalizedCompanyType === 'system') {
+    return 'Quản trị viên'
+  }
+  if (normalizedCompanyType === 'supplier') {
     return 'Nhà cung cấp'
   }
-  if ((companyType ?? '').toLowerCase() === 'buyer') {
+  if (normalizedCompanyType === 'buyer') {
     return 'Nhà buôn'
   }
   return 'Người dùng'
 }
 
 function mapCompanyTypeLabel(companyType?: string): string {
-  if ((companyType ?? '').toLowerCase() === 'supplier') {
+  const normalizedCompanyType = (companyType ?? '').toLowerCase()
+  if (normalizedCompanyType === 'admin' || normalizedCompanyType === 'system') {
+    return 'Quản trị viên / Admin'
+  }
+  if (normalizedCompanyType === 'supplier') {
     return 'Nhà cung cấp / Supplier'
   }
-  if ((companyType ?? '').toLowerCase() === 'buyer') {
+  if (normalizedCompanyType === 'buyer') {
     return 'Nhà buôn / Buyer'
   }
   return 'N/A'

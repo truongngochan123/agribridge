@@ -112,7 +112,7 @@ DB_TRUST_SERVER_CERTIFICATE=true
 run-be-local.cmd
 ```
 
-The backend starts with profile `local` on `http://localhost:8081`.
+The backend starts with profile `local` on `http://localhost:8025`.
 
 Equivalent Maven Wrapper command:
 
@@ -122,7 +122,7 @@ mvnw.cmd -Dmaven.test.skip=true spring-boot:run -Dspring-boot.run.profiles=local
 
 ## Port cleanup behavior
 
-The local script does not force-kill port `8081` by default.
+The local script does not force-kill port `8025` by default.
 
 If you want the script to help free the port during local development, run it with:
 
@@ -142,6 +142,6 @@ The script will show the PID and ask for confirmation before stopping it.
 
 ## Notes
 
-- Backend port: `8081`
+- Backend port: `8025`
 - Frontend local URL expected by default: `http://localhost:5173`
 - Database schema remains managed by Hibernate `ddl-auto=update`

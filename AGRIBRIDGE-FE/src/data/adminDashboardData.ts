@@ -15,6 +15,7 @@ export const adminMenuItems: AdminMenuItem[] = [
   { key: 'users', label: 'Người dùng', path: '/admin/users' },
   { key: 'registrations', label: 'Duyệt hồ sơ', path: '/admin/registrations' },
   { key: 'disputes', label: 'Tranh chấp', path: '/admin/disputes' },
+  { key: 'profile', label: 'Hồ sơ cá nhân', path: '/admin/profile' },
 ]
 
 export const adminTimeFilters: Array<{ label: string; value: AdminTimeFilter }> = [
