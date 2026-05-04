@@ -93,6 +93,24 @@ public class CompanyEntity {
     @Column(name = "verification_note", length = 500)
     private String verificationNote;
 
+    @Column(name = "verification_score")
+    private Integer verificationScore;
+
+    @Column(name = "verification_reason", length = 1000)
+    private String verificationReason;
+
+    @Column(name = "tax_lookup_status", length = 50)
+    private String taxLookupStatus;
+
+    @Column(name = "tax_lookup_provider", length = 50)
+    private String taxLookupProvider;
+
+    @Column(name = "identity_document_url", length = 500)
+    private String identityDocumentUrl;
+
+    @Column(name = "business_license_url", length = 500)
+    private String businessLicenseUrl;
+
     @Column(name = "trust_level")
     private String trustLevel;
 

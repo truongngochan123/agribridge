@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { fetchPublicBatchTrace } from '../../services/supplierService'
 import type { PublicBatchTraceResponse } from '../../types/supplierTrace'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function PublicBatchTracePage() {
+  usePageTitle('Truy xuất nguồn gốc lô hàng')
   const { batchId } = useParams<{ batchId: string }>()
   const [data, setData] = useState<PublicBatchTraceResponse | null>(null)
   const [loading, setLoading] = useState(true)

@@ -1,8 +1,10 @@
 import { Building2, Mail, Phone } from 'lucide-react'
 import { supportFaqs } from '../../data/site'
 import { PublicPageLayout } from '../../components/site/PublicPageLayout'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function SupportPage() {
+  usePageTitle('Trung tâm Hỗ trợ')
   return (
     <PublicPageLayout>
       <section className="rounded-2xl bg-[#EAF8F3] px-6 py-10 text-center">

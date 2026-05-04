@@ -1,8 +1,13 @@
-import { CircleHelp, ShoppingCart, Store } from 'lucide-react'
+import { CircleHelp, ShoppingCart, Store, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Header } from '../../components/Header'
-import { checkRegistrationAvailability, lookupCompanyByTaxCode, type RegistrationDraft } from '../../services/authService'
+import { usePageTitle } from '../../hooks/usePageTitle'
+import {
+  checkRegistrationAvailability,
+  lookupCompanyByTaxCode,
+  type RegistrationDraft,
+} from '../../services/authService'
 import { uploadRegistrationFile } from '../../services/uploadService'
 
 import {
@@ -18,6 +23,13 @@ const labelClass = 'mb-1 block text-[12px] font-semibold text-[#1F2937]'
 const inputClass =
   'h-9 w-full rounded-lg border border-[#D9E1EA] bg-[#F8FAFC] px-2.5 text-[13px] text-[#0F172A] outline-none transition placeholder:text-[#98A2B3] focus:border-[#2F8F3A] focus:bg-white'
 const MAX_FILE_BYTES = 5 * 1024 * 1024
+const ADDRESS_SUGGESTIONS = [
+  'Số nhà, đường, phường/xã',
+  'Tòa nhà, số tầng, căn hộ',
+  'Khu công nghiệp, lô, đường nội bộ',
+  'Chợ, sạp, ki-ot',
+  'Ấp/thôn, xã/phường',
+]
 
 type BusinessFieldErrors = {
   companyName?: string
@@ -55,7 +67,39 @@ function validateBusinessField(field: keyof BusinessFieldErrors, value: string, 
   }
 }
 
+function deriveWardProvince(address?: string) {
+  if (!address) return { ward: '', province: '' }
+
+  const parts = address
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+  if (parts.length === 0) return { ward: '', province: '' }
+
+  const wardKeywords = /(phuong|phường|xa|xã|thi tran|thị trấn|quan|quận|huyen|huyện|thi xa|thị xã)/i
+  const provinceKeywords = /(tinh|tỉnh|thanh pho|thành phố|tp\.?)/i
+
+  let ward = ''
+  let province = ''
+
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const part = parts[index]
+    if (!province && (provinceKeywords.test(part) || index === parts.length - 1)) {
+      province = part
+      continue
+    }
+    if (!ward && wardKeywords.test(part)) {
+      ward = part
+      break
+    }
+  }
+
+  return { ward, province }
+}
+
 export function SupplierRegistrationBusinessInfoPage() {
+  usePageTitle('Đăng ký - Thông tin doanh nghiệp')
   const { role } = useParams<{ role: string }>()
   const navigate = useNavigate()
   const currentRole = role === 'buyer' ? 'buyer' : 'supplier'
@@ -78,6 +122,9 @@ export function SupplierRegistrationBusinessInfoPage() {
   const [error, setError] = useState('')
   const [taxError, setTaxError] = useState('')
   const [taxLookupHint, setTaxLookupHint] = useState('')
+  const [checkingTaxCode, setCheckingTaxCode] = useState(false)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState('')
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<BusinessFieldErrors>({})
   const [provinceOptions, setProvinceOptions] = useState<VietnamProvinceOption[]>([])
@@ -102,6 +149,14 @@ export function SupplierRegistrationBusinessInfoPage() {
       // Ignore malformed draft and keep default empty form.
     }
   }, [currentRole])
+
+  useEffect(() => {
+    return () => {
+      if (logoPreviewUrl) {
+        URL.revokeObjectURL(logoPreviewUrl)
+      }
+    }
+  }, [logoPreviewUrl])
 
   const selectedProvince = useMemo(
     () => findProvinceByName(provinceOptions, form.province),
@@ -180,6 +235,10 @@ export function SupplierRegistrationBusinessInfoPage() {
     if (key === 'province') {
       setFieldErrors((prev) => ({ ...prev, ward: '' }))
     }
+    if (key === 'taxCode') {
+      setTaxError('')
+      setTaxLookupHint('')
+    }
   }
 
   const validateCurrentBusinessFields = () => {
@@ -194,7 +253,49 @@ export function SupplierRegistrationBusinessInfoPage() {
     return nextErrors
   }
 
-  const validateBusinessStep = () => {
+  const ensureTaxCodeValid = async () => {
+    const normalizedTax = form.taxCode.replace(/\D/g, '')
+    if (!requiresTaxCode || !normalizedTax) return true
+    if (normalizedTax.length !== 10) {
+      setTaxError('Mã số thuế phải đúng 10 chữ số.')
+      return false
+    }
+
+    setCheckingTaxCode(true)
+    setTaxLookupHint('')
+    try {
+      const result = await checkRegistrationAvailability({ role: currentRole, taxCode: normalizedTax })
+      if (result.taxCodeTaken) {
+        setTaxError('MST đã tồn tại trong hệ thống.')
+        return false
+      }
+
+      setTaxError('')
+      const lookup = await lookupCompanyByTaxCode(normalizedTax)
+      if (lookup.found) {
+        const derived = deriveWardProvince(lookup.address ?? '')
+        setForm((prev) => ({
+          ...prev,
+          companyName: lookup.companyName ?? prev.companyName,
+          province: lookup.province ?? (derived.province || prev.province),
+          ward: lookup.ward ?? (derived.ward || prev.ward || ''),
+          address: lookup.address ?? prev.address,
+        }))
+        setTaxLookupHint('Đã tự điền thông tin công ty theo MST.')
+      } else {
+        setTaxLookupHint('Không tự động tìm thấy thông tin MST. Vui lòng nhập tay thông tin doanh nghiệp.')
+      }
+
+      return true
+    } catch {
+      setTaxLookupHint('Không thể tự động kiểm tra MST lúc này. Vui lòng nhập tay thông tin doanh nghiệp.')
+      return true
+    } finally {
+      setCheckingTaxCode(false)
+    }
+  }
+
+  const validateBusinessStep = async () => {
     const nextErrors = validateCurrentBusinessFields()
     if (Object.values(nextErrors).some(Boolean)) {
       setError('Vui long kiem tra lai cac truong bat buoc.')
@@ -207,8 +308,16 @@ export function SupplierRegistrationBusinessInfoPage() {
       return false
     }
 
+    if (requiresTaxCode) {
+      const isTaxValid = await ensureTaxCodeValid()
+      if (!isTaxValid) {
+        setError('Vui lòng kiểm tra mã số thuế trước khi tiếp tục.')
+        return false
+      }
+    }
+
     if (taxError) {
-      setError('Vui lòng xử lý các lỗi kiểm tra trùng trước khi tiếp tục.')
+      setError('Vui lòng kiểm tra mã số thuế trước khi tiếp tục.')
       return false
     }
 
@@ -216,9 +325,22 @@ export function SupplierRegistrationBusinessInfoPage() {
     return true
   }
 
-  const handleContinue = () => {
-    if (!validateBusinessStep()) {
+  const handleContinue = async () => {
+    if (!(await validateBusinessStep())) {
       return
+    }
+
+    if (logoFile) {
+      try {
+        setUploadingLogo(true)
+        const uploaded = await uploadRegistrationFile(logoFile)
+        setForm((prev) => ({ ...prev, logoUrl: uploaded.url }))
+      } catch {
+        setError('Upload logo thất bại. Vui lòng thử lại.')
+        return
+      } finally {
+        setUploadingLogo(false)
+      }
     }
 
     sessionStorage.setItem(
@@ -247,32 +369,40 @@ export function SupplierRegistrationBusinessInfoPage() {
           return
         }
 
-        const result = await checkRegistrationAvailability({ role: currentRole, taxCode: normalizedTax })
-        setTaxError(result.taxCodeTaken ? 'MST đã tồn tại trong hệ thống.' : '')
+        setCheckingTaxCode(true)
+        setTaxLookupHint('')
 
-        if (!result.taxCodeTaken && normalizedTax.length === 10) {
-          const lookup = await lookupCompanyByTaxCode(normalizedTax)
-          if (lookup.found) {
-            setForm((prev) => ({
-              ...prev,
-              companyName: lookup.companyName ?? prev.companyName,
-              province: lookup.province ?? prev.province,
-              ward: lookup.ward ?? prev.ward ?? '',
-              address: lookup.address ?? prev.address,
-            }))
-            setTaxLookupHint('Đã tự điền thông tin công ty theo MST.')
-          } else {
-            setTaxLookupHint('Không tìm thấy hồ sơ MST, bạn nhập tay thông tin doanh nghiệp.')
-          }
+        const result = await checkRegistrationAvailability({ role: currentRole, taxCode: normalizedTax })
+        if (result.taxCodeTaken) {
+          setTaxError('MST đã tồn tại trong hệ thống.')
+          return
+        }
+
+        setTaxError('')
+
+        const lookup = await lookupCompanyByTaxCode(normalizedTax)
+        if (lookup.found) {
+          const derived = deriveWardProvince(lookup.address ?? '')
+          setForm((prev) => ({
+            ...prev,
+            companyName: lookup.companyName ?? prev.companyName,
+            province: lookup.province ?? (derived.province || prev.province),
+            ward: lookup.ward ?? (derived.ward || prev.ward || ''),
+            address: lookup.address ?? prev.address,
+          }))
+          setTaxLookupHint('Đã tự điền thông tin công ty theo MST.')
+        } else {
+          setTaxLookupHint('Không tự động tìm thấy thông tin MST. Vui lòng nhập tay thông tin doanh nghiệp.')
         }
       }
-
     } catch {
-      // Keep UX non-blocking if realtime check endpoint is temporarily unavailable.
+      setTaxLookupHint('Không thể tự động kiểm tra MST lúc này. Vui lòng nhập tay thông tin doanh nghiệp.')
+    } finally {
+      setCheckingTaxCode(false)
     }
   }
 
-  const handleLogoUpload = async (file?: File) => {
+  const handleLogoSelect = (file?: File) => {
     if (!file) return
     if (!file.type.startsWith('image/')) {
       setError('Logo phải là file ảnh.')
@@ -283,16 +413,22 @@ export function SupplierRegistrationBusinessInfoPage() {
       return
     }
 
-    try {
-      setUploadingLogo(true)
-      setError('')
-      const uploaded = await uploadRegistrationFile(file)
-      setForm((prev) => ({ ...prev, logoUrl: uploaded.url }))
-    } catch {
-      setError('Upload logo thất bại. Vui lòng thử lại.')
-    } finally {
-      setUploadingLogo(false)
+    if (logoPreviewUrl) {
+      URL.revokeObjectURL(logoPreviewUrl)
     }
+
+    setError('')
+    setLogoFile(file)
+    setLogoPreviewUrl(URL.createObjectURL(file))
+  }
+
+  const handleLogoRemove = () => {
+    if (logoPreviewUrl) {
+      URL.revokeObjectURL(logoPreviewUrl)
+    }
+    setLogoFile(null)
+    setLogoPreviewUrl('')
+    setForm((prev) => ({ ...prev, logoUrl: '' }))
   }
 
   return (
@@ -391,6 +527,7 @@ export function SupplierRegistrationBusinessInfoPage() {
                   }}
                 />
                 {fieldErrors.taxCode ? <p className="mt-1 text-xs font-semibold text-[#DC2626]">{fieldErrors.taxCode}</p> : null}
+                {checkingTaxCode ? <p className="mt-1 text-xs text-[#667085]">Đang kiểm tra thông tin mã số thuế...</p> : null}
                 {taxError ? <p className="mt-1 text-xs font-semibold text-[#DC2626]">{taxError}</p> : null}
                 {!taxError && taxLookupHint ? <p className="mt-1 text-xs font-semibold text-[#2F8F3A]">{taxLookupHint}</p> : null}
               </div>
@@ -419,8 +556,10 @@ export function SupplierRegistrationBusinessInfoPage() {
             <div className="mt-2 grid gap-3 md:grid-cols-2">
               <div>
                 <label className={labelClass}>Thành phố / Tỉnh *</label>
-                <select
-                  className={`${inputClass} appearance-none`}
+                <input
+                  className={inputClass}
+                  placeholder="Chọn hoặc gõ tên tỉnh/thành"
+                  list="province-options"
                   value={form.province}
                   onChange={(event) => handleChange('province', event.target.value)}
                   onBlur={() =>
@@ -429,14 +568,12 @@ export function SupplierRegistrationBusinessInfoPage() {
                       province: validateBusinessField('province', form.province, requiresTaxCode),
                     }))
                   }
-                >
-                  <option value="">Chọn tỉnh/thành</option>
+                />
+                <datalist id="province-options">
                   {provinceOptions.map((item) => (
-                    <option key={item.code} value={item.name}>
-                      {item.name}
-                    </option>
+                    <option key={item.code} value={item.name} />
                   ))}
-                </select>
+                </datalist>
                 {fieldErrors.province ? <p className="mt-1 text-xs font-semibold text-[#DC2626]">{fieldErrors.province}</p> : null}
                 {loadingAddressOptions ? <p className="mt-1 text-xs text-[#667085]">Dang tai danh sach tinh/thanh...</p> : null}
                 {!loadingAddressOptions && addressLoadError ? <p className="mt-1 text-xs text-[#667085]">{addressLoadError}</p> : null}
@@ -444,8 +581,10 @@ export function SupplierRegistrationBusinessInfoPage() {
 
               <div>
                 <label className={labelClass}>Xã / Phường *</label>
-                <select
-                  className={`${inputClass} appearance-none`}
+                <input
+                  className={inputClass}
+                  placeholder="Chọn hoặc gõ tên xã/phường"
+                  list="ward-options"
                   value={form.ward}
                   disabled={!form.province}
                   onChange={(event) => handleChange('ward', event.target.value)}
@@ -455,14 +594,12 @@ export function SupplierRegistrationBusinessInfoPage() {
                       ward: validateBusinessField('ward', form.ward, requiresTaxCode),
                     }))
                   }
-                >
-                  <option value="">Chọn xã/phường</option>
+                />
+                <datalist id="ward-options">
                   {wardOptions.map((ward) => (
-                    <option key={ward} value={ward}>
-                      {ward}
-                    </option>
+                    <option key={ward} value={ward} />
                   ))}
-                </select>
+                </datalist>
                 {fieldErrors.ward ? (
                   <p className="mt-1 text-xs font-semibold text-[#DC2626]">{fieldErrors.ward}</p>
                 ) : null}
@@ -474,6 +611,7 @@ export function SupplierRegistrationBusinessInfoPage() {
               <input
                 className={inputClass}
                 placeholder="Tên đường, số nhà, tòa nhà, phòng"
+                list="address-suggestions"
                 value={form.address}
                 onChange={(event) => handleChange('address', event.target.value)}
                 onBlur={() =>
@@ -483,6 +621,11 @@ export function SupplierRegistrationBusinessInfoPage() {
                   }))
                 }
               />
+              <datalist id="address-suggestions">
+                {ADDRESS_SUGGESTIONS.map((item) => (
+                  <option key={item} value={item} />
+                ))}
+              </datalist>
               {fieldErrors.address ? <p className="mt-1 text-xs font-semibold text-[#DC2626]">{fieldErrors.address}</p> : null}
             </div>
 
@@ -503,15 +646,34 @@ export function SupplierRegistrationBusinessInfoPage() {
 
             <div className="mt-3">
               <label className={labelClass}>Logo doanh nghiệp</label>
-              <label className="flex h-10 cursor-pointer items-center justify-center rounded-lg border border-dashed border-[#D9E1EA] bg-[#F8FAFC] px-3 text-[12px] font-semibold text-[#475467]">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(event) => handleLogoUpload(event.target.files?.[0])}
-                />
-                {uploadingLogo ? 'Đang upload logo...' : 'Chọn file logo'}
-              </label>
+              {logoPreviewUrl || form.logoUrl ? (
+                <div className="relative mb-2 overflow-hidden rounded-lg border border-[#E6ECF2] bg-white">
+                  <img
+                    src={logoPreviewUrl || form.logoUrl}
+                    alt="Logo doanh nghiệp"
+                    className="h-28 w-full object-contain"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleLogoRemove}
+                    className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-[#DC2626] shadow-sm transition hover:bg-white"
+                    aria-label="Xóa logo"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                <label className="flex h-10 cursor-pointer items-center justify-center rounded-lg border border-dashed border-[#D9E1EA] bg-[#F8FAFC] px-3 text-[12px] font-semibold text-[#475467]">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => handleLogoSelect(event.target.files?.[0])}
+                  />
+                  {uploadingLogo ? 'Đang upload logo...' : 'Chọn file logo'}
+                </label>
+              </div>
               {form.logoUrl ? <p className="mt-1 text-xs text-[#2F8F3A]">Đã upload logo.</p> : null}
             </div>
           </div>
@@ -525,7 +687,8 @@ export function SupplierRegistrationBusinessInfoPage() {
             <button
               type="button"
               onClick={handleContinue}
-              className="inline-flex min-w-40 items-center justify-center gap-2 rounded-lg bg-[#2F8F3A] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#277A31]"
+              disabled={checkingTaxCode}
+              className="inline-flex min-w-40 items-center justify-center gap-2 rounded-lg bg-[#2F8F3A] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#277A31] disabled:cursor-not-allowed disabled:opacity-60"
             >
               Lưu và tiếp tục
             </button>

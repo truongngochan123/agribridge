@@ -39,6 +39,7 @@ function formatDate(value?: string | null) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN')
 }
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function BuyerDebtPage() {
   const { showToast } = useToast()
@@ -188,6 +189,7 @@ export function BuyerDebtPage() {
     { key: 'NORMAL', label: 'Bình thường', count: overview.suppliers.filter((s) => s.status === 'NORMAL').length },
   ]
 
+  usePageTitle('Quản lý Công nợ')
   return (
     <>
       <BuyerShell

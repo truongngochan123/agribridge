@@ -1,8 +1,10 @@
-﻿import { Ban, LifeBuoy, RotateCcw } from 'lucide-react'
+import { Ban, LifeBuoy, RotateCcw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { clearAuthSession, getStoredAuthSession } from '../../services/authSession'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function VerificationRejectedPage() {
+  usePageTitle('Hồ sơ bị từ chối')
   const navigate = useNavigate()
   const payload = getStoredAuthSession()
   const verificationNote = payload?.verificationNote?.trim() || 'Admin chua de lai ly do chi tiet.'

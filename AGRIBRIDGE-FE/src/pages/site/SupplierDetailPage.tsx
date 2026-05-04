@@ -2,8 +2,10 @@ import { ArrowLeft, Building2, MapPin, ShieldCheck, Star } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { supplierMetrics, supplierProducts, trustedSuppliers } from '../../data/site'
 import { PublicPageLayout } from '../../components/site/PublicPageLayout'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function SupplierDetailPage() {
+  usePageTitle('Chi tiết nhà cung cấp')
   const { supplierId } = useParams<{ supplierId: string }>()
   const supplier = trustedSuppliers.find((item) => item.id === supplierId) ?? trustedSuppliers[0]
 

@@ -41,8 +41,10 @@ function sourceLabel(sourceType?: string) {
   if (sourceType === 'INTERNAL_TRANSACTION') return 'Giao dịch hoàn tất'
   return sourceType || 'N/A'
 }
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function BuyerMarketPricePage() {
+  usePageTitle('Giá thị trường')
   const { showToast } = useToast()
   const [rows, setRows] = useState<MarketPriceRow[]>([])
   const [filters, setFilters] = useState(emptyFilters)

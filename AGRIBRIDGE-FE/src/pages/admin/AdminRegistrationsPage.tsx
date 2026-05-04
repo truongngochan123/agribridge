@@ -1,6 +1,7 @@
-﻿import { AlertTriangle, Check, Eye, FileText, Mail, RotateCcw, Search, Send, X, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, Check, Eye, FileText, Mail, RotateCcw, Search, Send, X, type LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { AdminShell } from '../../components/admin/AdminShell'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   approveRegistrationProfile,
   fetchRegistrationProfiles,
@@ -89,6 +90,7 @@ function createInitialActionState(selected?: AdminRegistrationProfile | null): A
 }
 
 export function AdminRegistrationsPage() {
+  usePageTitle('Duyệt hồ sơ đăng ký')
   const [activeStatus, setActiveStatus] = useState<AdminRegistrationStatus>('PENDING')
   const [query, setQuery] = useState('')
   const [profiles, setProfiles] = useState<AdminRegistrationProfile[]>([])

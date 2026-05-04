@@ -5,12 +5,16 @@ import {
   LayoutGrid,
   LogOut,
   Users,
+  UserCircle2,
 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { NotificationDrawer } from '../site/NotificationDrawer'
 import { adminMenuItems } from '../../data/adminDashboardData'
 import type { AdminMenuKey } from '../../types/admin'
+import { useCurrentUserProfile } from '../../hooks/useCurrentUserProfile'
+import { clearAuthSession } from '../../services/authSession'
+import { clearCurrentUserProfileCache } from '../../services/currentUserService'
 
 type AdminShellProps = {
   activeKey: AdminMenuKey
@@ -25,10 +29,23 @@ const iconByKey = {
   users: Users,
   registrations: FileCheck2,
   disputes: AlertTriangle,
+  profile: UserCircle2,
 }
 
 export function AdminShell({ activeKey, title, subtitle, actions, children }: AdminShellProps) {
+  const navigate = useNavigate()
   const [openNotifications, setOpenNotifications] = useState(false)
+  const { profile } = useCurrentUserProfile()
+  const displayName = profile?.shortName ?? profile?.fullName ?? 'Quản trị viên'
+  const roleLabel = profile?.roleLabel ?? 'Quản trị viên'
+  const email = profile?.email ?? 'admin@agribridge.vn'
+  const initials = profile?.initials ?? 'AD'
+
+  const handleLogout = () => {
+    clearAuthSession()
+    clearCurrentUserProfileCache()
+    navigate('/admin/login', { replace: true })
+  }
 
   return (
     <div className="h-screen overflow-hidden bg-slate-100 text-slate-900">
@@ -70,10 +87,26 @@ export function AdminShell({ activeKey, title, subtitle, actions, children }: Ad
           </nav>
 
           <div className="mt-auto border-t border-slate-200 px-4 py-4">
-            <button className="inline-flex items-center gap-2 text-xs font-semibold text-red-500 hover:text-red-600">
-              <LogOut className="h-4 w-4" />
-              Đăng xuất
-            </button>
+            <div className="rounded-xl bg-slate-50 px-3 py-3">
+              <Link to="/admin/profile" className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-white">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
+                  {initials}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-slate-900">{displayName}</p>
+                  <p className="truncate text-xs text-slate-500">{roleLabel}</p>
+                </div>
+              </Link>
+              <p className="mt-2 truncate text-xs text-slate-500">{email}</p>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-red-500 hover:text-red-600"
+              >
+                <LogOut className="h-4 w-4" />
+                Đăng xuất
+              </button>
+            </div>
           </div>
         </aside>
 
@@ -95,15 +128,15 @@ export function AdminShell({ activeKey, title, subtitle, actions, children }: Ad
                   <span className="absolute -right-1 -top-1 inline-flex h-3.5 w-3.5 rounded-full bg-red-500" />
                 </button>
 
-                <div className="flex items-center gap-2 rounded-full px-1.5 py-1">
+                <Link to="/admin/profile" className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-1.5 py-1">
                   <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
-                    AD
+                    {initials}
                   </span>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">Admin</p>
-                    <p className="text-xs text-slate-500">admin@agribridge.vn</p>
+                  <div className="pr-1 text-left">
+                    <p className="text-xs font-bold text-slate-900">{displayName}</p>
+                    <p className="text-xs text-slate-500">{email}</p>
                   </div>
-                </div>
+                </Link>
               </div>
             </div>
             {actions ? <div className="mt-3">{actions}</div> : null}

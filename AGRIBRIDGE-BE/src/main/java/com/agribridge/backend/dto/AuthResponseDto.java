@@ -18,9 +18,11 @@ public class AuthResponseDto {
     private String userStatus;
     private String verificationStatus;
     private String verificationNote;
+    private Integer verificationScore;
     private String trustLevel;
     private BigDecimal creditLimit;
     private boolean canUseCredit;
     private String accessToken;
     private Instant tokenExpiresAt;
 }
+

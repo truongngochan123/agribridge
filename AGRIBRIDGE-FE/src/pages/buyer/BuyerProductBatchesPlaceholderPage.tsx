@@ -18,6 +18,7 @@ import { BuyerQuickOrderModal } from '../../components/buyer/BuyerQuickOrderModa
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import type { BuyerQuickOrderPayload, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
 import { useToast } from '../../hooks/useToast'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import { createQuickOrder } from '../../services/buyerOrderService'
 import {
   createBuyerSourcingRfq,
@@ -221,6 +222,7 @@ function toQuickOrderTarget(product: BuyerSourcingProductDetail, batch: BuyerBat
 }
 
 export function BuyerProductBatchesPage() {
+  usePageTitle('Lô sản phẩm')
   const { productId } = useParams<{ productId: string }>()
   const navigate = useNavigate()
   const { showToast } = useToast()

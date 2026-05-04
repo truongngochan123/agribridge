@@ -2,6 +2,7 @@ import { Eye, Flag, HandHeart, ShieldCheck, ShoppingCart, Store, Truck } from 'l
 import { Link } from 'react-router-dom'
 import { aboutLeadership } from '../../data/site'
 import { Header } from '../../components/Header'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 const highlights = [
   { icon: Store, value: '2,500+', label: 'Nhà cung cấp' },
@@ -18,6 +19,7 @@ const coreValues = [
 ]
 
 export function AboutPage() {
+  usePageTitle('Về AgriBridge')
   return (
     <div className="min-h-screen bg-[#F3F5F7] text-[#0F172A]">
       <Header variant="site" />

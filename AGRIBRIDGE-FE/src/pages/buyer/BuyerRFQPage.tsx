@@ -3,6 +3,7 @@ import { AlertTriangle } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { BuyerPanel, SearchInput } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   cancelBuyerRfq,
   convertQuoteToOrder,
@@ -53,6 +54,7 @@ const emptyForm: RfqFormState = {
 }
 
 export function BuyerRFQPage() {
+  usePageTitle('Yêu cầu báo giá')
   const [searchParams] = useSearchParams()
   const [rfqs, setRfqs] = useState<BuyerRfqListItem[]>([])
   const [keyword, setKeyword] = useState('')

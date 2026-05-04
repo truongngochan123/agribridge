@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { FilterTabBar, SearchInput, SupplierPanel } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useSupplierDashboardData } from './useSupplierDashboardData'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 type DebtTabKey = 'all' | 'overdue' | 'warning'
 
@@ -19,6 +20,7 @@ function DebtStatusBadge({ status }: { status: string }) {
 }
 
 export function SupplierDebtPage() {
+  usePageTitle('Quản lý Công nợ')
   const { data, loading, error } = useSupplierDashboardData()
   const customers = data?.debtCustomers ?? []
   const [searchKeyword, setSearchKeyword] = useState('')

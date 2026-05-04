@@ -21,6 +21,7 @@ import { useNavigate } from 'react-router-dom'
 import { BatchFormFields, EMPTY_BATCH_FORM, type BatchFormState } from '../../components/supplier/BatchFormFields'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useToast } from '../../hooks/useToast'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   createBatchForExistingProduct,
   createProductOnly,
@@ -233,6 +234,7 @@ function toAbsoluteUploadedUrl(url?: string | null): string | undefined {
 }
 
 export function SupplierProductListPage() {
+  usePageTitle('Danh sách sản phẩm')
   const navigate = useNavigate()
   const { showToast, showConfirm } = useToast()
 

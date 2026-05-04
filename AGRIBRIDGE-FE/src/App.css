@@ -182,3 +182,14 @@
     border-right-color: var(--border);
   }
 }
+
+.admin-login-grid-overlay {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  background-image:
+    linear-gradient(#22c55e 1px, transparent 1px),
+    linear-gradient(90deg, #22c55e 1px, transparent 1px);
+  background-size: 48px 48px;
+}

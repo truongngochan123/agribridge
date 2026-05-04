@@ -2,6 +2,7 @@ import { AlertTriangle, Download, TrendingUp } from 'lucide-react'
 import { SupplierPanel, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useSupplierDashboardData } from './useSupplierDashboardData'
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 function formatCompactCurrency(value: number) {
   if (value >= 1_000_000_000) {
@@ -22,6 +23,7 @@ export const CARD_ACCENTS = [
 ]
 
 export function SupplierOverviewPage() {
+  usePageTitle('Tổng quan')
   const { data, loading, error } = useSupplierDashboardData()
   const cards = data?.overviewCards ?? []
   const revenues = data?.monthlyRevenue ?? []

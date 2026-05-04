@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { SearchInput, SupplierPanel } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useToast } from '../../hooks/useToast'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import { updateSupplierShipmentStatus, type SupplierShipmentStatusCode } from '../../services/supplierService'
 import type { ShipmentItem } from '../../types/supplierDashboard'
 import { useSupplierDashboardData } from './useSupplierDashboardData'
@@ -413,6 +414,7 @@ function matchFilter(status: string, key: string) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export function SupplierDeliveryPage() {
+  usePageTitle('Theo dõi Giao hàng')
   const { data, loading, error, reload } = useSupplierDashboardData()
   const shipmentRows = data?.shipments ?? []
 

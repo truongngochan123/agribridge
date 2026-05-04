@@ -187,6 +187,7 @@ function DeliveryCard({
     </div>
   )
 }
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function BuyerDeliveryPage() {
   const { showToast } = useToast()
@@ -248,6 +249,7 @@ export function BuyerDeliveryPage() {
     await loadDeliveries()
   }
 
+  usePageTitle('Theo dõi Giao hàng')
   return (
     <>
       <BuyerShell

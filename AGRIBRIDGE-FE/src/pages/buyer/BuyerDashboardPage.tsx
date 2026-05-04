@@ -49,8 +49,10 @@ function formatDate(value?: string | null) {
 function formatNumber(value?: number | null) {
   return new Intl.NumberFormat('vi-VN').format(Number(value ?? 0))
 }
+import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function BuyerDashboardPage() {
+  usePageTitle('Tổng quan')
   const [dashboard, setDashboard] = useState<BuyerDashboardPayload>(emptyDashboard)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')

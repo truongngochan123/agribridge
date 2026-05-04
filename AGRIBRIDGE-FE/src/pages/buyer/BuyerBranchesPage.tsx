@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BuyerPanel } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import { useToast } from '../../hooks/useToast'
 import {
   createBuyerBranch,
@@ -192,6 +193,7 @@ export function BuyerBranchesPage() {
     }
   }
 
+  usePageTitle('Quản lý Chi nhánh')
   return (
     <>
       <BuyerShell

@@ -5,6 +5,7 @@ import { BuyerPanel, BuyerStatusPill, FilterTabBar, SearchInput } from '../../co
 import { AlertTriangle } from 'lucide-react'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import { useToast } from '../../hooks/useToast'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   confirmBuyerOrderReceived,
   createBuyerOrderComplaint,
@@ -26,6 +27,7 @@ function formatDate(value?: string | null) {
 }
 
 export function BuyerOrdersPage() {
+  usePageTitle('Đơn hàng')
   const { showToast } = useToast()
   const [searchParams] = useSearchParams()
   const [orders, setOrders] = useState<BuyerOrder[]>([])
