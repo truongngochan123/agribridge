@@ -5,7 +5,6 @@ import com.agribridge.backend.service.SupplierDashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -16,7 +15,7 @@ public class SupplierDashboardController {
     private final SupplierDashboardService supplierDashboardService;
 
     @GetMapping
-    public SupplierDashboardResponseDto getDashboard(@RequestParam(required = false) Long companyId) {
-        return supplierDashboardService.getDashboard(companyId);
+    public SupplierDashboardResponseDto getDashboard() {
+        return supplierDashboardService.getDashboard();
     }
 }

@@ -2,28 +2,24 @@ package com.agribridge.backend.controller;
 
 import com.agribridge.backend.dto.UploadedFileResponseDto;
 import com.agribridge.backend.service.FileUploadService;
-import com.agribridge.backend.service.impl.LocalUploadStorageService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.Resource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/uploads")
 @RequiredArgsConstructor
 public class FileUploadController {
 
     private final FileUploadService fileUploadService;
-    private final LocalUploadStorageService localUploadStorageService;
 
     @PostMapping("/registration-file")
     public UploadedFileResponseDto uploadRegistrationFile(
@@ -31,6 +27,13 @@ public class FileUploadController {
             @RequestParam(value = "document", required = false) MultipartFile document,
             @RequestParam(value = "video", required = false) MultipartFile video,
             MultipartHttpServletRequest request) {
+        log.info("Upload registration request: contentType={} fileMapSize={} filePresent={} documentPresent={} videoPresent={}",
+            request.getContentType(),
+            request.getFileMap() == null ? 0 : request.getFileMap().size(),
+            file != null && !file.isEmpty(),
+            document != null && !document.isEmpty(),
+            video != null && !video.isEmpty());
+
         return fileUploadService.uploadRegistrationFile(resolveUploadedFile(request, file, document, video));
     }
 
@@ -39,6 +42,12 @@ public class FileUploadController {
             @RequestParam(value = "file", required = false) MultipartFile file,
             @RequestParam(value = "document", required = false) MultipartFile document,
             MultipartHttpServletRequest request) {
+        log.info("Upload supplier-document request: contentType={} fileMapSize={} filePresent={} documentPresent={}",
+            request.getContentType(),
+            request.getFileMap() == null ? 0 : request.getFileMap().size(),
+            file != null && !file.isEmpty(),
+            document != null && !document.isEmpty());
+
         return fileUploadService.uploadSupplierDocument(resolveUploadedFile(request, file, document));
     }
 
@@ -48,17 +57,14 @@ public class FileUploadController {
             @RequestParam(value = "video", required = false) MultipartFile video,
             @RequestParam(value = "document", required = false) MultipartFile document,
             MultipartHttpServletRequest request) {
-        return fileUploadService.uploadBatchVideo(resolveUploadedFile(request, file, video, document));
-    }
+        log.info("Upload batch-video request: contentType={} fileMapSize={} filePresent={} videoPresent={} documentPresent={}",
+            request.getContentType(),
+            request.getFileMap() == null ? 0 : request.getFileMap().size(),
+            file != null && !file.isEmpty(),
+            video != null && !video.isEmpty(),
+            document != null && !document.isEmpty());
 
-    @GetMapping("/local/{fileName:.+}")
-    public ResponseEntity<Resource> viewLocalUpload(@PathVariable("fileName") String fileName) {
-        Resource resource = localUploadStorageService.loadAsResource(fileName);
-        String contentType = localUploadStorageService.probeContentType(fileName);
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(contentType))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
-                .body(resource);
+        return fileUploadService.uploadBatchVideo(resolveUploadedFile(request, file, video, document));
     }
 
     private MultipartFile resolveUploadedFile(MultipartHttpServletRequest request, MultipartFile... candidates) {
@@ -76,6 +82,6 @@ public class FileUploadController {
             }
         }
 
-        throw new IllegalArgumentException("File upload is required");
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "UPLOAD_FILE_REQUIRED");
     }
 }

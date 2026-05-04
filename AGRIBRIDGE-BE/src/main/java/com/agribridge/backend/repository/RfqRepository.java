@@ -21,6 +21,12 @@ public interface RfqRepository extends JpaRepository<RfqEntity, Long> {
 
         Optional<RfqEntity> findByIdAndBuyerCompanyId(Long id, Long buyerCompanyId);
 
+        List<RfqEntity> findTop5ByBuyerCompanyIdAndBranchIdOrderByCreatedAtDesc(Long buyerCompanyId, Long branchId);
+
+        boolean existsByBranchId(Long branchId);
+
+        long countByBuyerCompanyIdAndBranchIdAndStatus(Long buyerCompanyId, Long branchId, RfqStatusEnum status);
+
         @Query("""
                         SELECT r
                         FROM RfqEntity r

@@ -548,7 +548,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
             case WAITING_CONFIRMATION -> "Chờ buyer xác nhận";
             case DELIVERED -> "Đã giao thành công";
             case CANCELLED -> "Đã hủy giao hàng";
-            case FAILED -> "Giao thất bại";
+            case INCIDENT, FAILED -> "Giao thất bại";
             case PREPARING -> "Chờ lấy hàng";
             case SHIPPING -> "Đang vận chuyển";
         };

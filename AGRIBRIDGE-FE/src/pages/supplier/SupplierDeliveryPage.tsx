@@ -1,6 +1,6 @@
 import { AlertTriangle, CheckCircle2, Clock, Package, PhoneCall, Truck, X } from 'lucide-react'
 import { useState } from 'react'
-import { SupplierPanel } from '../../components/supplier/SupplierCommon'
+import { SearchInput, SupplierPanel } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useToast } from '../../hooks/useToast'
 import { usePageTitle } from '../../hooks/usePageTitle'
@@ -421,7 +421,19 @@ export function SupplierDeliveryPage() {
   const [activeFilter, setActiveFilter] = useState('all')
   const [activeShipmentId, setActiveShipmentId] = useState<string | null>(null)
 
-  const filtered = shipmentRows.filter((s) => matchFilter(s.status, activeFilter))
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const filtered = shipmentRows
+    .filter((s) => matchFilter(s.status, activeFilter))
+    .filter((s) => {
+      if (!searchKeyword.trim()) return true
+      const kw = searchKeyword.trim().toLowerCase()
+      return (
+        s.id.toLowerCase().includes(kw) ||
+        s.route.toLowerCase().includes(kw) ||
+        s.cargo.toLowerCase().includes(kw) ||
+        (s.driver ?? '').toLowerCase().includes(kw)
+      )
+    })
   const activeShipment = shipmentRows.find((s) => s.id === activeShipmentId) ?? null
 
   const tabCount = (key: string) => {
@@ -435,34 +447,34 @@ export function SupplierDeliveryPage() {
         activeKey="delivery"
         title="Quản lý Giao hàng"
         subtitle="Theo dõi vận chuyển và cập nhật trạng thái giao hàng"
-        actions={
+        filterBar={
           <div className="flex flex-wrap items-center gap-2">
-            {FILTER_TABS.map((tab) => {
-              const count = tabCount(tab.key)
-              const isActive = activeFilter === tab.key
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveFilter(tab.key)}
-                  className={`rounded-xl px-3 py-1.5 text-xs font-bold transition active:scale-95 ${
-                    isActive
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700'
-                  }`}
-                >
-                  {tab.label}
-                  {count > 0 && (
-                    <span
-                      className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${
-                        isActive ? 'bg-white/30 text-white' : 'bg-emerald-100 text-emerald-700'
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
+            <SearchInput
+              value={searchKeyword}
+              onChange={setSearchKeyword}
+              placeholder="Tìm shipment, route, hàng hóa..."
+              className="min-w-[220px] max-w-xs"
+            />
+            <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+              {FILTER_TABS.map((tab) => {
+                const count = tabCount(tab.key)
+                const isActive = activeFilter === tab.key
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveFilter(tab.key)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
+                      isActive ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {tab.label}
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${
+                      isActive ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-700'
+                    }`}>{count}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         }
       >

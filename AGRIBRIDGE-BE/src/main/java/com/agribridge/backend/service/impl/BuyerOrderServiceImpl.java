@@ -109,9 +109,14 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .orElseThrow(() -> new IllegalArgumentException("Buyer company not found"));
         CompanyEntity supplier = companyRepository.findById(request.supplierId())
                 .orElseThrow(() -> new IllegalArgumentException("Supplier company not found"));
+        if (request.branchId() != null) {
+            BranchEntity branch = branchRepository.findByIdAndCompanyId(request.branchId(), buyer.getId())
+                    .filter(item -> Boolean.TRUE.equals(item.getIsActive()))
+                    .orElseThrow(() -> new IllegalArgumentException("Branch is inactive or does not belong to this buyer"));
+        }
         ProductEntity product = productRepository.findById(request.productId())
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
-        BatchEntity batch = batchRepository.findById(request.batchId())
+        BatchEntity batch = batchRepository.findByIdForUpdate(request.batchId())
                 .orElseThrow(() -> new IllegalArgumentException("Batch not found"));
 
         if (!Objects.equals(product.getSupplierCompanyId(), supplier.getId())) {
@@ -142,6 +147,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         OrderEntity order = orderRepository.save(OrderEntity.builder()
                 .buyerCompanyId(buyer.getId())
                 .supplierCompanyId(supplier.getId())
+                .branchId(request.branchId())
                 .status(OrderStatusEnum.PENDING)
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
@@ -168,8 +174,13 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .price(request.unitPrice())
                 .subtotal(subtotal)
                 .build());
-        // Do not decrement real stock yet. Stock should be reserved or deducted when the
-        // supplier confirms the order, depending on the final fulfillment policy.
+        BigDecimal remainingQuantity = batch.getQuantity().subtract(request.quantity());
+        batch.setQuantity(remainingQuantity);
+        if (remainingQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+            batch.setQuantity(BigDecimal.ZERO);
+            batch.setStatus(BatchStatusEnum.SOLD_OUT);
+        }
+        batchRepository.save(batch);
 
         InvoiceEntity invoice = invoiceRepository.save(InvoiceEntity.builder()
                 .orderId(order.getId())

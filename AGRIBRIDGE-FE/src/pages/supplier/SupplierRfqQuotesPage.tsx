@@ -8,7 +8,7 @@ import {
   type SupplierQuoteContext,
 } from '../../services/supplierService'
 import { createRfqChatClient, fetchRfqMessages, sendRfqMessage } from '../../services/rfqChatService'
-import { SupplierPanel, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
+import { SearchInput, FilterTabBar, SupplierPanel, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useSupplierDashboardData } from './useSupplierDashboardData'
 import { useToast } from '../../hooks/useToast'
@@ -137,6 +137,7 @@ export function SupplierRfqQuotesPage() {
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const [chatConnected, setChatConnected] = useState(false)
+  const [searchKeyword, setSearchKeyword] = useState('')
   const chatClientRef = useRef<Client | null>(null)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
 
@@ -148,19 +149,24 @@ export function SupplierRfqQuotesPage() {
   }
 
   const filteredRfqItems = useMemo(() => {
+    let items = rfqItems
     switch (activeTab) {
-      case 'pending':
-        return rfqItems.filter((item) => item.status === 'Chờ báo giá')
-      case 'quoted':
-        return rfqItems.filter((item) => item.status === 'Đã báo giá')
-      case 'accepted':
-        return rfqItems.filter((item) => item.status === 'Chấp nhận')
-      case 'rejected':
-        return rfqItems.filter((item) => item.status === 'Từ chối')
-      default:
-        return rfqItems
+      case 'pending': items = rfqItems.filter((item) => item.status === 'Chờ báo giá'); break
+      case 'quoted': items = rfqItems.filter((item) => item.status === 'Đã báo giá'); break
+      case 'accepted': items = rfqItems.filter((item) => item.status === 'Chấp nhận'); break
+      case 'rejected': items = rfqItems.filter((item) => item.status === 'Từ chối'); break
+      default: break
     }
-  }, [activeTab, rfqItems])
+    if (searchKeyword.trim()) {
+      const kw = searchKeyword.trim().toLowerCase()
+      items = items.filter((item) =>
+        item.id.toLowerCase().includes(kw) ||
+        item.customer.toLowerCase().includes(kw) ||
+        item.product.toLowerCase().includes(kw)
+      )
+    }
+    return items
+  }, [activeTab, rfqItems, searchKeyword])
 
   const activeRfq = filteredRfqItems.find((item) => item.id === activeRfqId)
     ?? rfqItems.find((item) => item.id === activeRfqId)
@@ -481,135 +487,118 @@ export function SupplierRfqQuotesPage() {
         activeKey="rfq"
         title="RFQ & Báo giá"
         subtitle="Tiếp nhận và xử lý yêu cầu báo giá từ khách hàng"
+        filterBar={
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput
+              value={searchKeyword}
+              onChange={setSearchKeyword}
+              placeholder="Tìm RFQ, khách hàng, sản phẩm..."
+              className="min-w-[200px] max-w-xs"
+            />
+            <FilterTabBar tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
+          </div>
+        }
       >
-        <div className="grid gap-3 md:grid-cols-4">
-          {[
-            { value: String(statusCount.pending), label: 'Chờ báo giá' },
-            { value: String(statusCount.quoted), label: 'Đã báo giá' },
-            { value: String(statusCount.accepted), label: 'Chấp nhận' },
-            { value: String(statusCount.rejected), label: 'Từ chối' },
-          ].map((item) => (
-            <article key={item.label} className="rounded-2xl border border-emerald-200 bg-white p-3">
-              <p className="text-[30px] font-extrabold text-emerald-950">{item.value}</p>
-              <SupplierStatusPill label={item.label} />
-            </article>
-          ))}
-        </div>
 
         <SupplierPanel>
-          {loading ? <p className="mb-3 text-sm font-semibold text-emerald-700">Đang tải dữ liệu realtime...</p> : null}
-          {error ? <p className="mb-3 text-sm font-semibold text-red-600">{error}</p> : null}
-          {!loading && !error && rfqItems.length === 0 ? (
-            <p className="mb-3 text-sm font-semibold text-slate-600">Chưa có dữ liệu RFQ & báo giá cho tài khoản này.</p>
-          ) : null}
+          {loading && (
+            <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700">
+              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
+              Đang tải dữ liệu realtime...
+            </div>
+          )}
+          {error && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600">{error}</div>
+          )}
+          {!loading && !error && rfqItems.length === 0 && (
+            <p className="mb-4 text-sm font-medium text-slate-400">Chưa có dữ liệu RFQ & báo giá cho tài khoản này.</p>
+          )}
 
-          <div className="mb-3 flex items-center gap-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
-                  activeTab === tab.key ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-800'
-                }`}
-              >
-                {tab.label} ({tab.count})
-              </button>
-            ))}
-          </div>
-
-          <div className="space-y-4">
+          <div className="space-y-2">
             {!loading && !error && rfqItems.length > 0 && filteredRfqItems.length === 0 ? (
-              <p className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-3 text-sm font-semibold text-emerald-800">
-                Không có RFQ nào trong nhóm này.
+              <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-500">
+                Không có RFQ nào khớp với bộ lọc hiện tại.
               </p>
             ) : null}
 
             {filteredRfqItems.map((rfq) => (
-              <article key={rfq.id} className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-xl font-extrabold text-emerald-950">{rfq.id}</h3>
-                    <p className="mt-0.5 text-xs text-emerald-800/80">{rfq.customer}</p>
+              <article key={rfq.id} className="group rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                {/* Card header */}
+                <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-extrabold text-emerald-900">{rfq.id}</h3>
+                    <span className="text-xs text-slate-400">{rfq.customer}</span>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-emerald-700">Hạn chót</p>
-                    <p className="text-xs font-bold text-emerald-900">{rfq.dueDate}</p>
-                  </div>
-                </div>
-
-                <div className="mt-3 grid gap-2 rounded-lg bg-white p-2.5 md:grid-cols-3">
-                  <div>
-                    <p className="text-xs text-emerald-700">Sản phẩm</p>
-                    <p className="font-semibold text-emerald-950">{rfq.product}</p>
-                    <p className="mt-1 text-xs text-slate-500">{rfq.category}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-emerald-700">Số lượng RFQ</p>
-                    <p className="font-semibold text-emerald-950">{rfq.quantity}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-emerald-700">Giá supplier đã báo</p>
-                    <p className="font-semibold text-emerald-700">{rfq.supplierQuotedPrice}/{rfq.unit}</p>
-                    <p className="mt-1 text-xs text-slate-500">{rfq.supplierQuotedQuantity}</p>
+                  <div className="flex items-center gap-2">
+                    <SupplierStatusPill label={quoteBadgeLabel(rfq)} />
+                    <div className="text-right">
+                      <p className="text-[10px] uppercase tracking-wide text-slate-400">Hạn chót</p>
+                      <p className="text-xs font-bold text-slate-700">{rfq.dueDate}</p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="mt-2 grid gap-2 rounded-lg bg-white p-2.5 md:grid-cols-3">
-                  <div>
-                    <p className="text-xs text-emerald-700">Ngày giao</p>
-                    <p className="font-semibold text-emerald-950">{rfq.deliveryDate}</p>
+                {/* Info grid — compact */}
+                <div className="grid divide-x divide-slate-100 px-3 py-2 sm:grid-cols-3">
+                  <div className="pb-1.5 sm:pb-0 sm:pr-3">
+                    <p className="text-[9px] uppercase tracking-wide text-slate-400">Sản phẩm</p>
+                    <p className="mt-0.5 text-xs font-semibold text-slate-800">{rfq.product}</p>
+                    <p className="text-[10px] text-slate-400">{rfq.category}</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-emerald-700">Nơi giao</p>
-                    <p className="font-semibold text-emerald-950">{rfq.province}</p>
+                  <div className="py-1.5 sm:py-0 sm:px-3">
+                    <p className="text-[9px] uppercase tracking-wide text-slate-400">Số lượng</p>
+                    <p className="mt-0.5 text-xs font-semibold text-slate-800">{rfq.quantity}</p>
+                    <p className="text-[10px] text-slate-400">{rfq.deliveryDate} · {rfq.province}</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-emerald-700">Số báo giá</p>
-                    <p className="font-semibold text-emerald-950">{rfq.quoteCount}</p>
+                  <div className="pt-1.5 sm:pt-0 sm:pl-3">
+                    <p className="text-[9px] uppercase tracking-wide text-slate-400">Giá đã báo</p>
+                    <p className="mt-0.5 text-xs font-semibold text-emerald-700">{rfq.supplierQuotedPrice}/{rfq.unit}</p>
+                    <p className="text-[10px] text-slate-400">{rfq.supplierQuotedQuantity} · {rfq.quoteCount} báo giá</p>
                   </div>
                 </div>
 
-                <div className="mt-2 rounded-lg bg-white p-2.5">
-                  <p className="text-xs text-emerald-700">Mô tả</p>
-                  <p className="text-sm text-slate-700">{rfq.description}</p>
-                </div>
+                {rfq.description ? (
+                  <div className="border-t border-slate-100 px-3 py-1.5">
+                    <p className="text-xs text-slate-500 line-clamp-1">{rfq.description}</p>
+                  </div>
+                ) : null}
 
-                <div className="mt-3 flex flex-wrap items-center gap-2">
+                {/* Actions */}
+                <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-3 py-2">
                   {canChangeQuote(rfq) ? (
-                  <button
-                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
-                    onClick={() => handleOpenQuote(rfq.id)}
-                  >
-                    {rfq.hasExistingQuote ? 'Sửa báo giá' : 'Tạo báo giá'}
-                  </button>
+                    <button
+                      className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition-all"
+                      onClick={() => handleOpenQuote(rfq.id)}
+                    >
+                      {rfq.hasExistingQuote ? 'Sửa báo giá' : 'Tạo báo giá'}
+                    </button>
                   ) : null}
                   {canChangeQuote(rfq) ? (
-                  <button
-                    className="rounded-lg border border-emerald-400 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={submitting}
-                    onClick={() => handleReject(rfq.id)}
-                  >
-                    {rfq.status === 'Từ chối' ? 'Đã từ chối' : rfq.hasExistingQuote ? 'Từ chối báo giá' : 'Từ chối'}
-                  </button>
+                    <button
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
+                      disabled={submitting}
+                      onClick={() => handleReject(rfq.id)}
+                    >
+                      {rfq.status === 'Từ chối' ? 'Đã từ chối' : rfq.hasExistingQuote ? 'Từ chối báo giá' : 'Từ chối'}
+                    </button>
                   ) : null}
                   <button
-                    className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
                     onClick={() => {
                       setActiveRfqId(rfq.id)
                       setOpenChat(true)
                     }}
                   >
-                    Chat
+                    💬 Chat
                   </button>
                   {(normalizeQuoteStatus(rfq) === 'ACCEPTED' || normalizeQuoteStatus(rfq) === 'APPROVED') && rfq.orderId ? (
                     <button
-                      className="rounded-lg border border-emerald-400 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
+                      className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
                       onClick={() => window.location.assign(`/supplier/orders?orderId=${rfq.orderId}`)}
                     >
-                      Xem đơn hàng
+                      Xem đơn hàng →
                     </button>
                   ) : null}
-                  <SupplierStatusPill label={quoteBadgeLabel(rfq)} />
                 </div>
               </article>
             ))}

@@ -46,7 +46,7 @@ export interface ProductLotCard {
   stock: string
   moq: string
   price: string
-  status: 'Con hàng' | 'Sắp hết'
+  status: 'Con hàng' | 'Sắp hết' | 'Hết hàng' | string
   image: string
 }
 
@@ -82,7 +82,7 @@ export interface OrderItem {
   product: string
   quantity: string
   value: string
-  status: 'Chờ xác nhận' | 'Đã xác nhận' | 'Đang giao' | 'Hoàn thành' | 'Đã hủy'
+  status: 'Chờ xác nhận' | 'Chờ nhà cung cấp xác nhận' | 'Đã xác nhận' | 'Đang giao' | 'Hoàn thành' | 'Đã hủy' | string
   orderDate: string
 }
 

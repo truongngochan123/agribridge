@@ -16,12 +16,14 @@ import { buyerMenuItems } from '../../data/buyerDashboardData'
 import { notificationUnreadCount } from '../../data/notifications'
 import { NotificationDrawer } from '../site/NotificationDrawer'
 import type { BuyerMenuKey } from '../../types/buyerDashboard'
+import { useCurrentUserProfile } from '../../hooks/useCurrentUserProfile'
 
 type BuyerShellProps = {
   activeKey: BuyerMenuKey
   title: string
   subtitle: string
   actions?: ReactNode
+  filterBar?: ReactNode
   children: ReactNode
 }
 
@@ -36,8 +38,12 @@ const iconByKey = {
   market: LineChart,
 }
 
-export function BuyerShell({ activeKey, title, subtitle, actions, children }: BuyerShellProps) {
+export function BuyerShell({ activeKey, title, subtitle, actions, filterBar, children }: BuyerShellProps) {
   const [openNotifications, setOpenNotifications] = useState(false)
+  const { profile } = useCurrentUserProfile()
+  const buyerName = profile?.fullName && profile.fullName !== 'N/A' ? profile.fullName : 'Buyer'
+  const buyerRole = profile?.companyTypeLabel && profile.companyTypeLabel !== 'N/A' ? profile.companyTypeLabel : 'Nhà buôn'
+  const buyerInitials = profile?.initials && profile.initials !== 'N/A' ? profile.initials : buyerName.charAt(0).toUpperCase()
 
   return (
     <div className="h-screen overflow-hidden bg-emerald-50/30 text-emerald-950">
@@ -79,8 +85,8 @@ export function BuyerShell({ activeKey, title, subtitle, actions, children }: Bu
 
           <div className="mt-auto border-t border-white/15 px-4 py-4">
             <div className="rounded-xl bg-white/10 px-3 py-3">
-              <p className="text-sm font-bold">Trần Thị B</p>
-              <p className="text-xs text-emerald-100">Nhà buôn</p>
+              <p className="text-sm font-bold">{buyerName}</p>
+              <p className="text-xs text-emerald-100">{buyerRole}</p>
               <button className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-white/90 hover:text-white">
                 <LogOut className="h-4 w-4" />
                 Đăng xuất
@@ -90,10 +96,10 @@ export function BuyerShell({ activeKey, title, subtitle, actions, children }: Bu
         </aside>
 
         <main className="flex min-w-0 flex-col overflow-hidden">
-          <header className="shrink-0 border-b border-emerald-200 bg-white px-4 py-3">
+          <header className="shrink-0 sticky top-0 z-30 border-b border-emerald-200 bg-white/95 backdrop-blur-sm px-4 py-3 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h1 className="text-[26px] font-extrabold leading-tight text-emerald-950">{title}</h1>
+                <h1 className="text-[22px] font-extrabold leading-tight text-emerald-950">{title}</h1>
                 <p className="mt-0.5 text-xs text-emerald-900/60">{subtitle}</p>
               </div>
 
@@ -111,17 +117,23 @@ export function BuyerShell({ activeKey, title, subtitle, actions, children }: Bu
 
                 <Link to="/buyer/profile" className="flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5">
                   <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-200 text-sm font-bold text-emerald-800">
-                    T
+                    {buyerInitials}
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-emerald-900">Trần Thị B</p>
-                    <p className="text-xs text-emerald-700/70">Nhà buôn</p>
+                    <p className="text-sm font-bold text-emerald-900">{buyerName}</p>
+                    <p className="text-xs text-emerald-700/70">{buyerRole}</p>
                   </div>
                 </Link>
               </div>
             </div>
-            {actions ? <div className="mt-3">{actions}</div> : null}
+            {actions ? <div className="mt-2">{actions}</div> : null}
           </header>
+
+          {filterBar ? (
+            <div className="shrink-0 sticky top-[var(--shell-header-h,73px)] z-20 border-b border-slate-100 bg-white/95 backdrop-blur-sm px-4 py-2 shadow-sm">
+              {filterBar}
+            </div>
+          ) : null}
 
           <div className="flex-1 overflow-y-auto p-4">{children}</div>
         </main>

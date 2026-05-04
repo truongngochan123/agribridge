@@ -6,4 +6,8 @@ target/
 .env
 .env.local
 .env.*.local
+local-upload-storage/
+uploads/
+public/uploads/
+src/main/resources/static/uploads/
 run-be-local.cmd

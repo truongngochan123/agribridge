@@ -38,6 +38,22 @@ public class MarketPriceSnapshotEntity {
     @JoinColumn(name = "product_id", insertable = false, updatable = false)
     private ProductEntity product;
 
+    @Column(name = "product_type_id")
+    private Long productTypeId;
+
+    @Column(name = "product_type_name")
+    private String productTypeName;
+
+    @Column(name = "normalized_product_name")
+    private String normalizedProductName;
+
+    @Column(name = "category_id")
+    private Long categoryId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", insertable = false, updatable = false)
+    private CategoryEntity category;
+
     @Column(name = "region", nullable = false)
     private String region;
 
@@ -46,6 +62,15 @@ public class MarketPriceSnapshotEntity {
 
     @Column(name = "size")
     private String size;
+
+    @Column(name = "source_type")
+    private String sourceType;
+
+    @Column(name = "source_name")
+    private String sourceName;
+
+    @Column(name = "unit")
+    private String unit;
 
     @Column(name = "min_price", nullable = false)
     private BigDecimal minPrice;
@@ -59,9 +84,18 @@ public class MarketPriceSnapshotEntity {
     @Column(name = "price_date", nullable = false)
     private LocalDate priceDate;
 
+    @Column(name = "sample_count")
+    private Integer sampleCount;
+
+    @Column(name = "supplier_count")
+    private Integer supplierCount;
+
     @Column(name = "is_abnormal", nullable = false)
     private Boolean isAbnormal;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 }

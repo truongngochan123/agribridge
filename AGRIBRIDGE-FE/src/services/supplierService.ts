@@ -184,32 +184,12 @@ export interface CreateSupplierShipmentRequest {
 
 let dashboardCache: SupplierDashboardPayload | null = null
 
-const EMPTY_DASHBOARD: SupplierDashboardPayload = {
-  overviewCards: [],
-  monthlyRevenue: [],
-  recentActivities: [],
-  productLots: [],
-  rfqItems: [],
-  orders: [],
-  shipments: [],
-  debtSummaryCards: [],
-  debtCustomers: [],
-}
-
 export async function fetchSupplierDashboard(forceRefresh = false): Promise<SupplierDashboardPayload> {
   if (!forceRefresh && dashboardCache) {
     return dashboardCache
   }
 
-  const companyId = sessionStorage.getItem('agribridge.auth.companyId')
-  if (!companyId) {
-    dashboardCache = EMPTY_DASHBOARD
-    return dashboardCache
-  }
-
-  const response = await apiClient.get<SupplierDashboardPayload>('/api/supplier/dashboard', {
-    params: { companyId: Number(companyId) },
-  })
+  const response = await apiClient.get<SupplierDashboardPayload>('/api/supplier/dashboard')
 
   dashboardCache = response.data
   return response.data

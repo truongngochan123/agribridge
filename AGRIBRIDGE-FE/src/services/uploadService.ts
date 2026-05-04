@@ -1,9 +1,9 @@
-import { apiClient } from './apiClient'
-import { API_BASE_URL } from './config'
 import axios from 'axios'
+import { apiClient } from './apiClient'
 
 export type UploadedFilePayload = {
   url: string
+  secureUrl?: string
   publicId?: string
   format?: string
   resourceType?: string
@@ -32,27 +32,40 @@ function extractUploadErrorMessage(error: unknown, fallbackMessage: string): str
   }
 
   const responseData = error.response?.data as UploadErrorPayload | undefined
+
   if (responseData?.message?.trim()) {
     return responseData.message.trim()
   }
 
   const errors = responseData?.errors ?? {}
   const firstFieldError = Object.values(errors).find((value) => value?.trim())
+
   if (firstFieldError) {
     return firstFieldError
   }
 
   if (error.response?.status === 413) {
-    return 'Video vượt quá dung lượng cho phép của hệ thống.'
+    return 'File vượt quá dung lượng cho phép của hệ thống.'
+  }
+
+  if (error.response?.status === 503) {
+    return 'Backend chưa cấu hình Cloudinary hoặc thiếu CLOUDINARY_API_KEY/CLOUDINARY_API_SECRET.'
+  }
+
+  if (error.response?.status === 502) {
+    return 'Upload lên Cloudinary thất bại. Kiểm tra API key, API secret hoặc kết nối mạng backend.'
   }
 
   return fallbackMessage
 }
 
 function normalizeUploadedPayload(payload: UploadedFilePayload): UploadedFilePayload {
+  const uploadedUrl = payload.secureUrl || payload.url
+
   return {
     ...payload,
-    url: resolveUploadedFileUrl(payload.url) || payload.url,
+    url: resolveUploadedFileUrl(uploadedUrl) || uploadedUrl,
+    secureUrl: payload.secureUrl ? resolveUploadedFileUrl(payload.secureUrl) || payload.secureUrl : undefined,
   }
 }
 
@@ -62,9 +75,10 @@ export async function uploadRegistrationFile(file: File): Promise<UploadedFilePa
       '/api/uploads/registration-file',
       toFormData(file, 'document'),
     )
+
     return normalizeUploadedPayload(response.data)
   } catch (error) {
-    throw new Error(extractUploadErrorMessage(error, 'Upload tài liệu thất bại.'))
+    throw new Error(extractUploadErrorMessage(error, 'Upload tài liệu đăng ký thất bại.'))
   }
 }
 
@@ -74,44 +88,39 @@ export async function uploadSupplierDocument(file: File): Promise<UploadedFilePa
       '/api/uploads/supplier-document',
       toFormData(file, 'document'),
     )
+
     return normalizeUploadedPayload(response.data)
   } catch (error) {
-    try {
-      const fallbackResponse = await apiClient.post<UploadedFilePayload>(
-        '/api/uploads/registration-file',
-        toFormData(file, 'document'),
-      )
-      return normalizeUploadedPayload(fallbackResponse.data)
-    } catch (fallbackError) {
-      throw new Error(extractUploadErrorMessage(fallbackError, extractUploadErrorMessage(error, 'Upload tài liệu thất bại.')))
-    }
+    throw new Error(extractUploadErrorMessage(error, 'Upload tài liệu thất bại.'))
   }
 }
 
 export async function uploadBatchVideo(file: File): Promise<UploadedFilePayload> {
   try {
-    const response = await apiClient.post<UploadedFilePayload>('/api/uploads/batch-video', toFormData(file, 'video'))
+    const response = await apiClient.post<UploadedFilePayload>(
+      '/api/uploads/batch-video',
+      toFormData(file, 'video'),
+    )
+
     return normalizeUploadedPayload(response.data)
   } catch (error) {
-    try {
-      const fallbackResponse = await apiClient.post<UploadedFilePayload>(
-        '/api/uploads/registration-file',
-        toFormData(file, 'video'),
-      )
-      return normalizeUploadedPayload(fallbackResponse.data)
-    } catch (fallbackError) {
-      throw new Error(extractUploadErrorMessage(fallbackError, extractUploadErrorMessage(error, 'Upload video thất bại.')))
-    }
+    throw new Error(extractUploadErrorMessage(error, 'Upload video thất bại.'))
   }
 }
 
 export function resolveUploadedFileUrl(url?: string | null): string | null {
   const trimmed = url?.trim()
+
   if (!trimmed) {
     return null
   }
 
   if (trimmed.startsWith('upload://')) {
+    return null
+  }
+
+  // Filter out old localhost:8081 local upload URLs that no longer work
+  if (trimmed.includes('localhost:8081') || trimmed.includes('127.0.0.1:8081')) {
     return null
   }
 
@@ -124,11 +133,17 @@ export function resolveUploadedFileUrl(url?: string | null): string | null {
     return trimmed
   }
 
-  if (trimmed.startsWith('/')) {
-    return `${API_BASE_URL}${trimmed}`
+  // Dữ liệu cũ trong DB kiểu /api/uploads/local/... hoặc filename local.
+  // Không nối sang localhost:8081 nữa, vì BE local upload cũ không còn chạy.
+  if (
+    trimmed.includes('/api/uploads/local/') ||
+    trimmed.startsWith('api/uploads/local/') ||
+    /\.(jpg|jpeg|png|webp|gif|mp4|mov|avi)$/i.test(trimmed)
+  ) {
+    return null
   }
 
-  return `${API_BASE_URL}/${trimmed.replace(/^\/+/, '')}`
+  return null
 }
 
 export function canOpenUploadedFile(url?: string | null): boolean {

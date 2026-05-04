@@ -1,36 +1,5 @@
 import { apiClient } from './apiClient'
 
-type UserApiModel = {
-  id: number
-  companyId: number
-  fullName: string
-  phone: string
-  email?: string | null
-  role?: string
-  createdAt?: string
-}
-
-type CompanyApiModel = {
-  id: number
-  name: string
-  companyType?: string
-  businessType?: string
-  ownerName?: string
-  taxCode?: string | null
-  registrationNumber?: string | null
-  establishedYear?: number | null
-  website?: string | null
-  phone?: string
-  email?: string | null
-  address?: string
-  province?: string
-  district?: string
-  ward?: string | null
-  description?: string
-  createdAt?: string
-  verifiedStatus?: boolean
-}
-
 export type CurrentUserProfile = {
   userId?: number
   companyId?: number
@@ -43,6 +12,7 @@ export type CurrentUserProfile = {
   taxCode: string
   address: string
   ownerName: string
+  companyType: string
   companyTypeLabel: string
   businessTypeLabel: string
   accountCode: string
@@ -56,6 +26,10 @@ export type CurrentUserProfile = {
   district: string
   ward?: string | null
   description: string
+}
+
+type CurrentUserProfileResponse = Omit<CurrentUserProfile, 'shortName'> & {
+  shortName?: string
 }
 
 let cachedProfile: CurrentUserProfile | null = null
@@ -126,15 +100,19 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
     return profile
   }
 
-  const companyIdRaw = sessionStorage.getItem('agribridge.auth.companyId')
-  let companyId = companyIdRaw ? Number(companyIdRaw) : undefined
-  const phoneFromSession = (sessionStorage.getItem('agribridge.auth.phone') ?? '').trim()
-  const userIdRaw = sessionStorage.getItem('agribridge.auth.userId')
-  let userId = userIdRaw ? Number(userIdRaw) : undefined
+  const companyTypeRaw = (sessionStorage.getItem('agribridge.auth.companyType') ?? '').trim()
+  const normalizedCompanyType = companyTypeRaw.toLowerCase()
+  if (normalizedCompanyType === 'admin' || normalizedCompanyType === 'system') {
+    let userIdRaw = sessionStorage.getItem('agribridge.auth.userId')
+    let userId = userIdRaw ? Number(userIdRaw) : undefined
+    if (!userId) {
+      hydrateSessionFromAuthPayload()
+      userIdRaw = sessionStorage.getItem('agribridge.auth.userId')
+      userId = userIdRaw ? Number(userIdRaw) : undefined
+    }
 
-  if ((!phoneFromSession || !companyId || !userId) && !hydrateSessionFromAuthPayload()) {
-    // Keep going with whatever session keys currently exist.
-  }
+    const emailFromSession = (sessionStorage.getItem('agribridge.auth.email') ?? '').trim()
+    const nameFromSession = (sessionStorage.getItem('agribridge.auth.name') ?? '').trim()
 
   let user: UserApiModel | undefined
   if (userId) {
@@ -189,57 +167,13 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
   const joinedAtSource = user?.createdAt || company.createdAt
 
   const profile: CurrentUserProfile = {
-    userId,
-    companyId,
-    fullName,
-    shortName: abbreviateVietnameseName(fullName),
-    email,
-    phone,
-    roleLabel: mapRoleLabel(company.companyType),
-    companyName: company.name || 'N/A',
-    taxCode: readUnknown(company.taxCode),
-    address: company.address || 'N/A',
-    ownerName: company.ownerName || fullName,
-    companyTypeLabel: mapCompanyTypeLabel(company.companyType),
-    businessTypeLabel: mapBusinessTypeLabel(company.businessType),
-    accountCode: `SUP-${String(companyId).padStart(6, '0')}`,
-    joinedAt: formatDate(joinedAtSource),
-    statusLabel: company.verifiedStatus ? 'Đã xác minh' : 'Chờ xác minh',
-    initials: makeInitials(fullName),
-    registrationNumber: readUnknown(company.registrationNumber),
-    establishedYear: company.establishedYear ? String(company.establishedYear) : 'N/A',
-    website: readUnknown(company.website),
-    province: readUnknown(company.province),
-    district: readUnknown(company.district),
-    ward: readNullable(company.ward),
-    description: readUnknown(company.description),
+    ...value,
+    shortName: value.shortName ?? abbreviateVietnameseName(value.fullName),
+    ward: value.ward ?? null,
   }
 
   cachedProfile = profile
   return profile
-}
-
-function hydrateSessionFromAuthPayload(): boolean {
-  const raw = sessionStorage.getItem('agribridge.auth.payload')
-  if (!raw) {
-    return false
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as { userId?: number; companyId?: number; companyType?: string }
-    if (parsed.userId) {
-      sessionStorage.setItem('agribridge.auth.userId', String(parsed.userId))
-    }
-    if (parsed.companyId) {
-      sessionStorage.setItem('agribridge.auth.companyId', String(parsed.companyId))
-    }
-    if (parsed.companyType) {
-      sessionStorage.setItem('agribridge.auth.companyType', parsed.companyType)
-    }
-    return true
-  } catch {
-    return false
-  }
 }
 
 export function clearCurrentUserProfileCache(): void {
@@ -328,12 +262,8 @@ function abbreviateVietnameseName(name: string): string {
     .trim()
     .split(/\s+/)
     .filter(Boolean)
-  if (parts.length === 0) {
-    return 'Người dùng'
-  }
-  if (parts.length === 1) {
-    return parts[0]
-  }
+  if (parts.length === 0) return 'Người dùng'
+  if (parts.length === 1) return parts[0]
   const initials = parts.slice(0, -1).map((part) => part.slice(0, 1).toUpperCase())
   return `${initials.join('.')}.${parts[parts.length - 1]}`
 }

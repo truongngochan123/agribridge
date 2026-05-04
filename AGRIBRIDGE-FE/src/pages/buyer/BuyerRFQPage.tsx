@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { BuyerPanel } from '../../components/buyer/BuyerCommon'
+import { AlertTriangle } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { BuyerPanel, SearchInput } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import {
@@ -53,6 +55,7 @@ const emptyForm: RfqFormState = {
 
 export function BuyerRFQPage() {
   usePageTitle('Yêu cầu báo giá')
+  const [searchParams] = useSearchParams()
   const [rfqs, setRfqs] = useState<BuyerRfqListItem[]>([])
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState('')
@@ -83,6 +86,7 @@ export function BuyerRFQPage() {
   const [submittingCreate, setSubmittingCreate] = useState(false)
   const [submittingUpdate, setSubmittingUpdate] = useState(false)
   const [cancelling, setCancelling] = useState<number | null>(null)
+  const [openedRfqParam, setOpenedRfqParam] = useState('')
 
   const loadRfqs = useCallback(async () => {
     setLoadingList(true)
@@ -106,13 +110,7 @@ export function BuyerRFQPage() {
     void loadRfqs()
   }, [loadRfqs])
 
-  const openCreateForm = () => {
-    setFormMode('create')
-    setEditingRfqId(null)
-    setForm(emptyForm)
-    setFormError(null)
-  }
-
+  
   const openUpdateForm = async (rfq: BuyerRfqListItem | BuyerRfqDetail) => {
     setFormMode('update')
     setEditingRfqId(rfq.id)
@@ -177,6 +175,14 @@ export function BuyerRFQPage() {
       setLoadingOrders(false)
     }
   }
+
+  useEffect(() => {
+    const rfqId = searchParams.get('rfqId') || ''
+    const parsed = Number(rfqId)
+    if (!rfqId || openedRfqParam === rfqId || !Number.isFinite(parsed) || parsed <= 0) return
+    setOpenedRfqParam(rfqId)
+    void openDetail(parsed)
+  }, [openedRfqParam, searchParams])
 
   const handleSearch = () => {
     setAppliedKeyword(keyword.trim())
@@ -271,40 +277,82 @@ export function BuyerRFQPage() {
         activeKey="rfq"
         title="RFQ & Báo giá"
         subtitle="Quản lý yêu cầu báo giá và so sánh"
-        actions={<div className="flex justify-end"><button className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60" onClick={openCreateForm}>+ Tạo RFQ mới</button></div>}
-      >
-        <BuyerPanel title="Yêu cầu Báo giá của tôi" right={<p className="text-xs text-emerald-700/70">Quản lý các yêu cầu báo giá và so sánh nhà cung cấp</p>}>
-          <div className="mb-3 grid gap-2 md:grid-cols-[1fr_160px_auto_auto]">
-            <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm theo sản phẩm, tiêu đề, tỉnh..." className="rounded-lg border border-emerald-100 px-3 py-2 text-sm outline-none focus:border-emerald-400" />
-            <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-lg border border-emerald-100 px-3 py-2 text-sm outline-none focus:border-emerald-400">
+        filterBar={
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput
+              value={keyword}
+              onChange={(v) => { setKeyword(v) }}
+              placeholder="Tìm theo sản phẩm, tiêu đề, tỉnh..."
+              className="min-w-[240px] max-w-sm"
+            />
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm focus:outline-none"
+            >
               <option value="">Tất cả trạng thái</option>
               <option value="OPEN">OPEN</option>
               <option value="CLOSED">CLOSED</option>
               <option value="CANCELLED">CANCELLED</option>
             </select>
-            <button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60" onClick={handleSearch} disabled={loadingList}>Tìm kiếm</button>
-            <button className="rounded-lg border border-emerald-300 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-60" onClick={handleRefresh} disabled={loadingList}>Làm mới</button>
+            <button
+              className="h-9 rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60"
+              onClick={handleSearch}
+              disabled={loadingList}
+            >
+              Tìm kiếm
+            </button>
+            <button
+              className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+              onClick={handleRefresh}
+              disabled={loadingList}
+            >
+              Làm mới
+            </button>
+            <button
+              className="ml-auto h-9 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 text-xs font-bold text-white shadow-sm hover:opacity-90 active:scale-95 transition-all"
+              onClick={() => setFormMode('create')}
+            >
+              + Tạo RFQ
+            </button>
           </div>
-
-          {loadingList ? <StateBox text="Đang tải RFQ..." /> : null}
-          {listError && !loadingList ? <ErrorBox message={listError} onRetry={loadRfqs} /> : null}
-          {!loadingList && !listError && rfqs.length === 0 ? <StateBox text="Chưa có yêu cầu báo giá nào" /> : null}
+        }
+      >
+        <BuyerPanel title="Yêu cầu Báo giá của tôi">
+          {loadingList && (
+            <div className="mb-4 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+              Đang tải RFQ...
+            </div>
+          )}
+          {listError && !loadingList && (
+            <div className="mb-4 flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {listError}
+              <button className="ml-2 rounded-lg bg-red-600 px-3 py-1 text-xs font-bold text-white" onClick={loadRfqs}>Thử lại</button>
+            </div>
+          )}
+          {!loadingList && !listError && rfqs.length === 0 && (
+            <div className="flex flex-col items-center gap-2 py-10 text-center">
+              <p className="text-sm font-semibold text-slate-600">Chưa có yêu cầu báo giá nào</p>
+            </div>
+          )}
 
           <div className="space-y-3">
             {rfqs.map((item) => (
-              <article key={item.id} className="rounded-xl border border-emerald-100 bg-white p-3">
+              <article key={item.id} className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="text-xl font-extrabold text-emerald-950">{item.code || rfqCode(item.id)}</h4>
-                      <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">{item.status || 'N/A'}</span>
-                      <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">{item.quoteCount ?? 0} báo giá</span>
+                      <h4 className="text-sm font-extrabold text-slate-900">{item.code || rfqCode(item.id)}</h4>
+                      <RfqStatusBadge status={item.status} />
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-700">{item.quoteCount ?? 0} báo giá</span>
                     </div>
-                    <p className="mt-1 text-xs text-emerald-700/70">Tạo ngày: {formatDate(item.createdAt)}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-400">Tạo ngày: {formatDate(item.createdAt)}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-emerald-700/70">Hạn chót</p>
-                    <p className="text-xs font-semibold text-emerald-900">{formatDate(item.deadline ?? item.expiredAt)}</p>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[10px] text-slate-400">Hạn chót</p>
+                    <p className="text-xs font-bold text-slate-800">{formatDate(item.deadline ?? item.expiredAt)}</p>
                   </div>
                 </div>
 
@@ -314,18 +362,43 @@ export function BuyerRFQPage() {
                   <InfoTile label="Giá mục tiêu" value={item.targetPrice == null ? 'Chưa đặt' : formatCurrency(item.targetPrice)} />
                 </div>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button className="flex-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60" onClick={() => openCompare(item.id)} disabled={loadingCompare}>
-                    So sánh báo giá ({item.quoteCount ?? 0})
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <button
+                    className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-3 py-2 text-xs font-bold text-white hover:opacity-90 active:scale-95 transition-all disabled:opacity-60"
+                    onClick={() => openCompare(item.id)}
+                    disabled={loadingCompare}
+                  >
+                    So sánh ({item.quoteCount ?? 0})
                   </button>
-                  <button className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-semibold text-emerald-700 disabled:opacity-60" onClick={() => openDetail(item.id)} disabled={loadingDetail}>Xem chi tiết</button>
-                  <button className="rounded-lg border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-700" onClick={() => openUpdateForm(item)}>Sửa</button>
-                  {canCancel(item.status) ? (
-                    <button className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-60" onClick={() => handleCancelRfq(item.id)} disabled={cancelling === item.id}>
-                      {cancelling === item.id ? 'Đang hủy...' : 'Hủy RFQ'}
+                  <button
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-60"
+                    onClick={() => openDetail(item.id)}
+                    disabled={loadingDetail}
+                  >
+                    Chi tiết
+                  </button>
+                  <button
+                    className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+                    onClick={() => openUpdateForm(item)}
+                  >
+                    Sửa
+                  </button>
+                  {canCancel(item.status) && (
+                    <button
+                      className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors disabled:opacity-60"
+                      onClick={() => handleCancelRfq(item.id)}
+                      disabled={cancelling === item.id}
+                    >
+                      {cancelling === item.id ? 'Hủy...' : 'Hủy RFQ'}
                     </button>
-                  ) : null}
-                  <button className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-60" onClick={() => openOrders(item.id)} disabled={loadingOrders}>Đơn hàng</button>
+                  )}
+                  <button
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-60"
+                    onClick={() => openOrders(item.id)}
+                    disabled={loadingOrders}
+                  >
+                    Đơn hàng
+                  </button>
                 </div>
               </article>
             ))}
@@ -736,6 +809,22 @@ function optionalNumber(value: string): number | null {
   if (!trimmed) return null
   const parsed = Number(trimmed)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function RfqStatusBadge({ status }: { status?: string | null }) {
+  const map: Record<string, { badge: string; dot: string }> = {
+    OPEN:      { badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+    CLOSED:    { badge: 'bg-slate-100 text-slate-600',     dot: 'bg-slate-400' },
+    CANCELLED: { badge: 'bg-rose-100 text-rose-700',       dot: 'bg-rose-400' },
+    PENDING:   { badge: 'bg-amber-100 text-amber-700',     dot: 'bg-amber-400' },
+  }
+  const cls = map[status ?? ''] ?? { badge: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' }
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${cls.badge}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${cls.dot}`} />
+      {status || 'N/A'}
+    </span>
+  )
 }
 
 function canCancel(status?: string | null) {
