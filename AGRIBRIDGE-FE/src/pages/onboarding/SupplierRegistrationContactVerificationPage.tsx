@@ -1,4 +1,4 @@
-import { UploadCloud } from 'lucide-react'
+import { Eye, EyeOff, UploadCloud } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Header } from '../../components/Header'
@@ -39,7 +39,6 @@ type ApiErrorResponse = {
 type SavedContactDraft = {
   form: ContactVerificationPayload
   contactPosition: string
-  step: 1 | 2
   otpSentEmail: string
   otpVerifiedEmail: string
 }
@@ -186,6 +185,8 @@ export function SupplierRegistrationContactVerificationPage() {
   const [otpVerifiedEmail, setOtpVerifiedEmail] = useState('')
   const [otpMessage, setOtpMessage] = useState('')
   const [fieldErrors, setFieldErrors] = useState<ContactFieldErrors>({})
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const contactDraftKey = `${CONTACT_DRAFT_PREFIX}.${currentRole}`
 
@@ -197,7 +198,6 @@ export function SupplierRegistrationContactVerificationPage() {
       const parsed = JSON.parse(raw) as SavedContactDraft
       if (parsed.form) setForm(parsed.form)
       setContactPosition(parsed.contactPosition ?? '')
-      setStep(parsed.step ?? 1)
       setOtpSentEmail(parsed.otpSentEmail ?? '')
       setOtpVerifiedEmail(parsed.otpVerifiedEmail ?? '')
     } catch {
@@ -209,12 +209,11 @@ export function SupplierRegistrationContactVerificationPage() {
     const draft: SavedContactDraft = {
       form,
       contactPosition,
-      step,
       otpSentEmail,
       otpVerifiedEmail,
     }
     sessionStorage.setItem(contactDraftKey, JSON.stringify(draft))
-  }, [contactDraftKey, contactPosition, form, otpSentEmail, otpVerifiedEmail, step])
+  }, [contactDraftKey, contactPosition, form, otpSentEmail, otpVerifiedEmail])
 
   const handleChange = <K extends keyof ContactVerificationPayload>(key: K, value: ContactVerificationPayload[K]) => {
     setForm((prev) => {
@@ -467,6 +466,17 @@ export function SupplierRegistrationContactVerificationPage() {
       sessionStorage.removeItem(contactDraftKey)
 
       if (result.redirectPath) {
+        // Auto-approved: backend scored >= 80, supplier can use platform immediately
+        if (
+          result.status === 'SUCCESS' &&
+          (result.verificationStatus === 'AUTO_APPROVED' ||
+            result.verificationStatus === 'APPROVED' ||
+            result.verificationStatus === 'MANUAL_APPROVED')
+        ) {
+          navigate('/onboarding/verification/approved')
+          return
+        }
+
         if (result.status === 'PENDING_VERIFICATION') {
           sessionStorage.setItem('agribridge.pending.email', normalizedLoginEmail)
           navigate(`/onboarding/verification/pending?role=${currentRole}&email=${encodeURIComponent(normalizedLoginEmail)}`)
@@ -478,6 +488,7 @@ export function SupplierRegistrationContactVerificationPage() {
 
       sessionStorage.setItem('agribridge.pending.email', normalizedLoginEmail)
       navigate(`/onboarding/verification/pending?role=${currentRole}&email=${encodeURIComponent(normalizedLoginEmail)}`)
+
     } catch (submitError: unknown) {
       setError(extractApiErrorMessage(submitError))
     } finally {
@@ -585,26 +596,48 @@ export function SupplierRegistrationContactVerificationPage() {
                 </div>
                 <div>
                   <label className={labelClass}>Mật khẩu *</label>
-                  <input
-                    className={inputClass}
-                    placeholder="••••••••••"
-                    type="password"
-                    value={form.password}
-                    onChange={(event) => handleChange('password', event.target.value)}
-                    onBlur={() => validateContactFields(['password', 'confirmPassword'])}
-                  />
+                  <div className="relative">
+                    <input
+                      className={`${inputClass} pr-9`}
+                      placeholder="••••••••••"
+                      type={showPassword ? 'text' : 'password'}
+                      value={form.password}
+                      onChange={(event) => handleChange('password', event.target.value)}
+                      onBlur={() => validateContactFields(['password', 'confirmPassword'])}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#667085]"
+                      aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                      title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                   {fieldErrors.password ? <p className="mt-1 text-xs font-semibold text-[#DC2626]">{fieldErrors.password}</p> : null}
                 </div>
                 <div>
                   <label className={labelClass}>Nhập lại mật khẩu *</label>
-                  <input
-                    className={inputClass}
-                    placeholder="••••••••••"
-                    type="password"
-                    value={form.confirmPassword}
-                    onChange={(event) => handleChange('confirmPassword', event.target.value)}
-                    onBlur={() => validateContactFields(['confirmPassword'])}
-                  />
+                  <div className="relative">
+                    <input
+                      className={`${inputClass} pr-9`}
+                      placeholder="••••••••••"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={form.confirmPassword}
+                      onChange={(event) => handleChange('confirmPassword', event.target.value)}
+                      onBlur={() => validateContactFields(['confirmPassword'])}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#667085]"
+                      aria-label={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                      title={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                   {fieldErrors.confirmPassword ? <p className="mt-1 text-xs font-semibold text-[#DC2626]">{fieldErrors.confirmPassword}</p> : null}
                 </div>
               </div>
@@ -619,7 +652,7 @@ export function SupplierRegistrationContactVerificationPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className={labelClass}>Xác minh danh tính (CCCD/Hộ chiếu) {currentRole === 'supplier' ? '*' : '(không bắt buộc)'}</label>
+                  <label className={labelClass}>Xác minh danh tính người đăng ký (CCCD/Hộ chiếu){currentRole === 'supplier' ? '*' : '(không bắt buộc)'}</label>
                   <label className={uploadBoxClass}>
                     <input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => handleFileUpload('identityDocumentUrl', event.target.files?.[0])} />
                     <UploadCloud className="mx-auto h-6 w-6 text-[#98A2B3]" />

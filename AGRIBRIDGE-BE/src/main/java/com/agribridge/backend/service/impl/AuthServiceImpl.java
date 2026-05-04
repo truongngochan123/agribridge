@@ -26,6 +26,8 @@ import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.UserRepository;
 import com.agribridge.backend.service.AuthService;
 import com.agribridge.backend.service.AuthTokenService;
+import com.agribridge.backend.service.SupplierVerificationScoringService;
+import com.agribridge.backend.service.TaxCodeLookupService;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -61,18 +63,16 @@ public class AuthServiceImpl implements AuthService {
     private static final String STATUS_REJECTED = "REJECTED";
     private static final int MAX_IMAGE_URL_LENGTH = 240;
     private static final long OTP_TTL_MINUTES = 10;
+    private static final int AUTO_APPROVE_THRESHOLD = 80;
     private static final BigDecimal DEFAULT_CREDIT_LIMIT = BigDecimal.ZERO;
-    private static final Map<String, TaxCodeLookupSeed> TAX_CODE_DIRECTORY = Map.of(
-            "0312345678",
-            new TaxCodeLookupSeed("Cong ty TNHH Nong San Xanh", "TP. Ho Chi Minh", "Quan 1", "12 Nguyen Hue"),
-            "0101234567", new TaxCodeLookupSeed("Cong ty Co phan Agri Trade", "Ha Noi", "Cau Giay", "86 Duy Tan"));
-
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
     private final CompanyImageRepository companyImageRepository;
     private final JdbcTemplate jdbcTemplate;
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
     private final AuthTokenService authTokenService;
+    private final TaxCodeLookupService taxCodeLookupService;
+    private final SupplierVerificationScoringService verificationScoringService;
 
     @Value("${app.mail.enabled:false}")
     private boolean mailEnabled;
@@ -116,6 +116,28 @@ public class AuthServiceImpl implements AuthService {
         String companyPhone = resolveCompanyPhone(request.getCompanyPhone(), normalizedPhone);
         String companyEmail = resolveCompanyEmail(request.getCompanyEmail(), normalizedLoginEmail);
 
+        // Resolve document URLs: first doc = identity, second = business license
+        String identityDocUrl = resolveDocumentUrl(request.getDocumentUrls(), 0);
+        String businessLicenseUrl = resolveDocumentUrl(request.getDocumentUrls(), 1);
+
+        // ── Auto-verification scoring ──────────────────────────────────────────────
+        SupplierVerificationScoringService.ScoringResult scoring = verificationScoringService.score(
+                normalizedTaxCode,
+                request.getCompanyName(),
+                request.getProvince(),
+                normalizedLoginEmail,
+                normalizedPhone,
+                identityDocUrl);
+        log.info("Verification scoring companyName={} score={} reason={}",
+                request.getCompanyName(), scoring.score(), scoring.reason());
+
+        boolean autoApproved = scoring.score() >= AUTO_APPROVE_THRESHOLD;
+        VerificationStatusEnum verificationStatus = autoApproved
+                ? VerificationStatusEnum.AUTO_APPROVED
+                : VerificationStatusEnum.PENDING_REVIEW;
+        boolean verifiedStatus = autoApproved;
+        String trustLevel = autoApproved ? "MEDIUM" : "SUPPLIER_PENDING";
+
         CompanyEntity company = Objects
                 .requireNonNull(companyRepository.save(Objects.requireNonNull(CompanyEntity.builder()
                         .name(resolveCompanyName(request.getCompanyName(), request.getFullName()))
@@ -130,10 +152,17 @@ public class AuthServiceImpl implements AuthService {
                         .province(resolveProvince(request.getProvince()))
                         .ward(resolveWard(request.getWard()))
                         .description(request.getDescription())
-                        .verifiedStatus(false)
-                        .verificationStatus(VerificationStatusEnum.PENDING)
-                        .trustLevel("SUPPLIER_PENDING")
+                        .verifiedStatus(verifiedStatus)
+                        .verificationStatus(verificationStatus)
+                        .verificationScore(scoring.score())
+                        .verificationReason(scoring.reason())
+                        .taxLookupStatus(scoring.taxLookupStatus())
+                        .taxLookupProvider(scoring.taxLookupProvider())
+                        .identityDocumentUrl(sanitizeImageUrl(identityDocUrl))
+                        .businessLicenseUrl(sanitizeImageUrl(businessLicenseUrl))
+                        .trustLevel(trustLevel)
                         .creditLimit(DEFAULT_CREDIT_LIMIT)
+                        .verifiedAt(autoApproved ? LocalDateTime.now() : null)
                         .createdAt(LocalDateTime.now())
                         .build())));
 
@@ -154,21 +183,44 @@ public class AuthServiceImpl implements AuthService {
         clearRegistrationOtpState(normalizedLoginEmail);
 
         AuthTokenService.TokenIssue token = authTokenService.issueToken(user.getId());
-        AuthResponseDto response = AuthResponseDto.builder()
+
+        if (autoApproved) {
+            log.info("Supplier AUTO_APPROVED companyId={} userId={} score={}",
+                    company.getId(), user.getId(), scoring.score());
+            return AuthResponseDto.builder()
+                    .status(STATUS_SUCCESS)
+                    .message("Hồ sơ của bạn đã được duyệt tự động.")
+                    .redirectPath("/onboarding/verification/approved")
+                    .userId(user.getId())
+                    .companyId(company.getId())
+                    .companyType(CompanyTypeEnum.SUPPLIER.name().toLowerCase())
+                    .verificationStatus(VerificationStatusEnum.AUTO_APPROVED.name())
+                    .verificationScore(scoring.score())
+                    .trustLevel(company.getTrustLevel())
+                    .creditLimit(company.getCreditLimit())
+                    .canUseCredit(false)
+                    .accessToken(token.accessToken())
+                    .tokenExpiresAt(token.expiresAt())
+                    .build();
+        }
+
+        log.info("Supplier PENDING_REVIEW companyId={} userId={} score={}",
+                company.getId(), user.getId(), scoring.score());
+        return AuthResponseDto.builder()
                 .status(STATUS_PENDING)
-                .message("Supplier registration completed. Waiting admin verification.")
-                .redirectPath("/waiting-verification")
+                .message("Hồ sơ của bạn đang chờ admin duyệt. Bạn có thể đăng nhập nhưng một số chức năng sẽ bị giới hạn.")
+                .redirectPath("/onboarding/verification/pending")
                 .userId(user.getId())
                 .companyId(company.getId())
                 .companyType(CompanyTypeEnum.SUPPLIER.name().toLowerCase())
+                .verificationStatus(VerificationStatusEnum.PENDING_REVIEW.name())
+                .verificationScore(scoring.score())
                 .trustLevel(company.getTrustLevel())
                 .creditLimit(company.getCreditLimit())
                 .canUseCredit(false)
                 .accessToken(token.accessToken())
                 .tokenExpiresAt(token.expiresAt())
                 .build();
-        log.info("Registered supplier successfully companyId={} userId={}", company.getId(), user.getId());
-        return response;
     }
 
     @Override
@@ -334,14 +386,17 @@ public class AuthServiceImpl implements AuthService {
 
     private AuthResponseDto buildAuthResponse(AuthCompanySnapshot company, Long userId, boolean issueToken) {
         VerificationStatusEnum verificationStatus = company.verificationStatus() == null
-                ? VerificationStatusEnum.PENDING
+                ? VerificationStatusEnum.PENDING_REVIEW
                 : company.verificationStatus();
         AuthTokenService.TokenIssue token = issueToken ? authTokenService.issueToken(userId) : null;
 
-        if (verificationStatus == VerificationStatusEnum.PENDING) {
+        // PENDING or PENDING_REVIEW → waiting for admin
+        if (verificationStatus == VerificationStatusEnum.PENDING
+                || verificationStatus == VerificationStatusEnum.PENDING_REVIEW
+                || verificationStatus == VerificationStatusEnum.DRAFT) {
             return AuthResponseDto.builder()
                     .status(STATUS_PENDING)
-                    .message("Hồ sơ của bạn đang chờ duyệt.")
+                    .message("Hồ sơ của bạn đang chờ admin duyệt. Bạn có thể đăng nhập nhưng một số chức năng sẽ bị giới hạn.")
                     .redirectPath("/onboarding/verification/pending")
                     .userId(userId)
                     .companyId(company.companyId())
@@ -357,7 +412,9 @@ public class AuthServiceImpl implements AuthService {
                     .build();
         }
 
-        if (verificationStatus == VerificationStatusEnum.NEED_MORE_INFO) {
+        // NEED_MORE_INFO or NEEDS_MORE_INFO → resubmit
+        if (verificationStatus == VerificationStatusEnum.NEED_MORE_INFO
+                || verificationStatus == VerificationStatusEnum.NEEDS_MORE_INFO) {
             return AuthResponseDto.builder()
                     .status(STATUS_NEED_MORE_INFO)
                     .message("Hồ sơ cần bổ sung thêm thông tin trước khi được duyệt.")
@@ -395,6 +452,7 @@ public class AuthServiceImpl implements AuthService {
                     .build();
         }
 
+        // APPROVED | AUTO_APPROVED | MANUAL_APPROVED → success
         String redirectPath = "SUPPLIER".equalsIgnoreCase(company.companyType())
                 ? "/supplier/overview"
                 : "/buyer/overview";
@@ -493,39 +551,20 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public TaxCodeLookupResponseDto lookupCompanyByTaxCode(TaxCodeLookupRequestDto request) {
         log.info("Looking up company by tax code={}", request.getTaxCode());
-        String normalizedTaxCode = normalizeDigitsOnly(request.getTaxCode());
-        if (!isValidTaxCode(normalizedTaxCode)) {
-            log.warn("Invalid tax code lookup request taxCode={}", request.getTaxCode());
-            throw new IllegalArgumentException("Tax code must be exactly 10 digits");
-        }
-
-        TaxCodeLookupSeed seed = TAX_CODE_DIRECTORY.get(normalizedTaxCode);
-        if (seed == null) {
-            log.info("No company profile found for taxCode={}", normalizedTaxCode);
-            return TaxCodeLookupResponseDto.builder()
-                    .found(false)
-                    .taxCode(normalizedTaxCode)
-                    .message("No official profile found for this tax code")
-                    .build();
-        }
-
-        TaxCodeLookupResponseDto response = TaxCodeLookupResponseDto.builder()
-                .found(true)
-                .taxCode(normalizedTaxCode)
-                .companyName(seed.companyName())
-                .province(seed.province())
-                .ward(seed.ward())
-                .address(seed.address())
-                .message("Company profile found")
-                .build();
-        log.info("Found company profile for taxCode={}", normalizedTaxCode);
-        return response;
+        return taxCodeLookupService.lookupTaxCode(request.getTaxCode());
     }
 
     private void validateUniqueLoginPhone(String loginPhone) {
         if (userRepository.existsByPhone(loginPhone)) {
             throw new IllegalArgumentException("Phone is already in use: " + loginPhone);
         }
+    }
+
+    private String resolveDocumentUrl(java.util.List<String> documentUrls, int index) {
+        if (documentUrls == null || index >= documentUrls.size()) {
+            return null;
+        }
+        return sanitizeImageUrl(documentUrls.get(index));
     }
 
     private void saveCompanyLogo(Long companyId, String logoUrl) {
@@ -879,9 +918,6 @@ public class AuthServiceImpl implements AuthService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private record TaxCodeLookupSeed(String companyName, String province, String ward, String address) {
-    }
-
     private record PendingRegistrationOtp(String code, LocalDateTime expiresAt, boolean verified) {
         boolean isExpired() {
             return expiresAt == null || LocalDateTime.now().isAfter(expiresAt);
@@ -910,7 +946,10 @@ public class AuthServiceImpl implements AuthService {
         if (company == null) {
             return false;
         }
-        if (company.verificationStatus() != VerificationStatusEnum.APPROVED) {
+        boolean approved = company.verificationStatus() == VerificationStatusEnum.APPROVED
+                || company.verificationStatus() == VerificationStatusEnum.AUTO_APPROVED
+                || company.verificationStatus() == VerificationStatusEnum.MANUAL_APPROVED;
+        if (!approved) {
             return false;
         }
         if (company.creditLimit() == null || company.creditLimit().compareTo(BigDecimal.ZERO) <= 0) {

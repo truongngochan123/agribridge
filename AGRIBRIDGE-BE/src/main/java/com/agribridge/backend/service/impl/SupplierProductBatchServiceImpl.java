@@ -23,6 +23,7 @@ import com.agribridge.backend.entity.ProductImageEntity;
 import com.agribridge.backend.entity.QcRecordEntity;
 import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.CompanyTypeEnum;
+import com.agribridge.backend.entity.enums.VerificationStatusEnum;
 import com.agribridge.backend.repository.BatchImageRepository;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.CategoryRepository;
@@ -514,6 +515,13 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
                         .orElseThrow(() -> new IllegalArgumentException("Supplier company not found")));
         if (supplierCompany.getCompanyType() != CompanyTypeEnum.SUPPLIER) {
             throw new IllegalArgumentException("Company must be supplier");
+        }
+        // Block sensitive actions when verification is still pending
+        VerificationStatusEnum vs = supplierCompany.getVerificationStatus();
+        if (vs == VerificationStatusEnum.PENDING_REVIEW || vs == VerificationStatusEnum.PENDING
+                || vs == VerificationStatusEnum.DRAFT) {
+            throw new IllegalArgumentException(
+                    "H\u1ed3 s\u01a1 c\u1ee7a b\u1ea1n \u0111ang ch\u1edd duy\u1ec7t. Kh\u00f4ng th\u1ec3 \u0111\u0103ng s\u1ea3n ph\u1ea9m c\u00f4ng khai khi ch\u01b0a \u0111\u01b0\u1ee3c x\u00e1c minh.");
         }
         return supplierCompany;
     }

@@ -1,4 +1,4 @@
-﻿import { apiClient } from './apiClient'
+import { apiClient } from './apiClient'
 
 export type RegistrationDraft = {
   role: 'supplier' | 'buyer'
@@ -58,8 +58,18 @@ export type AuthResponse = {
   companyId?: number
   companyType?: string
   userStatus?: string
-  verificationStatus?: 'PENDING' | 'NEED_MORE_INFO' | 'REJECTED' | 'APPROVED'
+  verificationStatus?:
+    | 'PENDING'
+    | 'PENDING_REVIEW'
+    | 'DRAFT'
+    | 'AUTO_APPROVED'
+    | 'MANUAL_APPROVED'
+    | 'APPROVED'
+    | 'NEED_MORE_INFO'
+    | 'NEEDS_MORE_INFO'
+    | 'REJECTED'
   verificationNote?: string | null
+  verificationScore?: number | null
   trustLevel?: string
   creditLimit?: number
   canUseCredit?: boolean
@@ -69,11 +79,13 @@ export type AuthResponse = {
 
 export type TaxCodeLookupResponse = {
   found: boolean
+  provider?: 'VIETQR' | 'XINVOICE' | 'CASSO'
   taxCode?: string
   companyName?: string
+  address?: string
   province?: string
   ward?: string
-  address?: string
+  status?: string
   message?: string
 }
 
@@ -109,9 +121,7 @@ export async function registerAccount(draft: RegistrationDraft, contact: Contact
       companyEmail: draft.companyEmail || undefined,
       address: draft.address,
       province: draft.province,
-
       ward: draft.ward,
-
       description: buildDescription(draft),
       logoUrl: normalizeMediaRef(draft.logoUrl),
       documentUrls,
@@ -126,23 +136,23 @@ export async function registerAccount(draft: RegistrationDraft, contact: Contact
   }
 
   const response = await apiClient.post<AuthResponse>('/api/auth/register/buyer', {
-  companyName: draft.companyName,
-  businessType,
-  ownerName: resolvedOwnerName,
-  taxCode: businessType === 'BUSINESS' ? normalizedTaxCode : undefined,
-  companyPhone: draft.companyPhone || undefined,
-  companyEmail: draft.companyEmail || undefined,
-  address: draft.address,
-  province: draft.province,
-  ward: draft.ward,
-  description: buildDescription(draft),
-  logoUrl: normalizeMediaRef(draft.logoUrl),
-  fullName: contact.fullName,
-  loginPhone: contact.loginPhone,
-  loginEmail: contact.loginEmail,
-  password: contact.password,
-  citizenId: contact.citizenId || undefined,
-})
+    companyName: draft.companyName,
+    businessType,
+    ownerName: resolvedOwnerName,
+    taxCode: businessType === 'BUSINESS' ? normalizedTaxCode : undefined,
+    companyPhone: draft.companyPhone || undefined,
+    companyEmail: draft.companyEmail || undefined,
+    address: draft.address,
+    province: draft.province,
+    ward: draft.ward,
+    description: buildDescription(draft),
+    logoUrl: normalizeMediaRef(draft.logoUrl),
+    fullName: contact.fullName,
+    loginPhone: contact.loginPhone,
+    loginEmail: contact.loginEmail,
+    password: contact.password,
+    citizenId: contact.citizenId || undefined,
+  })
 
   return response.data
 }
@@ -173,7 +183,9 @@ export async function checkRegistrationAvailability(payload: AvailabilityRequest
 }
 
 export async function lookupCompanyByTaxCode(taxCode: string): Promise<TaxCodeLookupResponse> {
-  const response = await apiClient.post<TaxCodeLookupResponse>('/api/auth/register/tax-code-lookup', { taxCode })
+  const response = await apiClient.get<TaxCodeLookupResponse>('/api/tax-code/lookup', {
+    params: { taxCode },
+  })
   return response.data
 }
 

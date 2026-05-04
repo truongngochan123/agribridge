@@ -1,7 +1,8 @@
-import { Check, MessageSquareQuote, Plus, UserRound } from 'lucide-react'
+import { Check, MessageSquareQuote, Plus, UserRound, Zap } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { CenteredStatusLayout } from '../../components/onboarding/CenteredStatusLayout'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { getStoredAuthSession } from '../../services/authSession'
 
 const nextSteps = [
   {
@@ -23,6 +24,12 @@ const nextSteps = [
 
 export function VerificationApprovedPage() {
   usePageTitle('Hồ sơ được duyệt')
+
+  // Detect auto-approval from session
+  const session = getStoredAuthSession()
+  const isAutoApproved =
+    session?.verificationStatus === 'AUTO_APPROVED'
+
   return (
     <CenteredStatusLayout>
       {/* Success status card */}
@@ -32,17 +39,33 @@ export function VerificationApprovedPage() {
         </div>
 
         <div className="mt-5 flex justify-center">
-          <span className="inline-flex rounded-full bg-[#E9F7EC] px-4 py-1.5 text-xs font-extrabold tracking-[0.08em] text-[#2F8F3A]">
-            ĐÃ XÁC MINH
-          </span>
+          {isAutoApproved ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EEF2FF] px-4 py-1.5 text-xs font-extrabold tracking-[0.08em] text-[#4338CA]">
+              <Zap className="h-3.5 w-3.5" />
+              DUYỆT TỰ ĐỘNG
+            </span>
+          ) : (
+            <span className="inline-flex rounded-full bg-[#E9F7EC] px-4 py-1.5 text-xs font-extrabold tracking-[0.08em] text-[#2F8F3A]">
+              ĐÃ XÁC MINH
+            </span>
+          )}
         </div>
 
         <h1 className="mt-4 text-center text-[44px] font-extrabold leading-tight text-[#0F172A]">
           Tài khoản của bạn đã được xác minh
         </h1>
         <p className="mx-auto mt-4 max-w-lg text-center text-[15px] leading-7 text-[#667085]">
-          Hồ sơ doanh nghiệp của bạn đã được phê duyệt. Bạn có thể bắt đầu sử dụng nền tảng để đăng
-          sản phẩm và giao dịch.
+          {isAutoApproved ? (
+            <>
+              Hệ thống đã tự động duyệt hồ sơ của bạn dựa trên thông tin xác minh.{' '}
+              Bạn có thể bắt đầu sử dụng nền tảng ngay lập tức.
+            </>
+          ) : (
+            <>
+              Hồ sơ doanh nghiệp của bạn đã được phê duyệt. Bạn có thể bắt đầu sử dụng nền tảng để đăng
+              sản phẩm và giao dịch.
+            </>
+          )}
         </p>
 
         {/* Actions */}

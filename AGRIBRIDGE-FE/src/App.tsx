@@ -7,7 +7,6 @@ import { SupplierRegistrationContactVerificationPage } from './pages/onboarding/
 import { VerificationPendingPage } from './pages/onboarding/VerificationPendingPage'
 import { VerificationApprovedPage } from './pages/onboarding/VerificationApprovedPage'
 import { VerificationRejectedPage } from './pages/onboarding/VerificationRejectedPage'
-import { RegistrationNeedMoreInfoPage } from './pages/onboarding/RegistrationNeedMoreInfoPage'
 import { LoginPage } from './pages/auth/LoginPage'
 import { SupplierOverviewPage } from './pages/supplier/SupplierOverviewPage'
 import { SupplierProductListPage } from './pages/supplier/SupplierProductListPage'
@@ -62,14 +61,6 @@ function App() {
         element={
           <VerificationStateRoute allowedStatuses={['REJECTED']}>
             <VerificationRejectedPage />
-          </VerificationStateRoute>
-        }
-      />
-      <Route
-        path="/onboarding/registration/complete"
-        element={
-          <VerificationStateRoute allowedStatuses={['NEED_MORE_INFO']}>
-            <RegistrationNeedMoreInfoPage />
           </VerificationStateRoute>
         }
       />

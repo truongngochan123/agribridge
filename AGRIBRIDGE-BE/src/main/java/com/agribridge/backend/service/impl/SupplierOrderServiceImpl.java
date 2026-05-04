@@ -16,6 +16,7 @@ import com.agribridge.backend.entity.ShipmentEventEntity;
 import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
 import com.agribridge.backend.entity.enums.ShipmentStatusEnum;
+import com.agribridge.backend.entity.enums.VerificationStatusEnum;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.BranchRepository;
 import com.agribridge.backend.repository.CompanyRepository;
@@ -198,6 +199,17 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         if (!OrderStatusEnum.PENDING.equals(order.getStatus())
                 && !OrderStatusEnum.PENDING_SUPPLIER_CONFIRMATION.equals(order.getStatus())) {
             throw new IllegalArgumentException("Only pending orders can be confirmed");
+        }
+        // Block confirmation for unverified suppliers
+        if (order.getSupplierCompanyId() != null) {
+            companyRepository.findById(order.getSupplierCompanyId()).ifPresent(supplier -> {
+                VerificationStatusEnum vs = supplier.getVerificationStatus();
+                if (vs == VerificationStatusEnum.PENDING_REVIEW || vs == VerificationStatusEnum.PENDING
+                        || vs == VerificationStatusEnum.DRAFT) {
+                    throw new IllegalArgumentException(
+                            "H\u1ed3 s\u01a1 c\u1ee7a b\u1ea1n \u0111ang ch\u1edd duy\u1ec7t. Kh\u00f4ng th\u1ec3 x\u00e1c nh\u1eadn \u0111\u01a1n h\u00e0ng khi ch\u01b0a \u0111\u01b0\u1ee3c x\u00e1c minh.");
+                }
+            });
         }
         List<OrderItemEntity> items = orderItemRepository.findByOrderIdOrderByIdAsc(order.getId());
         if (items.isEmpty()) {

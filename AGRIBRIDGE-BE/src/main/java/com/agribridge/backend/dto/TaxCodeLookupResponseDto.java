@@ -8,10 +8,12 @@ import lombok.Getter;
 public class TaxCodeLookupResponseDto {
 
     private boolean found;
+    private String provider;
     private String taxCode;
     private String companyName;
+    private String address;
     private String province;
     private String ward;
-    private String address;
+    private String status;
     private String message;
 }
