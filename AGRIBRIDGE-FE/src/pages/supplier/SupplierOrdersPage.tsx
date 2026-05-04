@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
-import { SupplierPanel, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
+import { SearchInput, SupplierPanel, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useToast } from '../../hooks/useToast'
 import {
@@ -20,7 +20,7 @@ import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
 
 type OrderTabKey = 'all' | 'PENDING' | 'CONFIRMED' | 'SHIPPING' | 'DELIVERED' | 'CANCELLED'
 
-const ORDER_TABS: Array<{ key: OrderTabKey; label: string }> = [
+export const ORDER_TABS: Array<{ key: OrderTabKey; label: string }> = [
   { key: 'all', label: 'Tất cả' },
   { key: 'PENDING', label: 'Chờ xác nhận' },
   { key: 'CONFIRMED', label: 'Đã xác nhận' },
@@ -278,45 +278,58 @@ export function SupplierOrdersPage() {
 
   return (
     <>
-      <SupplierShell activeKey="orders" title="Quản lý Đơn hàng" subtitle="Theo dõi và xử lý đơn đến bước giao tới nơi">
-        <div className="grid gap-4 md:grid-cols-5">
-          {[
-            { value: String(statusCount.pending), label: 'Chờ xác nhận' },
-            { value: String(statusCount.confirmed), label: 'Đã xác nhận' },
-            { value: String(statusCount.shipping), label: 'Đang giao' },
-            { value: String(statusCount.completed), label: 'Hoàn thành' },
-            { value: String(statusCount.cancelled), label: 'Đã hủy' },
-          ].map((item) => (
-            <article key={item.label} className="rounded-2xl border border-emerald-200 bg-white p-4">
-              <p className="text-[38px] font-extrabold leading-none text-emerald-950">{item.value}</p>
-              <div className="mt-2"><SupplierStatusPill label={item.label} /></div>
-            </article>
-          ))}
-        </div>
+      <SupplierShell
+        activeKey="orders"
+        title="Quản lý Đơn hàng"
+        subtitle="Theo dõi và xử lý đơn đến bước giao tới nơi"
+        filterBar={
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput
+              value={searchKeyword}
+              onChange={setSearchKeyword}
+              placeholder="Tìm đơn hàng, khách hàng, batch..."
+              className="min-w-[240px] max-w-sm"
+            />
+            <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+              {[
+                { key: 'all' as OrderTabKey, label: 'Tất cả', count: orders.length },
+                { key: 'PENDING' as OrderTabKey, label: 'Chờ xác nhận', count: statusCount.pending },
+                { key: 'CONFIRMED' as OrderTabKey, label: 'Đã xác nhận', count: statusCount.confirmed },
+                { key: 'SHIPPING' as OrderTabKey, label: 'Đang giao', count: statusCount.shipping },
+                { key: 'DELIVERED' as OrderTabKey, label: 'Hoàn thành', count: statusCount.completed },
+                { key: 'CANCELLED' as OrderTabKey, label: 'Đã hủy', count: statusCount.cancelled },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
+                    activeTab === tab.key ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  {tab.label}
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${
+                    activeTab === tab.key ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-700'
+                  }`}>{tab.count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        }
+      >
 
         <SupplierPanel>
-          {loading ? <p className="mb-3 text-sm font-semibold text-emerald-700">Đang tải dữ liệu đơn hàng...</p> : null}
-          {error ? <p className="mb-3 text-sm font-semibold text-red-600">{error}</p> : null}
-          {!loading && !error && orders.length === 0 ? (
-            <p className="mb-3 text-sm font-semibold text-slate-600">Chưa có đơn hàng nào cho tài khoản này.</p>
-          ) : null}
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <input
-              value={searchKeyword}
-              onChange={(event) => setSearchKeyword(event.target.value)}
-              placeholder="Tìm đơn hàng, khách hàng, batch..."
-              className="h-11 min-w-[280px] flex-1 rounded-lg border border-emerald-200 px-4 text-sm outline-none focus:border-emerald-500"
-            />
-            {ORDER_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                className={`rounded-lg px-3 py-2 text-sm font-semibold ${activeTab === tab.key ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-800'}`}
-                onClick={() => setActiveTab(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          {loading && (
+            <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700">
+              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
+              Đang tải dữ liệu đơn hàng...
+            </div>
+          )}
+          {error && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600">{error}</div>
+          )}
+          {!loading && !error && orders.length === 0 && (
+            <p className="mb-4 text-sm font-medium text-slate-400">Chưa có đơn hàng nào cho tài khoản này.</p>
+          )}
 
           {!loading && !error && orders.length > 0 && filteredOrders.length === 0 ? (
             <p className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3 text-sm font-semibold text-emerald-800">
@@ -324,39 +337,39 @@ export function SupplierOrdersPage() {
             </p>
           ) : null}
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] border-separate border-spacing-y-2 text-left">
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
+            <table className="w-full min-w-[1180px] text-left">
               <thead>
-                <tr className="text-xs uppercase tracking-wide text-emerald-700/70">
-                  <th className="px-3">Mã đơn</th>
-                  <th className="px-3">Khách hàng</th>
-                  <th className="px-3">Sản phẩm + lô</th>
-                  <th className="px-3">Số lượng</th>
-                  <th className="px-3">Giá trị</th>
-                  <th className="px-3">Trạng thái đơn hàng</th>
-                  <th className="px-3">Trạng thái giao hàng</th>
-                  <th className="px-3">Ngày đặt</th>
-                  <th className="px-3">Thao tác</th>
+                <tr className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <th className="px-4 py-3">Mã đơn</th>
+                  <th className="px-4 py-3">Khách hàng</th>
+                  <th className="px-4 py-3">Sản phẩm + lô</th>
+                  <th className="px-4 py-3">Số lượng</th>
+                  <th className="px-4 py-3">Giá trị</th>
+                  <th className="px-4 py-3">Trạng thái đơn</th>
+                  <th className="px-4 py-3">Giao hàng</th>
+                  <th className="px-4 py-3">Ngày đặt</th>
+                  <th className="px-4 py-3">Thao tác</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-50">
                 {filteredOrders.map((order) => (
-                  <tr key={order.id} className="rounded-lg bg-emerald-50/40 text-sm">
-                    <td className="px-3 py-3 font-bold text-emerald-950">{order.id}</td>
-                    <td className="px-3 py-3">
-                      <p className="font-semibold text-emerald-900">{order.customer}</p>
-                      <p className="text-xs text-emerald-700/70">{order.branch}</p>
+                  <tr key={order.id} className="bg-white text-sm transition-colors hover:bg-emerald-50/30">
+                    <td className="px-4 py-3 font-bold text-emerald-800">{order.id}</td>
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-slate-800">{order.customer}</p>
+                      <p className="text-xs text-slate-400">{order.branch}</p>
                     </td>
-                    <td className="px-3 py-3 text-emerald-900">
+                    <td className="px-4 py-3 text-slate-700">
                       <OrderItemsPreview order={order} />
                     </td>
-                    <td className="px-3 py-3 text-emerald-900">{order.quantity}</td>
-                    <td className="px-3 py-3 font-bold text-emerald-700">{order.value}</td>
-                    <td className="px-3 py-3"><SupplierStatusPill label={order.status} /></td>
-                    <td className="px-3 py-3"><SupplierStatusPill label={order.shipmentStatus || 'Chưa tạo vận đơn'} /></td>
-                    <td className="px-3 py-3 text-emerald-900">{order.orderDate}</td>
-                    <td className="px-3 py-3">
-                      <div className="flex flex-wrap items-center gap-2">
+                    <td className="px-4 py-3 text-slate-700">{order.quantity}</td>
+                    <td className="px-4 py-3 font-bold text-emerald-700">{order.value}</td>
+                    <td className="px-4 py-3"><SupplierStatusPill label={order.status} /></td>
+                    <td className="px-4 py-3"><SupplierStatusPill label={order.shipmentStatus || 'Chưa tạo vận đơn'} /></td>
+                    <td className="px-4 py-3 text-slate-500 text-xs">{order.orderDate}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {order.availableActions.map((action) => renderActionButton(order, action))}
                         {isWaitingBuyer(order) ? <span className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">Chờ buyer xác nhận</span> : null}
                       </div>

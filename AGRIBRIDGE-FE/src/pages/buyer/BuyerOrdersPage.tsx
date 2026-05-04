@@ -1,7 +1,8 @@
 import { AlertCircle, Eye, FileText, MapPin, Phone, Printer, Receipt, Truck, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BuyerPanel, BuyerStatusPill } from '../../components/buyer/BuyerCommon'
+import { BuyerPanel, BuyerStatusPill, FilterTabBar, SearchInput } from '../../components/buyer/BuyerCommon'
+import { AlertTriangle } from 'lucide-react'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import { useToast } from '../../hooks/useToast'
 import {
@@ -35,6 +36,8 @@ export function BuyerOrdersPage() {
   const [activeTab, setActiveTab] = useState<'info' | 'shipping' | 'invoice' | 'complaint'>('info')
   const [detailLoading, setDetailLoading] = useState(false)
   const [complaintDraft, setComplaintDraft] = useState({ title: '', description: '', severity: 'MEDIUM' })
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const [filterStatus, setFilterStatus] = useState<'all' | string>('all')
 
   const loadOrders = useCallback(async () => {
     try {
@@ -70,6 +73,18 @@ export function BuyerOrdersPage() {
     () => orders.find((item) => item.id === selectedOrderId) ?? orders[0],
     [orders, selectedOrderId],
   )
+
+  const allStatuses = useMemo(() => Array.from(new Set(orders.map((o) => o.status))), [orders])
+
+  const filteredOrders = useMemo(() => {
+    return orders
+      .filter((o) => filterStatus === 'all' || o.status === filterStatus)
+      .filter((o) => {
+        if (!searchKeyword.trim()) return true
+        const kw = searchKeyword.trim().toLowerCase()
+        return o.id.toLowerCase().includes(kw) || o.supplier.toLowerCase().includes(kw) || (o.product ?? '').toLowerCase().includes(kw)
+      })
+  }, [orders, filterStatus, searchKeyword])
 
   const refreshSelectedOrder = async (order: BuyerOrder) => {
     if (!order.orderId) return
@@ -133,48 +148,79 @@ export function BuyerOrdersPage() {
 
   return (
     <>
-      <BuyerShell activeKey="orders" title="Quản lý Đơn hàng" subtitle="Theo dõi đơn hàng theo chi nhánh">
+      <BuyerShell
+        activeKey="orders"
+        title="Quản lý Đơn hàng"
+        subtitle="Theo dõi đơn hàng theo chi nhánh"
+        filterBar={
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput
+              value={searchKeyword}
+              onChange={setSearchKeyword}
+              placeholder="Tìm đơn, nhà cung cấp..."
+              className="min-w-[220px] max-w-sm"
+            />
+            <FilterTabBar
+              tabs={[
+                { key: 'all', label: 'Tất cả', count: orders.length },
+                ...allStatuses.map((s) => ({ key: s, label: s, count: orders.filter((o) => o.status === s).length })),
+              ]}
+              activeKey={filterStatus}
+              onChange={setFilterStatus}
+            />
+          </div>
+        }
+      >
         <BuyerPanel title="Đơn hàng gần đây">
-          {loading ? <p className="mb-3 text-sm font-semibold text-emerald-700">Đang tải dữ liệu đơn hàng...</p> : null}
-          {error ? <p className="mb-3 text-sm font-semibold text-red-600">{error}</p> : null}
-          {!loading && !error && orders.length === 0 ? (
-            <p className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-sm font-semibold text-emerald-800">
-              Chưa có đơn hàng nào cho tài khoản buyer này.
+        {loading && (
+          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+            Đang tải dữ liệu đơn hàng...
+          </div>
+        )}
+        {error && (
+          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        )}
+          {!loading && !error && orders.length === 0 && (
+            <p className="mb-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+              Chưa có đơn hàng nào.
             </p>
-          ) : null}
-          <div className="overflow-x-auto rounded-xl border border-emerald-100">
+          )}
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-emerald-50 text-emerald-800">
-                <tr>
-                  <th className="px-3 py-2 font-semibold">MÃ ĐƠN</th>
-                  <th className="px-3 py-2 font-semibold">NHÀ CUNG CẤP</th>
-                  <th className="px-3 py-2 font-semibold">SẢN PHẨM</th>
-                  <th className="px-3 py-2 font-semibold">CHI NHÁNH</th>
-                  <th className="px-3 py-2 font-semibold">GIÁ TRỊ</th>
-                  <th className="px-3 py-2 font-semibold">TRẠNG THÁI</th>
-                  <th className="px-3 py-2 font-semibold">THAO TÁC</th>
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  <th className="px-3 py-3">Mã đơn</th>
+                  <th className="px-3 py-3">Nhà cung cấp</th>
+                  <th className="px-3 py-3">Sản phẩm</th>
+                  <th className="px-3 py-3">Chi nhánh</th>
+                  <th className="px-3 py-3">Giá trị</th>
+                  <th className="px-3 py-3">Trạng thái</th>
+                  <th className="px-3 py-3">Thao tác</th>
                 </tr>
               </thead>
-              <tbody>
-                {orders.map((row) => (
-                  <tr key={row.id} className="border-t border-emerald-100">
-                    <td className="px-3 py-2 font-semibold text-emerald-900">{row.id}</td>
-                    <td className="px-3 py-2 text-emerald-900">{row.supplier}</td>
-                    <td className="px-3 py-2 text-emerald-900">
-                      {row.product}
-                      <div className="text-xs text-emerald-700/70">{row.quantity}</div>
+              <tbody className="divide-y divide-slate-50">
+                {filteredOrders.map((row) => (
+                  <tr key={row.id} className="bg-white text-sm transition-colors hover:bg-emerald-50/30">
+                    <td className="px-3 py-2.5 font-bold text-slate-800">{row.id}</td>
+                    <td className="px-3 py-2.5 text-slate-700">{row.supplier}</td>
+                    <td className="px-3 py-2.5">
+                      <p className="font-medium text-slate-800">{row.product}</p>
+                      <p className="text-xs text-slate-400">{row.quantity}</p>
                     </td>
-                    <td className="px-3 py-2 text-emerald-900">{row.branch}</td>
-                    <td className="px-3 py-2 font-semibold text-emerald-900">{row.value}</td>
-                    <td className="px-3 py-2"><BuyerStatusPill status={row.status} /></td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2.5 text-slate-700">{row.branch}</td>
+                    <td className="px-3 py-2.5 font-bold text-slate-900">{row.value}</td>
+                    <td className="px-3 py-2.5"><BuyerStatusPill status={row.status} /></td>
+                    <td className="px-3 py-2.5">
                       <button
-                        className="rounded-md border border-emerald-200 p-1.5 text-emerald-700 hover:bg-emerald-50"
-                        onClick={() => {
-                          void openOrderDetail(row)
-                        }}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors active:scale-95"
+                        onClick={() => { void openOrderDetail(row) }}
                       >
-                        <Eye className="h-4 w-4" />
+                        <Eye className="h-3.5 w-3.5" />
+                        Xem
                       </button>
                     </td>
                   </tr>

@@ -50,7 +50,7 @@ public class QcRecordEntity {
     @Column(name = "result", nullable = false)
     private QcResultEnum result;
 
-    @Column(name = "checklist", columnDefinition = "jsonb")
+    @Column(name = "checklist", columnDefinition = "nvarchar(max)")
     private String checklist;
 
     @Column(name = "notes")

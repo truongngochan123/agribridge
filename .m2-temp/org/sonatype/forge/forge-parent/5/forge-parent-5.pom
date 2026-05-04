@@ -16,7 +16,7 @@
 
     <properties>
       <forgeReleaseId>forge-releases</forgeReleaseId>
-      <forgeReleaseUrl>http://repository.sonatype.org:8081/service/local/staging/deploy/maven2</forgeReleaseUrl>
+      <forgeReleaseUrl>http://repository.sonatype.org:8025/service/local/staging/deploy/maven2</forgeReleaseUrl>
       <forgeSnapshotId>forge-snapshots</forgeSnapshotId>
       <forgeSnapshotUrl>http://repository.sonatype.org/content/repositories/snapshots</forgeSnapshotUrl>
     </properties>

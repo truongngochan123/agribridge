@@ -1,7 +1,7 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { MapPin, Phone, X } from 'lucide-react'
-import { BuyerPanel } from '../../components/buyer/BuyerCommon'
+import { AlertTriangle, Clock, MapPin, Package, PhoneCall, Truck, X } from 'lucide-react'
+import { SearchInput } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import { useToast } from '../../hooks/useToast'
 import {
@@ -32,6 +32,39 @@ const STATUS_OPTIONS: Array<{ value: DeliveryStatus | ''; label: string }> = [
   { value: 'CANCELLED', label: 'Đã hủy' },
 ]
 
+type StatusColor = 'amber' | 'blue' | 'indigo' | 'emerald' | 'rose' | 'slate'
+
+const STATUS_COLORS: Record<StatusColor, { badge: string; ring: string; dot: string; bar: string }> = {
+  amber:   { badge: 'bg-amber-100 text-amber-800',   ring: 'ring-amber-400',   dot: 'bg-amber-400',   bar: 'from-amber-400 to-amber-600' },
+  blue:    { badge: 'bg-blue-100 text-blue-800',     ring: 'ring-blue-400',    dot: 'bg-blue-400',    bar: 'from-blue-400 to-blue-600' },
+  indigo:  { badge: 'bg-indigo-100 text-indigo-800', ring: 'ring-indigo-400',  dot: 'bg-indigo-400',  bar: 'from-indigo-400 to-indigo-600' },
+  emerald: { badge: 'bg-emerald-100 text-emerald-800', ring: 'ring-emerald-400', dot: 'bg-emerald-500', bar: 'from-emerald-400 to-emerald-600' },
+  rose:    { badge: 'bg-rose-100 text-rose-700',     ring: 'ring-rose-400',    dot: 'bg-rose-400',    bar: 'from-rose-400 to-rose-600' },
+  slate:   { badge: 'bg-slate-100 text-slate-600',   ring: 'ring-slate-300',   dot: 'bg-slate-400',   bar: 'from-slate-300 to-slate-400' },
+}
+
+function getStatusMeta(status: string): { color: StatusColor; label: string } {
+  const s = (status ?? '').toLowerCase()
+  if (s === 'pending' || s === 'preparing' || s.includes('chuẩn')) return { color: 'amber', label: status }
+  if (s === 'shipped' || s.includes('xuất kho')) return { color: 'blue', label: status }
+  if (s === 'in_transit' || s.includes('đang giao')) return { color: 'indigo', label: status }
+  if (s === 'waiting_confirmation' || s.includes('xác nhận')) return { color: 'indigo', label: status }
+  if (s === 'delivered' || s.includes('đã giao')) return { color: 'emerald', label: status }
+  if (s === 'incident' || s === 'failed' || s === 'cancelled' || s.includes('sự cố') || s.includes('hủy')) return { color: 'rose', label: status }
+  return { color: 'slate', label: status || 'N/A' }
+}
+
+function StatusBadge({ status, label }: { status: string; label?: string }) {
+  const { color } = getStatusMeta(status)
+  const cls = STATUS_COLORS[color]
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${cls.badge}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${cls.dot}`} />
+      {label || status}
+    </span>
+  )
+}
+
 function formatDate(value?: string | null) {
   if (!value) return 'Chưa có'
   const date = new Date(value)
@@ -40,6 +73,119 @@ function formatDate(value?: string | null) {
 
 function canConfirm(item: BuyerDeliveryItem) {
   return !item.confirmedReceivedAt && !['CANCELLED', 'FAILED', 'DELIVERED'].includes(item.status)
+}
+
+function DeliveryCard({
+  item,
+  onTimeline,
+  onDetail,
+  onMap,
+  onIncident,
+  onConfirm,
+}: {
+  item: BuyerDeliveryItem
+  onTimeline: () => void
+  onDetail: () => void
+  onMap: () => void
+  onIncident: () => void
+  onConfirm: () => void
+}) {
+  const { color } = getStatusMeta(item.status)
+  const cls = STATUS_COLORS[color]
+  const eta = item.estimatedDeliveryAt
+    ? formatDate(item.estimatedDeliveryAt)
+    : (item.estimatedDeliveryTime || 'Chưa có')
+
+  return (
+    <div className={`group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:ring-2 ${cls.ring} hover:ring-offset-1`}>
+      {/* Top accent stripe */}
+      <div className={`h-1 w-full bg-gradient-to-r ${cls.bar}`} />
+
+      <div className="p-4">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-base font-extrabold tracking-tight text-slate-900">
+                {item.trackingCode || String(item.id)}
+              </span>
+              <StatusBadge status={item.status} label={item.statusLabel} />
+            </div>
+            <p className="mt-0.5 truncate text-xs font-medium text-slate-500">
+              {item.orderRef} · {item.supplierName}
+            </p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p className="text-xs font-bold text-emerald-700">ETA: {eta}</p>
+          </div>
+        </div>
+
+        {/* Cargo + destination */}
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <Package className="h-3.5 w-3.5 text-emerald-500" />
+            <span className="font-semibold text-slate-700 truncate max-w-[120px]">{item.productsText || 'Hàng hóa'}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <Truck className="h-3.5 w-3.5 text-blue-400" />
+            <span className="font-semibold truncate max-w-[100px]">{item.destination || item.branchName || 'Chưa có'}</span>
+          </div>
+        </div>
+
+        {/* Progress */}
+        <div className="mt-3">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <div
+              className={`h-full rounded-full bg-gradient-to-r ${cls.bar} transition-all duration-500`}
+              style={{ width: `${Math.min(Math.max(item.progress, 0), 100)}%` }}
+            />
+          </div>
+          <p className="mt-1 text-right text-[11px] font-semibold text-slate-400">{item.progress}%</p>
+        </div>
+
+        {/* Actions */}
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            onClick={onDetail}
+            className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 py-2 text-xs font-bold text-white transition hover:opacity-90 active:scale-95"
+          >
+            Chi tiết & Cập nhật
+          </button>
+          <button
+            onClick={onTimeline}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            title="Timeline"
+          >
+            <Clock className="h-4 w-4" />
+          </button>
+          <button
+            onClick={onMap}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            title="Bản đồ"
+          >
+            <MapPin className="h-4 w-4" />
+          </button>
+          {item.driverPhone && (
+            <a
+              href={`tel:${item.driverPhone}`}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
+              title="Gọi tài xế"
+            >
+              <PhoneCall className="h-4 w-4" />
+            </a>
+          )}
+          {canConfirm(item) && (
+            <button
+              onClick={onConfirm}
+              className="rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100"
+            >
+              Xác nhận
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function BuyerDeliveryPage() {
@@ -104,78 +250,70 @@ export function BuyerDeliveryPage() {
 
   return (
     <>
-      <BuyerShell activeKey="delivery" title="Theo dõi Giao hàng" subtitle="Theo dõi trạng thái vận chuyển">
-        <BuyerPanel
-          title="Theo dõi Giao hàng"
-          right={
-            <div className="flex flex-wrap justify-end gap-2">
-              <input
-                className="h-10 rounded-lg border border-emerald-200 bg-white px-3 text-sm"
-                placeholder="Tìm mã vận đơn, NCC..."
-                value={filters.keyword}
-                onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))}
-              />
-              <select className="h-10 rounded-lg border border-emerald-200 bg-white px-3 text-sm" value={filters.branchId} onChange={(event) => setFilters((current) => ({ ...current, branchId: event.target.value }))}>
-                <option value="">Tất cả chi nhánh</option>
-                {branchOptions.map((branch) => <option key={branch.rawId} value={branch.rawId}>{branch.name}</option>)}
-              </select>
-              <select className="h-10 rounded-lg border border-emerald-200 bg-white px-3 text-sm" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
-                {STATUS_OPTIONS.map((status) => <option key={status.value || 'all'} value={status.value}>{status.label}</option>)}
-              </select>
-            </div>
-          }
-        >
-          {loading ? <p className="mb-3 text-sm font-semibold text-emerald-700">Đang tải giao hàng...</p> : null}
-          {error ? <p className="mb-3 text-sm font-semibold text-red-600">{error}</p> : null}
-          {!loading && !error && deliveries.length === 0 ? (
-            <p className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-sm font-semibold text-emerald-800">Chưa có shipment nào phù hợp.</p>
-          ) : null}
-          <div className="space-y-4">
-            {deliveries.map((item) => (
-              <article key={item.shipmentId} className="rounded-xl border border-emerald-100 bg-white p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-xl font-extrabold text-emerald-950">{item.trackingCode || item.id}</h4>
-                      <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">{item.statusLabel}</span>
-                    </div>
-                    <p className="mt-1 text-sm text-emerald-700/80">Đơn hàng: {item.orderRef}</p>
-                    <p className="text-sm text-emerald-700/80">NCC: {item.supplierName}</p>
-                    <p className="text-sm text-emerald-700/80">Sản phẩm: {item.productsText}</p>
-                    <p className="text-sm text-emerald-700/80">Giao đến: {item.destination || item.branchName}</p>
-                  </div>
-                  <div className="text-right text-sm text-emerald-700/80">
-                    <p className="font-semibold text-emerald-900">ETA: {formatDate(item.estimatedDeliveryAt) !== 'Chưa có' ? formatDate(item.estimatedDeliveryAt) : item.estimatedDeliveryTime || 'Chưa có'}</p>
-                    <p>Tài xế: {item.driverName || 'Chưa có'}</p>
-                    <p>Biển số: {item.vehicleInfo || 'Chưa có'}</p>
-                  </div>
-                </div>
-
-                <div className="mt-3">
-                  <p className="text-xs text-emerald-700/70">Tiến độ giao hàng</p>
-                  <div className="mt-1 h-2 rounded-full bg-emerald-100">
-                    <div className="h-2 rounded-full bg-emerald-600" style={{ width: `${item.progress}%` }} />
-                  </div>
-                  <p className="mt-1 text-right text-xs font-semibold text-emerald-700">{item.progress}%</p>
-                </div>
-
-                <div className="mt-3 grid gap-2 md:grid-cols-6">
-                  <button className="rounded-lg border border-emerald-200 bg-emerald-50 py-2 text-sm font-semibold text-emerald-700" onClick={() => void openTimeline(item)}>Timeline chi tiết</button>
-                  <button className="rounded-lg border border-emerald-200 py-2 text-sm font-semibold text-emerald-700" onClick={() => void openDetail(item)}>Chi tiết</button>
-                  <button className="rounded-lg bg-emerald-600 py-2 text-sm font-semibold text-white" onClick={() => setMapShipment(item)}>Xem bản đồ</button>
-                  <a
-                    className={`inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 py-2 text-sm font-semibold ${item.driverPhone ? 'text-emerald-700' : 'pointer-events-none text-slate-400 opacity-60'}`}
-                    href={item.driverPhone ? `tel:${item.driverPhone}` : undefined}
-                  >
-                    <Phone className="h-4 w-4" /> Gọi tài xế
-                  </a>
-                  <button className="rounded-lg border border-red-200 py-2 text-sm font-semibold text-red-600" onClick={() => setIncidentShipment(item)}>Báo sự cố</button>
-                  <button className="rounded-lg bg-emerald-500 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!canConfirm(item)} onClick={() => setConfirmShipment(item)}>Xác nhận nhận hàng</button>
-                </div>
-              </article>
-            ))}
+      <BuyerShell
+        activeKey="delivery"
+        title="Theo dõi Giao hàng"
+        subtitle="Theo dõi trạng thái vận chuyển"
+        filterBar={
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput
+              value={filters.keyword}
+              onChange={(v) => setFilters((c) => ({ ...c, keyword: v }))}
+              placeholder="Tìm mã vận đơn, NCC..."
+              className="min-w-[220px] max-w-sm"
+            />
+            <select
+              className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm focus:outline-none"
+              value={filters.branchId}
+              onChange={(e) => setFilters((c) => ({ ...c, branchId: e.target.value }))}
+            >
+              <option value="">Tất cả chi nhánh</option>
+              {branchOptions.map((b) => <option key={b.rawId} value={b.rawId}>{b.name}</option>)}
+            </select>
+            <select
+              className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm focus:outline-none"
+              value={filters.status}
+              onChange={(e) => setFilters((c) => ({ ...c, status: e.target.value }))}
+            >
+              {STATUS_OPTIONS.map((s) => <option key={s.value || 'all'} value={s.value}>{s.label}</option>)}
+            </select>
           </div>
-        </BuyerPanel>
+        }
+      >
+        {loading && (
+          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+            Đang tải dữ liệu giao hàng...
+          </div>
+        )}
+        {error && (
+          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        )}
+        {!loading && !error && deliveries.length === 0 && (
+          <div className="flex flex-col items-center gap-3 py-10 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50">
+              <Truck className="h-7 w-7 text-emerald-400" />
+            </div>
+            <p className="text-sm font-bold text-slate-700">Chưa có shipment nào</p>
+            <p className="max-w-xs text-xs text-slate-400">Chưa có vận đơn nào phù hợp với bộ lọc hiện tại.</p>
+          </div>
+        )}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {deliveries.map((item) => (
+            <DeliveryCard
+              key={item.shipmentId}
+              item={item}
+              onTimeline={() => void openTimeline(item)}
+              onDetail={() => void openDetail(item)}
+              onMap={() => setMapShipment(item)}
+              onIncident={() => setIncidentShipment(item)}
+              onConfirm={() => setConfirmShipment(item)}
+            />
+          ))}
+        </div>
       </BuyerShell>
 
       {timeline ? <TimelineModal timeline={timeline} onClose={() => setTimeline(null)} /> : null}
@@ -382,8 +520,24 @@ function ModalHeader({ title, onClose }: { title: string; onClose: () => void })
 function SubmitRow({ saving, onClose, onSubmit, submitText }: { saving: boolean; onClose: () => void; onSubmit: () => void; submitText: string }) {
   return (
     <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
-      <button className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700" onClick={onClose} disabled={saving}>Đóng</button>
-      <button className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" onClick={onSubmit} disabled={saving}>{saving ? 'Đang gửi...' : submitText}</button>
+      <button className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" onClick={onClose} disabled={saving}>Đóng</button>
+      <button className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-60" onClick={onSubmit} disabled={saving}>{saving ? 'Đang gửi...' : submitText}</button>
     </div>
+  )
+}
+
+function DeliveryStatusBadge({ label, status }: { label: string; status: string }) {
+  const map: Record<string, { badge: string; dot: string }> = {
+    preparing: { badge: 'bg-amber-100 text-amber-700',  dot: 'bg-amber-400' },
+    transit:   { badge: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-400' },
+    done:      { badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+    issue:     { badge: 'bg-rose-100 text-rose-700',    dot: 'bg-rose-400' },
+  }
+  const cls = map[status] ?? { badge: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' }
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${cls.badge}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${cls.dot}`} />
+      {label}
+    </span>
   )
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BuyerKpiCards, BuyerPanel } from '../../components/buyer/BuyerCommon'
+import { AlertTriangle, Download } from 'lucide-react'
+import { FilterTabBar, SearchInput, BuyerPanel } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import { useToast } from '../../hooks/useToast'
 import {
@@ -180,83 +181,149 @@ export function BuyerDebtPage() {
     }
   }
 
+  const debtTabs = [
+    { key: 'all', label: 'Tất cả', count: overview.suppliers.length },
+    { key: 'OVERDUE', label: 'Quá hạn', count: overview.suppliers.filter((s) => s.status === 'OVERDUE').length },
+    { key: 'WARNING', label: 'Cảnh báo', count: overview.suppliers.filter((s) => s.status === 'WARNING').length },
+    { key: 'NORMAL', label: 'Bình thường', count: overview.suppliers.filter((s) => s.status === 'NORMAL').length },
+  ]
+
   return (
     <>
-      <BuyerShell activeKey="debt" title="Quản lý Công nợ" subtitle="Theo dõi công nợ phải trả theo nhà cung cấp">
-        <BuyerKpiCards items={overview.kpis.map((item) => ({ id: item.id, label: kpiLabel(item.id, item.label), value: item.displayValue }))} />
+      <BuyerShell
+        activeKey="debt"
+        title="Quản lý Công nợ"
+        subtitle="Theo dõi công nợ phải trả theo nhà cung cấp"
+        filterBar={
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput
+              value={keyword}
+              onChange={setKeyword}
+              placeholder="Tìm nhà cung cấp..."
+              className="min-w-[220px] max-w-sm"
+            />
+            <FilterTabBar tabs={debtTabs} activeKey={status === 'all' ? 'all' : status} onChange={(k) => setStatus(k)} />
+            <select
+              className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm focus:outline-none"
+              value={dueFilter}
+              onChange={(e) => setDueFilter(e.target.value)}
+            >
+              <option value="all">Tất cả hạn TT</option>
+              <option value="dueSoon">Sắp đến hạn</option>
+              <option value="overdue">Quá hạn</option>
+            </select>
+            <button
+              onClick={() => void exportCsv()}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-xs font-bold text-white shadow-sm hover:opacity-90 active:scale-95 transition-all"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Xuất báo cáo
+            </button>
+          </div>
+        }
+      >
+        {/* Loading / Error */}
+        {loading && (
+          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+            Đang tải dữ liệu công nợ...
+          </div>
+        )}
+        {error && (
+          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        )}
 
-        <div className="mt-5">
-          <BuyerPanel
-            title="Công nợ theo Nhà cung cấp"
-            right={<button className="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-semibold text-emerald-700" onClick={() => void exportCsv()}>Xuất báo cáo</button>}
-          >
-            <div className="mb-3 grid gap-2 md:grid-cols-[1fr_180px_180px]">
-              <input className="rounded-lg border border-emerald-100 px-3 py-2 text-sm outline-none focus:border-emerald-400" placeholder="Tìm nhà cung cấp..." value={keyword} onChange={(event) => setKeyword(event.target.value)} />
-              <select className="rounded-lg border border-emerald-100 px-3 py-2 text-sm outline-none focus:border-emerald-400" value={status} onChange={(event) => setStatus(event.target.value)}>
-                <option value="all">Tất cả trạng thái</option>
-                <option value="NORMAL">Bình thường</option>
-                <option value="WARNING">Cảnh báo</option>
-                <option value="OVERDUE">Quá hạn</option>
-                <option value="BLOCKED">Bị chặn</option>
-              </select>
-              <select className="rounded-lg border border-emerald-100 px-3 py-2 text-sm outline-none focus:border-emerald-400" value={dueFilter} onChange={(event) => setDueFilter(event.target.value)}>
-                <option value="all">Tất cả hạn thanh toán</option>
-                <option value="dueSoon">Sắp đến hạn</option>
-                <option value="overdue">Quá hạn</option>
-              </select>
-            </div>
+        {/* KPI Summary bar - gradient left-bar style */}
+        {!loading && !error && overview.kpis.length > 0 && (
+          <div className="mb-4 grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+            {overview.kpis.map((item, i) => {
+              const accents = [
+                { bar: 'from-emerald-400 to-teal-500' },
+                { bar: 'from-blue-400 to-indigo-500' },
+                { bar: 'from-amber-400 to-orange-500' },
+                { bar: 'from-violet-400 to-purple-500' },
+                { bar: 'from-rose-400 to-red-500' },
+                { bar: 'from-cyan-400 to-sky-500' },
+              ]
+              const accent = accents[i % accents.length]
+              return (
+                <div key={item.id} className="relative overflow-hidden rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+                  <span className={`absolute left-0 top-0 h-full w-1 rounded-l-xl bg-gradient-to-b ${accent.bar}`} />
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{kpiLabel(item.id, item.label)}</p>
+                  <p className="mt-0.5 text-lg font-extrabold text-slate-900">{item.displayValue}</p>
+                </div>
+              )
+            })}
+          </div>
+        )}
 
-            {loading ? <p className="mb-3 text-sm font-semibold text-emerald-700">Đang tải công nợ...</p> : null}
-            {error ? <p className="mb-3 text-sm font-semibold text-red-600">{error}</p> : null}
-            {!loading && !error && suppliers.length === 0 ? (
-              <p className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-sm font-semibold text-emerald-800">Chưa có công nợ phải trả</p>
-            ) : null}
-
-            <div className="overflow-x-auto rounded-xl border border-emerald-100">
-              <table className="min-w-[1120px] text-left text-sm">
-                <thead className="bg-emerald-50 text-emerald-800">
-                  <tr>
-                    <th className="px-4 py-3">Nhà cung cấp</th>
-                    <th className="px-4 py-3">Tổng nợ</th>
-                    <th className="px-4 py-3">Đã thanh toán</th>
-                    <th className="px-4 py-3">Còn phải trả</th>
-                    <th className="px-4 py-3">Quá hạn</th>
-                    <th className="px-4 py-3">Hạn mức</th>
-                    <th className="px-4 py-3">Trạng thái</th>
-                    <th className="px-4 py-3">Hành động</th>
+        <BuyerPanel title="Công nợ theo Nhà cung cấp">
+          {!loading && !error && suppliers.length === 0 && (
+            <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+              Chưa có công nợ phải trả phù hợp.
+            </p>
+          )}
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
+            <table className="min-w-[1120px] text-left">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  <th className="px-4 py-3">Nhà cung cấp</th>
+                  <th className="px-4 py-3">Tổng nợ</th>
+                  <th className="px-4 py-3">Đã thanh toán</th>
+                  <th className="px-4 py-3">Còn phải trả</th>
+                  <th className="px-4 py-3">Quá hạn</th>
+                  <th className="px-4 py-3">Hạn mức</th>
+                  <th className="px-4 py-3">Trạng thái</th>
+                  <th className="px-4 py-3">Hành động</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {suppliers.map((item) => (
+                  <tr key={item.supplierId} className="bg-white text-sm transition-colors hover:bg-emerald-50/30">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-slate-800">{item.supplierName}</p>
+                      <p className="text-xs text-slate-400">{item.unpaidInvoiceCount}/{item.invoiceCount} hóa đơn chưa tất toán</p>
+                    </td>
+                    <td className="px-4 py-3 font-bold text-slate-900">{formatMoney(item.totalAmount)}</td>
+                    <td className="px-4 py-3 text-emerald-700">{formatMoney(item.paidAmount)}</td>
+                    <td className="px-4 py-3 font-bold text-slate-900">{formatMoney(item.remainingAmount)}</td>
+                    <td className="px-4 py-3 font-semibold text-rose-600">{formatMoney(item.overdueAmount)}</td>
+                    <td className="px-4 py-3">
+                      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-all"
+                          style={{ width: `${Math.min(Number(item.limitUsage || 0), 100)}%` }}
+                        />
+                      </div>
+                      <p className="mt-1 text-[10px] text-slate-400">{Number(item.limitUsage || 0).toFixed(1)}%</p>
+                    </td>
+                    <td className="px-4 py-3"><StatusBadge supplier={item} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                          onClick={() => void openDetail(item.supplierId)}
+                        >
+                          Chi tiết
+                        </button>
+                        <button
+                          className="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-500 px-2.5 py-1.5 text-xs font-bold text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+                          onClick={() => void openPayment(item)}
+                          disabled={item.remainingAmount <= 0}
+                        >
+                          Thanh toán
+                        </button>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {suppliers.map((item) => (
-                    <tr key={item.supplierId} className="border-t border-emerald-100">
-                      <td className="px-4 py-3 font-semibold text-emerald-900">
-                        {item.supplierName}
-                        <div className="text-xs text-emerald-700/70">{item.unpaidInvoiceCount}/{item.invoiceCount} hóa đơn chưa tất toán</div>
-                      </td>
-                      <td className="px-4 py-3 font-semibold">{formatMoney(item.totalAmount)}</td>
-                      <td className="px-4 py-3 text-emerald-700">{formatMoney(item.paidAmount)}</td>
-                      <td className="px-4 py-3 font-semibold text-emerald-900">{formatMoney(item.remainingAmount)}</td>
-                      <td className="px-4 py-3 text-red-500">{formatMoney(item.overdueAmount)}</td>
-                      <td className="px-4 py-3">
-                        <div className="h-2 w-28 rounded-full bg-emerald-100">
-                          <div className="h-2 rounded-full bg-emerald-600" style={{ width: `${Math.min(Number(item.limitUsage || 0), 100)}%` }} />
-                        </div>
-                        <p className="mt-1 text-xs text-emerald-700">{Number(item.limitUsage || 0).toFixed(1)}% / {formatMoney(item.creditLimit)}</p>
-                      </td>
-                      <td className="px-4 py-3"><StatusBadge supplier={item} /></td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700" onClick={() => void openDetail(item.supplierId)}>Chi tiết</button>
-                          <button className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60" onClick={() => void openPayment(item)} disabled={item.remainingAmount <= 0}>Thanh toán</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </BuyerPanel>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </BuyerPanel>
       </BuyerShell>
 
       {detailLoading ? <Overlay><p className="text-sm font-semibold text-emerald-700">Đang tải chi tiết...</p></Overlay> : null}
@@ -277,17 +344,23 @@ export function BuyerDebtPage() {
 
 function SupplierDetailModal({ detail, onClose, onPay }: { detail: BuyerDebtSupplierDetail; onClose: () => void; onPay: (invoice: BuyerDebtInvoice) => void }) {
   return (
-    <div className="fixed inset-0 z-[80] bg-black/35 p-4" onClick={onClose}>
-      <div className="mx-auto mt-6 max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-2xl bg-white p-4" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-start justify-between border-b border-slate-200 pb-3">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        {/* Dark gradient header - supplier style */}
+        <div className="flex items-start justify-between gap-4 bg-gradient-to-r from-slate-800 to-slate-700 px-5 py-4">
           <div>
-            <h3 className="text-2xl font-extrabold text-slate-900">{detail.summary.supplierName}</h3>
-            <p className="text-xs text-slate-500">Hạn mức: {formatMoney(detail.summary.creditLimit)} - Công nợ còn lại: {formatMoney(detail.summary.remainingAmount)}</p>
+            <h3 className="text-xl font-extrabold text-white">{detail.summary.supplierName}</h3>
+            <p className="mt-0.5 text-sm text-slate-300">
+              Hạn mức: {formatMoney(detail.summary.creditLimit)} · Còn lại: {formatMoney(detail.summary.remainingAmount)}
+            </p>
           </div>
-          <button className="rounded p-1 text-slate-500 hover:bg-slate-100" onClick={onClose}>x</button>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-white/70 hover:bg-white/10">
+            ×
+          </button>
         </div>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          <div className="grid gap-3 md:grid-cols-5">
           <Info label="Tổng nợ" value={formatMoney(detail.summary.totalAmount)} />
           <Info label="Đã thanh toán" value={formatMoney(detail.summary.paidAmount)} />
           <Info label="Còn lại" value={formatMoney(detail.summary.remainingAmount)} />
@@ -338,6 +411,7 @@ function SupplierDetailModal({ detail, onClose, onPay }: { detail: BuyerDebtSupp
             </div>
           )) : <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">Chưa có điều chỉnh.</p>}
         </div>
+        </div>{/* end overflow-y-auto body */}
       </div>
     </div>
   )
@@ -395,8 +469,19 @@ function PaymentModal({ detail, draft, submitting, onChange, onClose, onSubmit }
 }
 
 function StatusBadge({ supplier }: { supplier: BuyerDebtSupplier }) {
-  const cls = supplier.status === 'BLOCKED' ? 'bg-red-700 text-white' : supplier.status === 'OVERDUE' ? 'bg-red-100 text-red-700' : supplier.status === 'WARNING' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-  return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>{statusLabel(supplier.status, supplier.statusLabel)}</span>
+  const map: Record<string, { badge: string; dot: string }> = {
+    BLOCKED: { badge: 'bg-red-100 text-red-700',     dot: 'bg-red-500' },
+    OVERDUE: { badge: 'bg-rose-100 text-rose-700',   dot: 'bg-rose-400' },
+    WARNING: { badge: 'bg-amber-100 text-amber-700', dot: 'bg-amber-400' },
+    NORMAL:  { badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+  }
+  const cls = map[supplier.status] ?? { badge: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' }
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${cls.badge}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${cls.dot}`} />
+      {statusLabel(supplier.status, supplier.statusLabel)}
+    </span>
+  )
 }
 
 function statusLabel(status: string, fallback?: string) {

@@ -25,6 +25,7 @@ type SupplierShellProps = {
   subtitle: string
   children: ReactNode
   actions?: ReactNode
+  filterBar?: ReactNode
 }
 
 const iconByKey = {
@@ -37,7 +38,7 @@ const iconByKey = {
   reports: BarChart3,
 }
 
-export function SupplierShell({ activeKey, title, subtitle, children, actions }: SupplierShellProps) {
+export function SupplierShell({ activeKey, title, subtitle, children, actions, filterBar }: SupplierShellProps) {
   const navigate = useNavigate()
   const [openNotifications, setOpenNotifications] = useState(false)
   const { profile } = useCurrentUserProfile()
@@ -114,10 +115,10 @@ export function SupplierShell({ activeKey, title, subtitle, children, actions }:
         </aside>
 
         <main className="flex min-w-0 flex-col overflow-hidden">
-          <header className="shrink-0 border-b border-emerald-200 bg-white px-4 py-3">
+          <header className="shrink-0 sticky top-0 z-30 border-b border-emerald-200 bg-white/95 backdrop-blur-sm px-4 py-3 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h1 className="text-[26px] font-extrabold leading-tight text-emerald-950">{title}</h1>
+                <h1 className="text-[22px] font-extrabold leading-tight text-emerald-950">{title}</h1>
                 <p className="mt-0.5 text-xs text-emerald-900/60">{subtitle}</p>
               </div>
 
@@ -145,8 +146,14 @@ export function SupplierShell({ activeKey, title, subtitle, children, actions }:
               </div>
             </div>
 
-            {actions ? <div className="mt-3">{actions}</div> : null}
+            {actions ? <div className="mt-2">{actions}</div> : null}
           </header>
+
+          {filterBar ? (
+            <div className="shrink-0 sticky top-[var(--shell-header-h,73px)] z-20 border-b border-slate-100 bg-white/95 backdrop-blur-sm px-4 py-2 shadow-sm">
+              {filterBar}
+            </div>
+          ) : null}
 
           <div className="flex-1 overflow-y-auto p-4">{children}</div>
         </main>

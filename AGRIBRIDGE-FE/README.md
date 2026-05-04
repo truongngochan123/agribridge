@@ -41,7 +41,7 @@ npm run build
 
 ## API integration
 
-Base URL is loaded from `VITE_API_BASE_URL`, defaulting to `http://localhost:8081`.
+Base URL is loaded from `VITE_API_BASE_URL`, defaulting to `http://localhost:8025`.
 
 Endpoints used by homepage:
 

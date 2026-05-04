@@ -8,6 +8,7 @@ import lombok.Getter;
 public class UploadedFileResponseDto {
 
     private String url;
+    private String secureUrl;
     private String publicId;
     private String format;
     private String resourceType;

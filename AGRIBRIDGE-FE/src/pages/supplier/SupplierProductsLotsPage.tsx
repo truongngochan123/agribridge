@@ -487,7 +487,13 @@ export function SupplierProductsLotsPage() {
               {lots.map((item) => (
                 <article key={item.id} className="overflow-hidden rounded-2xl border border-emerald-200 bg-white">
                   <div className="relative h-28 bg-emerald-100/60">
-                    <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+                    {item.image ? (
+                      <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center px-3 text-center text-xs font-bold text-emerald-700">
+                        {item.name}
+                      </div>
+                    )}
                     <div className="absolute right-3 top-3">
                       <SupplierStatusPill label={item.status} />
                     </div>

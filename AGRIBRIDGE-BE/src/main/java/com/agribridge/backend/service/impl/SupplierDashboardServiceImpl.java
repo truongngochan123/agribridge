@@ -31,6 +31,7 @@ import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.QuoteRepository;
 import com.agribridge.backend.repository.RfqRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
+import com.agribridge.backend.service.CurrentUserService;
 import com.agribridge.backend.service.SupplierDashboardService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -75,15 +76,13 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
     private final PaymentRepository paymentRepository;
     private final QuoteRepository quoteRepository;
     private final RfqRepository rfqRepository;
+    private final CurrentUserService currentUserService;
 
     @Override
     @Transactional(readOnly = true)
-    public SupplierDashboardResponseDto getDashboard(Long supplierCompanyId) {
+    public SupplierDashboardResponseDto getDashboard() {
+        Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
         log.info("Loading supplier dashboard supplierCompanyId={}", supplierCompanyId);
-        if (supplierCompanyId == null) {
-            log.warn("Returning empty supplier dashboard because supplierCompanyId is null");
-            return emptyDashboard();
-        }
         Long resolvedSupplierId = supplierCompanyId;
 
         List<ProductEntity> products = productRepository
@@ -171,17 +170,20 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
         Map<Long, InvoiceEntity> invoiceById = invoices.stream()
                 .collect(Collectors.toMap(InvoiceEntity::getId, value -> value, (left, right) -> left));
 
-        Map<Long, BigDecimal> paidByInvoiceId = paymentRepository
-                .findByInvoiceIdInOrderByPaymentDateDesc(invoices.stream().map(InvoiceEntity::getId).toList())
-                .stream()
-                .collect(Collectors.groupingBy(
-                        PaymentEntity::getInvoiceId,
-                        Collectors.reducing(BigDecimal.ZERO, this::effectivePaidAmount, BigDecimal::add)));
+        List<Long> invoiceIds = invoices.stream().map(InvoiceEntity::getId).toList();
+        Map<Long, BigDecimal> paidByInvoiceId = invoiceIds.isEmpty()
+                ? Collections.emptyMap()
+                : paymentRepository
+                        .findByInvoiceIdInOrderByPaymentDateDesc(invoiceIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                PaymentEntity::getInvoiceId,
+                                Collectors.reducing(BigDecimal.ZERO, this::effectivePaidAmount, BigDecimal::add)));
 
         Map<Long, BigDecimal> outstandingByInvoiceId = new LinkedHashMap<>();
         for (InvoiceEntity invoice : invoices) {
             BigDecimal paid = paidByInvoiceId.getOrDefault(invoice.getId(), BigDecimal.ZERO);
-            BigDecimal outstanding = invoice.getAdjustedAmount().subtract(paid);
+            BigDecimal outstanding = invoiceTotal(invoice).subtract(paid);
             if (outstanding.compareTo(BigDecimal.ZERO) < 0) {
                 outstanding = BigDecimal.ZERO;
             }
@@ -255,6 +257,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
                         .collect(Collectors.groupingBy(QuoteEntity::getRfqId, Collectors.counting()));
 
         List<SupplierDashboardResponseDto.RfqDto> rfqItems = rfqs.stream()
+                .filter(rfq -> !isExpiredRfq(rfq))
                 .sorted(Comparator
                         .comparingInt((RfqEntity rfq) -> relevanceScore(rfq, supplierCategoryIds, supplierProductIds,
                                 supplierProvinces))
@@ -284,14 +287,19 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
                 .map(shipment -> toShipmentDto(shipment, orderById.get(shipment.getOrderId()), buyerByCompanyId))
                 .toList();
 
-        BigDecimal revenueThisMonth = orders.stream()
-                .filter(order -> order.getCreatedAt() != null
-                        && YearMonth.from(order.getCreatedAt()).equals(YearMonth.now()))
-                .map(OrderEntity::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
         long shippingOrderCount = orders.stream()
                 .filter(order -> OrderStatusEnum.SHIPPING.equals(order.getStatus()))
+                .count();
+        long pendingOrderCount = orders.stream()
+                .filter(order -> OrderStatusEnum.PENDING.equals(order.getStatus())
+                        || OrderStatusEnum.PENDING_SUPPLIER_CONFIRMATION.equals(order.getStatus()))
+                .count();
+        long pendingRfqCount = rfqItems.stream()
+                .filter(rfq -> !rfq.hasExistingQuote())
+                .count();
+        long activeLotCount = batches.stream()
+                .filter(batch -> BatchStatusEnum.AVAILABLE.equals(batch.getStatus())
+                        || BatchStatusEnum.RESERVED.equals(batch.getStatus()))
                 .count();
 
         BigDecimal totalReceivable = outstandingByInvoiceId.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -303,14 +311,9 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
 
         List<SupplierDashboardResponseDto.MetricCardDto> overviewCards = List.of(
                 new SupplierDashboardResponseDto.MetricCardDto(
-                        "Doanh thu tháng này",
-                        formatCompactMoney(revenueThisMonth),
-                        "Tính theo đơn hàng đã tạo",
-                        null),
-                new SupplierDashboardResponseDto.MetricCardDto(
                         "Đơn hàng mới",
-                        String.valueOf(orders.size()),
-                        "Toàn bộ đơn của nhà cung cấp",
+                        String.valueOf(pendingOrderCount),
+                        "Chờ nhà cung cấp xác nhận",
                         null),
                 new SupplierDashboardResponseDto.MetricCardDto(
                         "Đang giao hàng",
@@ -322,6 +325,18 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
                         formatCompactMoney(totalReceivable),
                         "Chưa thanh toán hết",
                         null));
+
+        overviewCards = new ArrayList<>(overviewCards);
+        overviewCards.add(new SupplierDashboardResponseDto.MetricCardDto(
+                "RFQ chờ phản hồi",
+                String.valueOf(pendingRfqCount),
+                "RFQ phù hợp chưa có báo giá",
+                null));
+        overviewCards.add(new SupplierDashboardResponseDto.MetricCardDto(
+                "Sản phẩm / lô đang bán",
+                products.size() + " / " + activeLotCount,
+                "Lấy từ products và batches",
+                null));
 
         List<SupplierDashboardResponseDto.RevenuePointDto> monthlyRevenue = buildMonthlyRevenue(orders);
 
@@ -454,16 +469,14 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             if (!revenueByMonth.containsKey(month)) {
                 continue;
             }
-            revenueByMonth.put(month, revenueByMonth.get(month).add(order.getTotalAmount()));
+            revenueByMonth.put(month, revenueByMonth.get(month).add(order.getTotalAmount() == null ? BigDecimal.ZERO : order.getTotalAmount()));
         }
 
         List<SupplierDashboardResponseDto.RevenuePointDto> points = new ArrayList<>();
         for (Map.Entry<YearMonth, BigDecimal> entry : revenueByMonth.entrySet()) {
-            long valueInMillions = entry.getValue().divide(BigDecimal.valueOf(1_000_000L), 0, RoundingMode.HALF_UP)
-                    .longValue();
             points.add(new SupplierDashboardResponseDto.RevenuePointDto(
                     "T" + entry.getKey().getMonthValue(),
-                    Math.max(valueInMillions, 0)));
+                    Math.max(entry.getValue().longValue(), 0)));
         }
         return points;
     }
@@ -560,8 +573,8 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
         String stock = batch == null ? "0kg" : formatQuantity(batch.getQuantity());
         String moq = batch == null || batch.getMoq() == null ? "0kg" : formatQuantity(batch.getMoq());
         String price = batch == null ? "0đ" : formatMoney(batch.getPrice());
-        String status = mapBatchStatus(batch == null ? null : batch.getStatus());
-        String image = imageUrl == null || imageUrl.isBlank() ? "/images/seafood-market.jpg" : imageUrl;
+        String status = mapBatchStatus(batch);
+        String image = imageUrl == null ? "" : imageUrl;
 
         return new SupplierDashboardResponseDto.ProductLotDto(
                 "P-" + product.getId(),
@@ -603,19 +616,6 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
         return total;
     }
 
-    private SupplierDashboardResponseDto emptyDashboard() {
-        return new SupplierDashboardResponseDto(
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Collections.emptyList());
-    }
-
     private List<RfqEntity> loadRelevantRfqs(
             Set<Long> supplierCategoryIds,
             Set<Long> supplierProductIds,
@@ -650,6 +650,12 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
         }
 
         return new ArrayList<>(rfqById.values());
+    }
+
+    private boolean isExpiredRfq(RfqEntity rfq) {
+        return rfq != null
+                && rfq.getExpiredAt() != null
+                && rfq.getExpiredAt().isBefore(java.time.LocalDateTime.now());
     }
 
     private Map<Long, QuoteEntity> selectBestQuoteByRfqId(List<QuoteEntity> quotes) {
@@ -802,13 +808,21 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
         };
     }
 
-    private String mapBatchStatus(BatchStatusEnum status) {
+    private String mapBatchStatus(BatchEntity batch) {
+        BatchStatusEnum status = batch == null ? null : batch.getStatus();
         if (status == null) {
+            return "Sắp hết";
+        }
+        if (BatchStatusEnum.AVAILABLE.equals(status)
+                && batch.getMoq() != null
+                && batch.getQuantity() != null
+                && batch.getQuantity().compareTo(batch.getMoq()) <= 0) {
             return "Sắp hết";
         }
         return switch (status) {
             case AVAILABLE -> "Con hàng";
-            case RESERVED, SOLD_OUT -> "Sắp hết";
+            case RESERVED -> "Sắp hết";
+            case SOLD_OUT -> "Hết hàng";
         };
     }
 
@@ -859,7 +873,18 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
         if (payment == null) {
             return BigDecimal.ZERO;
         }
-        return payment.getPaidAmount() == null ? payment.getAmount() : payment.getPaidAmount();
+        BigDecimal amount = payment.getPaidAmount() == null ? payment.getAmount() : payment.getPaidAmount();
+        return amount == null ? BigDecimal.ZERO : amount;
+    }
+
+    private BigDecimal invoiceTotal(InvoiceEntity invoice) {
+        if (invoice == null) {
+            return BigDecimal.ZERO;
+        }
+        if (invoice.getAdjustedAmount() != null) {
+            return invoice.getAdjustedAmount();
+        }
+        return invoice.getTotalAmount() == null ? BigDecimal.ZERO : invoice.getTotalAmount();
     }
 
     private String shipmentEta(ShipmentEntity shipment) {

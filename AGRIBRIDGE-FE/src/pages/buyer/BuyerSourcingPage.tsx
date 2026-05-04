@@ -488,6 +488,9 @@ export function BuyerSourcingPage() {
       const result = await createQuickOrder(payload)
       showToast(result.message || 'Tạo đơn hàng thành công', 'success')
       setQuickOrderTarget(null)
+      const rows = await fetchBuyerSourcingProducts()
+      setProducts(rows)
+      setSavedIds(new Set(rows.filter((item) => item.isSaved).map((item) => item.productId)))
     } catch (requestError) {
       showToast(readApiErrorMessage(requestError) || 'Không thể tạo đơn hàng.', 'error')
     } finally {
