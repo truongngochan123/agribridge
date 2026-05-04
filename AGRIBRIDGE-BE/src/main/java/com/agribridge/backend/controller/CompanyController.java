@@ -6,6 +6,7 @@ import com.agribridge.backend.dto.UpdateCompanyLegalProfileDto;
 import com.agribridge.backend.dto.UpsertCompanyImageDto;
 import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.service.CompanyService;
+import com.agribridge.backend.service.CurrentUserService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CompanyController {
 
     private final CompanyService companyService;
+    private final CurrentUserService currentUserService;
 
     @GetMapping
     public List<CompanyEntity> getAll() {
@@ -51,11 +53,13 @@ public class CompanyController {
     @PutMapping("/{id}/legal-profile")
     public CompanyEntity updateLegalProfile(@PathVariable Long id,
             @Valid @RequestBody UpdateCompanyLegalProfileDto request) {
+        requireOwnCompany(id);
         return companyService.updateLegalProfile(id, request);
     }
 
     @GetMapping("/{id}/profile-assets")
     public CompanyProfileAssetsResponseDto getProfileAssets(@PathVariable Long id) {
+        requireOwnCompany(id);
         return companyService.getProfileAssets(id);
     }
 
@@ -63,11 +67,13 @@ public class CompanyController {
     public CompanyProfileAssetsResponseDto uploadLogo(
             @PathVariable Long id,
             @Valid @RequestBody UpsertCompanyImageDto request) {
+        requireOwnCompany(id);
         return companyService.uploadLogo(id, request);
     }
 
     @DeleteMapping("/{id}/logo")
     public CompanyProfileAssetsResponseDto removeLogo(@PathVariable Long id) {
+        requireOwnCompany(id);
         return companyService.removeLogo(id);
     }
 
@@ -75,6 +81,7 @@ public class CompanyController {
     public CompanyProfileAssetsResponseDto addFarmImage(
             @PathVariable Long id,
             @Valid @RequestBody UpsertCompanyImageDto request) {
+        requireOwnCompany(id);
         return companyService.addFarmImage(id, request);
     }
 
@@ -82,12 +89,21 @@ public class CompanyController {
     public CompanyProfileAssetsResponseDto addCertificate(
             @PathVariable Long id,
             @Valid @RequestBody UpsertCompanyImageDto request) {
+        requireOwnCompany(id);
         return companyService.addCertificate(id, request);
     }
 
     @DeleteMapping("/{id}/media/{mediaId}")
     public CompanyProfileAssetsResponseDto deleteMedia(@PathVariable Long id, @PathVariable Long mediaId) {
+        requireOwnCompany(id);
         return companyService.deleteMedia(id, mediaId);
+    }
+
+    private void requireOwnCompany(Long companyId) {
+        Long currentCompanyId = currentUserService.requireCurrentUser().getCompanyId();
+        if (!currentCompanyId.equals(companyId)) {
+            throw new IllegalArgumentException("COMPANY_PROFILE_ACCESS_DENIED");
+        }
     }
 
     @DeleteMapping("/{id}")

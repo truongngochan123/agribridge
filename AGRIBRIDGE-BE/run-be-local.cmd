@@ -3,7 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 cd /d "%~dp0"
 
-set "PORT=8081"
+set "PORT=8025"
 set "LOCAL_ENV_FILE=.env.local"
 
 if not defined JAVA_HOME (

@@ -46,10 +46,23 @@ public class BranchEntity {
     private String province;
 
     @Column
+    private String district;
+
+    @Column
+    private String ward;
+
+    @Column
     private String phone;
 
     @Column(name = "manager_name")
     private String managerName;
+
+    @Column(name = "manager_user_id")
+    private Long managerUserId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "manager_user_id", insertable = false, updatable = false)
+    private UserEntity managerUser;
 
     @Column(name = "delivery_address")
     private String deliveryAddress;
@@ -59,4 +72,7 @@ public class BranchEntity {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 }

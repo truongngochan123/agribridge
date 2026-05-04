@@ -50,4 +50,23 @@ public class CurrentUserServiceImpl implements CurrentUserService {
     public Long requireCurrentBuyerCompanyId() {
         return requireCurrentBuyerCompany().getId();
     }
+
+    @Override
+    public CompanyEntity requireCurrentSupplierCompany() {
+        UserEntity user = requireCurrentUser();
+        if (user.getCompanyId() == null) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "USER_HAS_NO_COMPANY");
+        }
+        CompanyEntity company = companyRepository.findById(user.getCompanyId())
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "COMPANY_NOT_FOUND"));
+        if (!CompanyTypeEnum.SUPPLIER.equals(company.getCompanyType())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "COMPANY_IS_NOT_SUPPLIER");
+        }
+        return company;
+    }
+
+    @Override
+    public Long requireCurrentSupplierCompanyId() {
+        return requireCurrentSupplierCompany().getId();
+    }
 }

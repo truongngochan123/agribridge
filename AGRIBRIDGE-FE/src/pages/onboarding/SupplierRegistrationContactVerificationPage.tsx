@@ -129,7 +129,7 @@ function extractApiErrorMessage(error: unknown): string {
   const maybeNetworkError = error as { code?: string; message?: string; response?: ApiErrorResponse }
   if (!('response' in maybeNetworkError) || !maybeNetworkError.response) {
     if (maybeNetworkError.code === 'ERR_NETWORK') {
-      return 'Không thể kết nối đến máy chủ (localhost:8081). Vui lòng kiểm tra backend đang chạy.'
+      return 'Không thể kết nối đến máy chủ (localhost:8025). Vui lòng kiểm tra backend đang chạy.'
     }
     return maybeNetworkError.message ?? 'Đăng ký thất bại, vui lòng thử lại.'
   }

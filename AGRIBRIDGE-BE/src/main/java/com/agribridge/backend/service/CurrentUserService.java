@@ -10,4 +10,8 @@ public interface CurrentUserService {
     CompanyEntity requireCurrentBuyerCompany();
 
     Long requireCurrentBuyerCompanyId();
+
+    CompanyEntity requireCurrentSupplierCompany();
+
+    Long requireCurrentSupplierCompanyId();
 }

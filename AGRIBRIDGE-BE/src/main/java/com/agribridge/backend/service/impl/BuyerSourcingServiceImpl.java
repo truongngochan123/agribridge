@@ -113,6 +113,7 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                                 .orElse(null);
 
                 return batches.stream()
+                                .filter(this::isAvailableBatch)
                                 .map(batch -> {
                                         List<String> imageUrls = imageUrlsByBatchId.getOrDefault(batch.getId(),
                                                         List.of());
@@ -182,7 +183,7 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                 Map<Long, List<BatchEntity>> availableBatchesByProduct = batchRepository
                                 .findByProductIdInOrderByCreatedAtDesc(productIds)
                                 .stream()
-                                .filter(batch -> BatchStatusEnum.AVAILABLE.equals(batch.getStatus()))
+                                .filter(this::isAvailableBatch)
                                 .collect(Collectors.groupingBy(BatchEntity::getProductId, LinkedHashMap::new,
                                                 Collectors.toList()));
 
@@ -224,6 +225,9 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                                                 (left, right) -> left));
 
                 return products.stream()
+                                .filter(product -> !availableBatchesByProduct
+                                                .getOrDefault(product.getId(), List.of())
+                                                .isEmpty())
                                 .sorted(Comparator.comparing(ProductEntity::getCreatedAt,
                                                 Comparator.nullsLast(Comparator.reverseOrder())))
                                 .map(product -> toDto(
@@ -379,5 +383,12 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                 }
                 long idValue = batch.getId() == null ? 0L : batch.getId();
                 return "BATCH-" + String.format("%06d", idValue);
+        }
+
+        private boolean isAvailableBatch(BatchEntity batch) {
+                return batch != null
+                                && BatchStatusEnum.AVAILABLE.equals(batch.getStatus())
+                                && batch.getQuantity() != null
+                                && batch.getQuantity().compareTo(BigDecimal.ZERO) > 0;
         }
 }

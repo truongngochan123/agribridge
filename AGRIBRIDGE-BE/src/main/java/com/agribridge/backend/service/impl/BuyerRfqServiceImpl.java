@@ -482,6 +482,7 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
             return Optional.empty();
         }
         return Optional.of(branchRepository.findByIdAndCompanyId(branchId, buyerCompanyId)
+                .filter(branch -> Boolean.TRUE.equals(branch.getIsActive()))
                 .orElseThrow(() -> new IllegalArgumentException(BRANCH_NOT_BELONG_TO_BUYER)));
     }
 

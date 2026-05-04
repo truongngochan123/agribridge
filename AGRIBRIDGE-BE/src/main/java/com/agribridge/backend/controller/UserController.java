@@ -2,6 +2,7 @@ package com.agribridge.backend.controller;
 
 import com.agribridge.backend.dto.UpdateUserPersonalProfileDto;
 import com.agribridge.backend.entity.UserEntity;
+import com.agribridge.backend.service.CurrentUserService;
 import com.agribridge.backend.service.UserService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserService userService;
+    private final CurrentUserService currentUserService;
 
     @GetMapping
     public List<UserEntity> getAll() {
@@ -48,6 +50,10 @@ public class UserController {
     @PutMapping("/{id}/personal-profile")
     public UserEntity updatePersonalProfile(@PathVariable Long id,
             @Valid @RequestBody UpdateUserPersonalProfileDto request) {
+        Long currentUserId = currentUserService.requireCurrentUser().getId();
+        if (!currentUserId.equals(id)) {
+            throw new IllegalArgumentException("USER_PROFILE_ACCESS_DENIED");
+        }
         return userService.updatePersonalProfile(id, request);
     }
 
