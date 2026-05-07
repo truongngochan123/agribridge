@@ -4,6 +4,7 @@ import type {
   CategoryOption,
   CreateProductOnlyRequest,
   CreateBatchForProductRequest,
+  CreateSupplierCategoryRequest,
   CreateProductWithFirstBatchRequest,
   MetadataListPayload,
   SupplierBatchCard,
@@ -357,8 +358,15 @@ export async function fetchCertificationNames(): Promise<string[]> {
   return response.data.items
 }
 
-export async function fetchCategories(): Promise<CategoryOption[]> {
-  const response = await apiClient.get<CategoryOption[]>('/api/public/metadata/categories')
+export async function fetchCategories(userId?: number): Promise<CategoryOption[]> {
+  const response = await apiClient.get<CategoryOption[]>('/api/public/metadata/categories', {
+    params: userId ? { userId } : undefined,
+  })
+  return response.data
+}
+
+export async function createSupplierCategory(payload: CreateSupplierCategoryRequest): Promise<CategoryOption> {
+  const response = await apiClient.post<CategoryOption>('/api/supplier/categories', payload)
   return response.data
 }
 

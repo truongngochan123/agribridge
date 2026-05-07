@@ -25,6 +25,7 @@ import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   createBatchForExistingProduct,
   createProductOnly,
+  createSupplierCategory,
   createProductWithFirstBatch,
   deleteSupplierProduct,
   fetchCategories,
@@ -270,6 +271,9 @@ export function SupplierProductListPage() {
   const [productDescription, setProductDescription] = useState('')
   const [productImageUrls, setProductImageUrls] = useState<string[]>([])
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryError, setNewCategoryError] = useState('')
+  const [creatingCategory, setCreatingCategory] = useState(false)
 
   const [certDraft, setCertDraft] = useState<CertificationDraft>(EMPTY_CERT_DRAFT)
   const [certItems, setCertItems] = useState<CertificationItem[]>([])
@@ -292,7 +296,7 @@ export function SupplierProductListPage() {
     try {
       const [productList, categoryList, unitList, provinceList, certNameList] = await Promise.all([
         fetchSupplierProducts(companyId),
-        fetchCategories(),
+        fetchCategories(userId || undefined),
         fetchMetadataUnits(),
         fetchMetadataProvinces(),
         fetchCertificationNames(),
@@ -340,7 +344,7 @@ export function SupplierProductListPage() {
 
   useEffect(() => {
     void loadInitial()
-  }, [companyId])
+  }, [companyId, userId])
 
   const selectedProductCard =
     selectedProductId == null ? null : products.find((item) => item.product.id === selectedProductId) ?? null
@@ -403,6 +407,8 @@ export function SupplierProductListPage() {
     setProductProvince('')
     setProductDescription('')
     setProductImageUrls([])
+    setNewCategoryName('')
+    setNewCategoryError('')
     setCertDraft(EMPTY_CERT_DRAFT)
     setCertItems([])
     setBatchForm(EMPTY_BATCH_FORM)
@@ -527,6 +533,37 @@ export function SupplierProductListPage() {
     ])
 
     setCertDraft(EMPTY_CERT_DRAFT)
+  }
+
+  const handleCreateCategory = async () => {
+    const name = newCategoryName.trim()
+    if (!userId) {
+      setNewCategoryError('Thiếu thông tin người dùng.')
+      return
+    }
+    if (!name) {
+      setNewCategoryError('Vui lòng nhập tên danh mục.')
+      return
+    }
+    if (categories.some((category) => category.name.trim().toLowerCase() === name.toLowerCase())) {
+      setNewCategoryError('Danh mục đã tồn tại trong tài khoản này.')
+      return
+    }
+
+    setCreatingCategory(true)
+    setNewCategoryError('')
+    try {
+      const created = await createSupplierCategory({ userId, name })
+      const categoryList = await fetchCategories(userId)
+      setCategories(categoryList.map((item) => ({ ...item, name: normalizeCategoryName(item.name, item.id) })))
+      setProductCategoryId(String(created.id))
+      setNewCategoryName('')
+      showToast('Đã thêm danh mục mới.', 'success')
+    } catch {
+      setNewCategoryError('Không thể thêm danh mục. Vui lòng kiểm tra tên có bị trùng không.')
+    } finally {
+      setCreatingCategory(false)
+    }
   }
 
   const validateProductInput = (): boolean => {
@@ -1081,13 +1118,48 @@ export function SupplierProductListPage() {
                 <div className="space-y-3">
                   <Field label="Tên sản phẩm" value={productName} onChange={setProductName} required />
                   <div className="grid gap-3 md:grid-cols-2">
-                    <FieldSelect
-                      label="Danh mục"
-                      value={productCategoryId}
-                      onChange={setProductCategoryId}
-                      required
-                      options={categories.map((item) => ({ label: item.name, value: String(item.id) }))}
-                    />
+                    <div className="space-y-2">
+                      <FieldSelect
+                        label="Danh mục"
+                        value={productCategoryId}
+                        onChange={setProductCategoryId}
+                        required
+                        options={categories.map((item) => ({ label: item.name, value: String(item.id) }))}
+                      />
+                      {!editingProductId ? (
+                        <div>
+                          <div className="flex gap-2">
+                            <input
+                              className={`h-9 min-w-0 flex-1 rounded-xl border bg-slate-50 px-3 text-sm outline-none transition focus:bg-white focus:ring-2 focus:ring-emerald-100 ${
+                                newCategoryError ? 'border-rose-300 focus:border-rose-400' : 'border-slate-200 focus:border-emerald-400'
+                              }`}
+                              value={newCategoryName}
+                              onChange={(event) => {
+                                setNewCategoryName(event.target.value)
+                                setNewCategoryError('')
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault()
+                                  void handleCreateCategory()
+                                }
+                              }}
+                              placeholder="Nhập danh mục mới"
+                            />
+                            <button
+                              type="button"
+                              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                              onClick={() => void handleCreateCategory()}
+                              disabled={creatingCategory}
+                            >
+                              {creatingCategory ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                              Thêm
+                            </button>
+                          </div>
+                          {newCategoryError ? <p className="mt-1 text-[11px] font-semibold text-rose-600">{newCategoryError}</p> : null}
+                        </div>
+                      ) : null}
+                    </div>
                     <FieldSelect
                       label="Đơn vị"
                       value={productUnit}

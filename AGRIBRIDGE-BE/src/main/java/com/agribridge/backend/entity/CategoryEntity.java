@@ -32,6 +32,9 @@ public class CategoryEntity {
     @Column
     private String description;
 
+    @Column(name = "user_id")
+    private Long userId;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 }

@@ -8,6 +8,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -34,8 +35,10 @@ public class PublicMetadataController {
     }
 
     @GetMapping("/categories")
-    public List<CategoryOptionDto> getCategories() {
-        return categoryRepository.findAll().stream()
+    public List<CategoryOptionDto> getCategories(@RequestParam(required = false) Long userId) {
+        return (userId == null
+                ? categoryRepository.findByUserIdIsNullOrderByNameAsc()
+                : categoryRepository.findByUserIdIsNullOrUserIdOrderByNameAsc(userId)).stream()
                 .map(category -> new CategoryOptionDto(category.getId(), category.getName()))
                 .toList();
     }
