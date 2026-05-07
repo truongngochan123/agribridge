@@ -13,9 +13,16 @@ public record SupplierBatchCardDto(
                 BigDecimal moq,
                 BigDecimal price,
                 String status,
+                String statusLabel,
                 LocalDate harvestDate,
                 LocalDate expiryDate,
                 String productUnit,
                 String productName,
-                String imageUrl) {
+                String imageUrl,
+                Boolean expired,
+                String warningMessage,
+                Integer daysUntilExpiry,
+                String soonExpiryWarning,
+                Boolean canEditExpiry,
+                Boolean canCreateNewBatchFromThis) {
 }

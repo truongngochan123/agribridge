@@ -17,6 +17,8 @@ type UploadErrorPayload = {
 
 type UploadFieldName = 'file' | 'document' | 'video'
 
+const UPLOAD_TIMEOUT_MS = 120_000
+
 function toFormData(file: File, fieldName: UploadFieldName = 'file'): FormData {
   const formData = new FormData()
   formData.append(fieldName, file, file.name)
@@ -56,6 +58,10 @@ function extractUploadErrorMessage(error: unknown, fallbackMessage: string): str
     return 'Upload lên Cloudinary thất bại. Kiểm tra API key, API secret hoặc kết nối mạng backend.'
   }
 
+  if (error.code === 'ECONNABORTED') {
+    return 'Upload mất quá nhiều thời gian. Thử file nhỏ hơn hoặc kiểm tra kết nối mạng.'
+  }
+
   return fallbackMessage
 }
 
@@ -74,6 +80,7 @@ export async function uploadRegistrationFile(file: File): Promise<UploadedFilePa
     const response = await apiClient.post<UploadedFilePayload>(
       '/api/uploads/registration-file',
       toFormData(file, 'document'),
+      { timeout: UPLOAD_TIMEOUT_MS },
     )
 
     return normalizeUploadedPayload(response.data)
@@ -87,6 +94,7 @@ export async function uploadSupplierDocument(file: File): Promise<UploadedFilePa
     const response = await apiClient.post<UploadedFilePayload>(
       '/api/uploads/supplier-document',
       toFormData(file, 'document'),
+      { timeout: UPLOAD_TIMEOUT_MS },
     )
 
     return normalizeUploadedPayload(response.data)
@@ -100,6 +108,7 @@ export async function uploadBatchVideo(file: File): Promise<UploadedFilePayload>
     const response = await apiClient.post<UploadedFilePayload>(
       '/api/uploads/batch-video',
       toFormData(file, 'video'),
+      { timeout: UPLOAD_TIMEOUT_MS },
     )
 
     return normalizeUploadedPayload(response.data)

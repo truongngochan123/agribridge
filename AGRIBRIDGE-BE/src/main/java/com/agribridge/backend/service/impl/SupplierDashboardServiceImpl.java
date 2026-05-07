@@ -823,6 +823,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             case AVAILABLE -> "Con hàng";
             case RESERVED -> "Sắp hết";
             case SOLD_OUT -> "Hết hàng";
+            default -> status.name();
         };
     }
 

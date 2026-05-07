@@ -10,7 +10,7 @@ import java.util.List;
 
 public record CreateBatchDto(
                 @NotNull(message = "Harvest date is required") LocalDate harvestDate,
-                LocalDate expiryDate,
+                @NotNull(message = "Expiry date is required") LocalDate expiryDate,
                 @NotBlank(message = "Grade is required") String grade,
                 String size,
                 @NotNull(message = "Quantity is required") @DecimalMin(value = "0.0", inclusive = false, message = "Quantity must be greater than 0") BigDecimal quantity,

@@ -71,6 +71,9 @@ export type BuyerLotDetail = {
   packingDate?: string | null
   expiryDate?: string | null
   status?: string | null
+  statusLabel?: string | null
+  expired?: boolean | null
+  warningMessage?: string | null
   storageTemp?: string | null
   imageUrl?: string | null
   imageUrls?: string[]
@@ -150,6 +153,9 @@ export type BuyerBatchPreview = {
   harvestDate?: string | null
   expiryDate?: string | null
   status?: string | null
+  statusLabel?: string | null
+  expired?: boolean | null
+  warningMessage?: string | null
   imageUrl?: string | null
   imageUrls?: string[]
   qcResult?: string | null

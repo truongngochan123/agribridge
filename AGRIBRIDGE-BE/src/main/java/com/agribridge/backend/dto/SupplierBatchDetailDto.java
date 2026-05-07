@@ -22,8 +22,15 @@ public record SupplierBatchDetailDto(
                 String storageTemp,
                 String videoUrl,
                 String status,
+                String statusLabel,
                 List<String> imageUrls,
                 QcResultEnum qcResult,
                 String qcDocumentUrl,
-                String qcNotes) {
+                String qcNotes,
+                Boolean expired,
+                String warningMessage,
+                Integer daysUntilExpiry,
+                String soonExpiryWarning,
+                Boolean canEditExpiry,
+                Boolean canCreateNewBatchFromThis) {
 }

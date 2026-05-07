@@ -55,7 +55,8 @@ function getBatchMoq(batch: BuyerBatchPreview) {
 
 function deriveBatchStatus(batch: BuyerBatchPreview): 'available' | 'out-of-stock' {
   const normalized = (batch.status || '').toUpperCase()
-  if (normalized.includes('OUT') || normalized.includes('SOLD') || normalized.includes('HET')) return 'out-of-stock'
+  if (batch.expired || normalized.includes('EXPIRED') || normalized.includes('OUT') || normalized.includes('SOLD') || normalized.includes('HET')) return 'out-of-stock'
+  if (!batch.expiryDate || batch.expiryDate < new Date().toISOString().slice(0, 10)) return 'out-of-stock'
   const quantity = getBatchQuantity(batch)
   if (quantity != null && quantity <= 0) return 'out-of-stock'
   return 'available'
@@ -93,8 +94,9 @@ export function BuyerSelectBatchModal({ productName, unit, batches, onClose, onS
                 return (
                   <button
                     key={`${batch.id ?? index}-${batchCode}`}
+                    disabled={status !== 'available'}
                     onClick={() => onSelect(batch)}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50/40"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50/40 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-70"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>

@@ -9,6 +9,8 @@ server:
     max-swallow-size: -1
 
 spring:
+  config:
+    import: optional:file:.env.local[.properties]
   application:
     name: agribridge-be
   servlet:

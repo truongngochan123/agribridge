@@ -19,6 +19,7 @@ export type BuyerQuickOrderTarget = {
   grade?: string | null
   size?: string | null
   expiryDate?: string | null
+  expired?: boolean | null
   buyerCompanyId?: number | null
 }
 

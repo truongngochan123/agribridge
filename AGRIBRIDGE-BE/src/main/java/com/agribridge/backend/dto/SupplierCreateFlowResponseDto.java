@@ -35,7 +35,14 @@ public record SupplierCreateFlowResponseDto(
             BigDecimal moq,
             String storageTemp,
             String videoUrl,
-            String status) {
+            String status,
+            String statusLabel,
+            Boolean expired,
+            String warningMessage,
+            Integer daysUntilExpiry,
+            String soonExpiryWarning,
+            Boolean canEditExpiry,
+            Boolean canCreateNewBatchFromThis) {
     }
 
     public record QcSummaryDto(

@@ -8,13 +8,13 @@ import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.ProductEntity;
 import com.agribridge.backend.entity.QuoteEntity;
 import com.agribridge.backend.entity.RfqEntity;
-import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.RfqStatusEnum;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.QuoteRepository;
 import com.agribridge.backend.repository.RfqRepository;
+import com.agribridge.backend.service.BatchAvailabilityService;
 import com.agribridge.backend.service.SupplierRfqQuoteService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -39,6 +39,7 @@ public class SupplierRfqQuoteServiceImpl implements SupplierRfqQuoteService {
     private final CompanyRepository companyRepository;
     private final ProductRepository productRepository;
     private final BatchRepository batchRepository;
+    private final BatchAvailabilityService batchAvailabilityService;
 
     @Override
     @Transactional(readOnly = true)
@@ -53,8 +54,9 @@ public class SupplierRfqQuoteServiceImpl implements SupplierRfqQuoteService {
                 : rfq.getUnit();
         List<SupplierQuoteContextDto.BatchContextDto> batches = rfq.getProductId() == null
                 ? List.of()
-                : batchRepository.findByProductIdAndStatusOrderByCreatedAtDesc(rfq.getProductId(), BatchStatusEnum.AVAILABLE)
+                : batchRepository.findByProductIdOrderByCreatedAtDesc(rfq.getProductId())
                         .stream()
+                        .filter(batchAvailabilityService::isBuyerVisible)
                         .map(batch -> toBatchContext(batch, unit))
                         .toList();
 
@@ -117,12 +119,7 @@ public class SupplierRfqQuoteServiceImpl implements SupplierRfqQuoteService {
         if (rfq.getProductId() == null || !rfq.getProductId().equals(batch.getProductId())) {
             throw new IllegalArgumentException("Selected batch does not belong to this RFQ product");
         }
-        if (!BatchStatusEnum.AVAILABLE.equals(batch.getStatus())) {
-            throw new IllegalArgumentException("Selected batch is not available");
-        }
-        if (quoteQuantity != null && batch.getQuantity() != null && quoteQuantity.compareTo(batch.getQuantity()) > 0) {
-            throw new IllegalArgumentException("Quote quantity cannot exceed selected batch quantity");
-        }
+        batchAvailabilityService.validateOrderable(batch, rfq.getProductId(), quoteQuantity);
         return batchId;
     }
 

@@ -732,15 +732,6 @@ function StateBox({ text }: { text: string }) {
   return <div className="my-3 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/60 p-5 text-center text-sm font-semibold text-emerald-800">{text}</div>
 }
 
-function ErrorBox({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div className="my-3 rounded-xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">
-      <p className="font-semibold">{message}</p>
-      <button className="mt-2 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white" onClick={onRetry}>Thử lại</button>
-    </div>
-  )
-}
-
 function Overlay({ children }: { children: React.ReactNode }) {
   return <div className="fixed inset-0 z-[80] bg-black/35 p-4"><div className="mx-auto mt-16 max-w-md rounded-2xl bg-white p-4">{children}</div></div>
 }

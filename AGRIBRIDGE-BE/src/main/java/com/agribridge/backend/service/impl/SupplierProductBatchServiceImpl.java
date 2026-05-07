@@ -13,6 +13,7 @@ import com.agribridge.backend.dto.SupplierProductDetailDto;
 import com.agribridge.backend.dto.SupplierProductOptionDto;
 import com.agribridge.backend.dto.UpdateBatchDto;
 import com.agribridge.backend.dto.UpdateProductDto;
+import com.agribridge.backend.entity.BatchExpiryAuditEntity;
 import com.agribridge.backend.entity.BatchEntity;
 import com.agribridge.backend.entity.BatchImageEntity;
 import com.agribridge.backend.entity.CategoryEntity;
@@ -24,6 +25,7 @@ import com.agribridge.backend.entity.QcRecordEntity;
 import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.CompanyTypeEnum;
 import com.agribridge.backend.entity.enums.VerificationStatusEnum;
+import com.agribridge.backend.repository.BatchExpiryAuditRepository;
 import com.agribridge.backend.repository.BatchImageRepository;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.CategoryRepository;
@@ -67,6 +69,7 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final CompanyRepository companyRepository;
+    private final BatchExpiryAuditRepository batchExpiryAuditRepository;
     private final BatchRepository batchRepository;
     private final BatchImageRepository batchImageRepository;
     private final QcRecordRepository qcRecordRepository;
@@ -201,6 +204,7 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
 
         CreateBatchDto dto = request.batch();
         validateDates(dto);
+        validateExpiryChange(batch, dto.expiryDate(), request.userId());
         validateVideoUrl(dto.videoUrl());
         validateStorageTemp(dto.storageTemp());
         validateQcRules(dto);
@@ -325,10 +329,17 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
                     batch.getStorageTemp(),
                     batch.getVideoUrl(),
                     resolveBatchStatus(batch),
+                    resolveBatchStatusLabel(batch),
                     imageUrls,
                     qc == null ? null : qc.getResult(),
                     qc == null ? null : qc.getDocumentUrl(),
-                    qc == null ? null : qc.getNotes());
+                    qc == null ? null : qc.getNotes(),
+                    isExpired(batch),
+                    expiryWarningMessage(batch),
+                    daysUntilExpiry(batch),
+                    soonExpiryWarning(batch),
+                    canEditExpiry(batch),
+                    Boolean.TRUE);
             log.info("Loaded supplier batch detail batchId={} productId={} imageCount={}",
                     batchId, product.getId(), imageUrls.size());
             return detail;
@@ -378,6 +389,61 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
         return batch.getStatus() == null ? BatchStatusEnum.AVAILABLE.name() : batch.getStatus().name();
     }
 
+    private String resolveBatchStatusLabel(BatchEntity batch) {
+        BatchStatusEnum status = batch == null ? null : batch.getStatus();
+        if (isExpired(batch)) {
+            return "Đã hết hạn";
+        }
+        if (status == null) {
+            return "Còn hàng";
+        }
+        return switch (status) {
+            case DRAFT -> "Nháp";
+            case AVAILABLE -> "Còn hàng";
+            case LOW_STOCK, RESERVED -> "Sắp hết";
+            case EXPIRED -> "Đã hết hạn";
+            case DISPOSED -> "Đã hủy";
+            case HANDLED -> "Đã xử lý";
+            case SOLD_OUT -> "Hết hàng";
+        };
+    }
+
+    private boolean isExpired(BatchEntity batch) {
+        return batch != null
+                && (BatchStatusEnum.EXPIRED.equals(batch.getStatus())
+                || (batch.getExpiryDate() != null && batch.getExpiryDate().isBefore(LocalDate.now())));
+    }
+
+    private String expiryWarningMessage(BatchEntity batch) {
+        return isExpired(batch)
+                ? "Lô hàng đã hết hạn và đã bị ẩn khỏi marketplace. Buyer không thể đặt mua lô này nữa."
+                : null;
+    }
+
+    private Integer daysUntilExpiry(BatchEntity batch) {
+        if (batch == null || batch.getExpiryDate() == null) {
+            return null;
+        }
+        return (int) java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), batch.getExpiryDate());
+    }
+
+    private String soonExpiryWarning(BatchEntity batch) {
+        Integer days = daysUntilExpiry(batch);
+        if (days == null || days < 0 || days > 3) {
+            return null;
+        }
+        return "Lô hàng sắp hết hạn sau " + days + " ngày.";
+    }
+
+    private boolean canEditExpiry(BatchEntity batch) {
+        if (batch == null || batch.getId() == null || isExpired(batch) || orderItemRepository.existsByBatchId(batch.getId())) {
+            return false;
+        }
+        return BatchStatusEnum.DRAFT.equals(batch.getStatus())
+                || BatchStatusEnum.AVAILABLE.equals(batch.getStatus())
+                || BatchStatusEnum.LOW_STOCK.equals(batch.getStatus());
+    }
+
     private SupplierBatchCardDto safeToBatchCard(BatchEntity batch, ProductEntity product, String imageUrl) {
         try {
             String productUnit = product == null ? null : product.getUnit();
@@ -392,11 +458,18 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
                     batch.getMoq(),
                     batch.getPrice(),
                     resolveBatchStatus(batch),
+                    resolveBatchStatusLabel(batch),
                     batch.getHarvestDate(),
                     batch.getExpiryDate(),
                     productUnit,
                     productName,
-                    imageUrl);
+                    imageUrl,
+                    isExpired(batch),
+                    expiryWarningMessage(batch),
+                    daysUntilExpiry(batch),
+                    soonExpiryWarning(batch),
+                    canEditExpiry(batch),
+                    Boolean.TRUE);
         } catch (Exception exception) {
             log.error("Skip invalid batch row for batchId={} productId={}",
                     batch == null ? null : batch.getId(),
@@ -749,7 +822,14 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
                         batch.getMoq(),
                         batch.getStorageTemp(),
                         batch.getVideoUrl(),
-                        batch.getStatus().name());
+                        resolveBatchStatus(batch),
+                        resolveBatchStatusLabel(batch),
+                        isExpired(batch),
+                        expiryWarningMessage(batch),
+                        daysUntilExpiry(batch),
+                        soonExpiryWarning(batch),
+                        canEditExpiry(batch),
+                        Boolean.TRUE);
 
         SupplierCreateFlowResponseDto.QcSummaryDto qcSummary = qc == null ? null
                 : new SupplierCreateFlowResponseDto.QcSummaryDto(
@@ -818,14 +898,42 @@ public class SupplierProductBatchServiceImpl implements SupplierProductBatchServ
         if (dto.harvestDate().isAfter(today)) {
             throw new IllegalArgumentException("Harvest date cannot be in the future");
         }
-        if (dto.expiryDate() != null) {
-            if (dto.expiryDate().isBefore(today)) {
-                throw new IllegalArgumentException("Expiry date cannot be in the past");
-            }
-            if (!dto.expiryDate().isAfter(dto.harvestDate())) {
-                throw new IllegalArgumentException("Expiry date must be after harvest date");
-            }
+        if (dto.expiryDate() == null) {
+            throw new IllegalArgumentException("Expiry date is required");
         }
+        if (dto.expiryDate().isBefore(today)) {
+            throw new IllegalArgumentException("Expiry date cannot be in the past");
+        }
+        if (!dto.expiryDate().isAfter(dto.harvestDate())) {
+            throw new IllegalArgumentException("Expiry date must be after harvest date");
+        }
+    }
+
+    private void validateExpiryChange(BatchEntity batch, LocalDate newExpiryDate, Long changedByUserId) {
+        if (Objects.equals(batch.getExpiryDate(), newExpiryDate)) {
+            return;
+        }
+
+        boolean hasOrder = batch.getId() != null && orderItemRepository.existsByBatchId(batch.getId());
+        boolean expired = BatchStatusEnum.EXPIRED.equals(batch.getStatus())
+                || (batch.getExpiryDate() != null && batch.getExpiryDate().isBefore(LocalDate.now()));
+        boolean editableStatus = BatchStatusEnum.DRAFT.equals(batch.getStatus())
+                || BatchStatusEnum.AVAILABLE.equals(batch.getStatus())
+                || BatchStatusEnum.LOW_STOCK.equals(batch.getStatus());
+
+        if (hasOrder || expired || !editableStatus) {
+            throw new IllegalArgumentException(
+                    "Không thể tự ý gia hạn ngày hết hạn cho lô hàng đã public, đã hết hạn hoặc đã phát sinh giao dịch. Vui lòng tạo lô mới hoặc gửi yêu cầu điều chỉnh.");
+        }
+
+        batchExpiryAuditRepository.save(BatchExpiryAuditEntity.builder()
+                .batchId(batch.getId())
+                .oldExpiryDate(batch.getExpiryDate())
+                .newExpiryDate(newExpiryDate)
+                .changedByUserId(changedByUserId)
+                .reason("Supplier updated expiry date before expiry and before any order")
+                .changedAt(LocalDateTime.now())
+                .build());
     }
 
     private String normalizeGrade(String grade) {

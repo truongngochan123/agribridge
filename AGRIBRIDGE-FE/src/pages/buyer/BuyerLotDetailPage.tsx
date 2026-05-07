@@ -180,7 +180,8 @@ function getLotImages(lot: BuyerLotDetail) {
 
 function deriveLotStatus(lot: BuyerLotDetail) {
   const normalized = (lot.status || '').toUpperCase()
-  if (normalized.includes('OUT') || normalized.includes('SOLD') || normalized.includes('HET')) return 'out-of-stock'
+  if (lot.expired || normalized.includes('EXPIRED') || normalized.includes('OUT') || normalized.includes('SOLD') || normalized.includes('HET')) return 'out-of-stock'
+  if (!lot.expiryDate || lot.expiryDate < new Date().toISOString().slice(0, 10)) return 'out-of-stock'
   const quantity = getLotQuantity(lot)
   if (quantity != null && quantity <= 0) return 'out-of-stock'
   return 'available'
@@ -236,6 +237,7 @@ function toQuickOrderTarget(lot: BuyerLotDetail, lotCode: string): BuyerQuickOrd
     grade: lot.grade,
     size: lot.size,
     expiryDate: lot.expiryDate,
+    expired: lot.expired,
   }
 }
 
@@ -314,7 +316,10 @@ export function BuyerLotDetailPage() {
 
   const handleOrderNow = () => {
     if (!lot) return
-    if (status === 'out-of-stock') return
+    if (status === 'out-of-stock') {
+      showToast('Lô hàng này đã hết hạn hoặc không còn khả dụng.', 'error')
+      return
+    }
     setQuickOrderTarget(toQuickOrderTarget(lot, lotCode))
   }
 
@@ -510,6 +515,12 @@ export function BuyerLotDetailPage() {
                 <InfoLine label="Tồn kho" value={formatQuantity(quantity, unit)} highlight />
                 <InfoLine label="Trạng thái" value={status === 'available' ? 'Còn hàng' : 'Hết hàng'} highlight={status === 'available'} />
               </div>
+
+              {status === 'out-of-stock' ? (
+                <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+                  Lô hàng này đã hết hạn hoặc không còn khả dụng.
+                </div>
+              ) : null}
 
               <div className="mt-4">
                 <label className="mb-1 block text-sm font-semibold">Số lượng {moq ? `(Tối thiểu ${formatQuantity(moq, unit)})` : ''}</label>

@@ -1,0 +1,695 @@
+diff --git a/.m2-temp/.meta/prefixes-central.txt b/.m2-temp/.meta/prefixes-central.txt
+index 2b9412d..7192504 100644
+--- a/.m2-temp/.meta/prefixes-central.txt
++++ b/.m2-temp/.meta/prefixes-central.txt
+@@ -396,6 +396,7 @@
+ /com/adrianhurt
+ /com/adropofliquid
+ /com/adscore
++/com/adsgenesys
+ /com/adshift
+ /com/adsolutions
+ /com/adsoul
+@@ -759,6 +760,7 @@
+ /com/andymic
+ /com/andyserver
+ /com/aneeshpu
++/com/angellist
+ /com/anggrayudi
+ /com/angie910
+ /com/angkorteam
+@@ -1131,6 +1133,7 @@
+ /com/attentive
+ /com/attestr
+ /com/attivio
++/com/attomus
+ /com/attraqt
+ /com/attrify
+ /com/atviettelsolutions
+@@ -1431,6 +1434,7 @@
+ /com/belteshazzar
+ /com/belvo
+ /com/bemobi
++/com/benaether
+ /com/benasher44
+ /com/benayn
+ /com/benbarkay
+@@ -1443,6 +1447,7 @@
+ /com/benmccann
+ /com/bennyapi
+ /com/bennyhuo
++/com/bennyjon
+ /com/benoitquenaudon
+ /com/benromberg
+ /com/benwoodworth
+@@ -1537,6 +1542,7 @@
+ /com/bitcarton
+ /com/bitcoinpaygate
+ /com/bitfiddling
++/com/bitgrind
+ /com/bitheads
+ /com/bitmark
+ /com/bitmechanic
+@@ -2795,6 +2801,7 @@
+ /com/danielsomerfield
+ /com/danieltrinh
+ /com/daniily
++/com/danipa
+ /com/danklco
+ /com/danrusu
+ /com/danube-messaging
+@@ -2914,6 +2921,7 @@
+ /com/decafhub
+ /com/decathlon
+ /com/decimal128
++/com/decionis
+ /com/deciphernow
+ /com/decipherzone
+ /com/decisionlens
+@@ -6120,6 +6128,7 @@
+ /com/kameocode
+ /com/kamingpan
+ /com/kamomileware
++/com/kanetik
+ /com/kangaroohy
+ /com/kangaroorewards
+ /com/kangxiaoguang
+@@ -6402,6 +6411,7 @@
+ /com/ksc
+ /com/kshitijpatil
+ /com/ksidelta
++/com/kslides
+ /com/ksmpartners
+ /com/ksptool
+ /com/kstruct
+@@ -6848,6 +6858,7 @@
+ /com/logtail
+ /com/logunify
+ /com/lohika
++/com/lokalapps
+ /com/lokalized
+ /com/lokiy
+ /com/lokvin
+@@ -8367,6 +8378,7 @@
+ /com/oliveryasuna
+ /com/olo
+ /com/olvind
++/com/omaarr90
+ /com/omahaprogrammer
+ /com/omarassadi
+ /com/omarsmak
+@@ -8775,6 +8787,7 @@
+ /com/pddon
+ /com/pddstudio
+ /com/pdf4me
++/com/pdfcanon
+ /com/pdfcrowd
+ /com/pdfdancer
+ /com/pdfgate
+@@ -9225,6 +9238,7 @@
+ /com/qifun
+ /com/qindesign
+ /com/qingcloud
++/com/qingfengweb
+ /com/qinglinyi
+ /com/qingxun
+ /com/qingzhuge
+@@ -9292,6 +9306,7 @@
+ /com/quantori
+ /com/quantpulsar
+ /com/quantum4j
++/com/quantumbpm
+ /com/quantumdmn
+ /com/quantxt
+ /com/quarkdown
+@@ -9377,6 +9392,7 @@
+ /com/ragedunicorn
+ /com/ragnaroh
+ /com/rahulrav
++/com/railsinfra
+ /com/rainbowpunch
+ /com/rainchi
+ /com/rainerhahnekamp
+@@ -9386,6 +9402,7 @@
+ /com/raisin
+ /com/raisondata
+ /com/raisulahsan
++/com/rajandube
+ /com/rajant
+ /com/rajatim
+ /com/rajatthareja
+@@ -9522,6 +9539,7 @@
+ /com/relaximus
+ /com/relaxsoftwareapps
+ /com/relayrides
++/com/releaseanchor
+ /com/releasebird
+ /com/releaseshub
+ /com/relevantcodes
+@@ -10264,6 +10282,7 @@
+ /com/sightic
+ /com/sigmaflare
+ /com/signadot
++/com/signakit
+ /com/signal7
+ /com/signalcollect
+ /com/signalfuse
+@@ -10515,6 +10534,7 @@
+ /com/soberlemur
+ /com/sobot
+ /com/sobte
++/com/sochatlive
+ /com/social100
+ /com/socialbakers
+ /com/socialize
+@@ -11196,6 +11216,7 @@
+ /com/technodabble
+ /com/technologicgroup
+ /com/technophobia
++/com/techrifter
+ /com/techsenger
+ /com/techshroom
+ /com/techsophy
+@@ -11313,6 +11334,7 @@
+ /com/tguzik
+ /com/thaiopensource
+ /com/thamtech
++/com/thanhlv
+ /com/thanhtrong
+ /com/thankjava
+ /com/thatdot
+@@ -11611,6 +11633,7 @@
+ /com/tracelytics
+ /com/trace-nest
+ /com/tracestax
++/com/tracewayapp
+ /com/trackier
+ /com/trackingio
+ /com/trackingplan
+@@ -11687,6 +11710,7 @@
+ /com/triplelift
+ /com/tripsnek
+ /com/triptheone
++/com/tripwirejs
+ /com/tristanhunt
+ /com/tri-systems
+ /com/tritondigital
+@@ -12355,6 +12379,7 @@
+ /com/waseefakhtar
+ /com/waseemsabir
+ /com/washingtonpost
++/com/wasmo
+ /com/waspring
+ /com/wassilak
+ /com/wassonlabs
+@@ -12684,6 +12709,7 @@
+ /com/xenomachina
+ /com/xenoterracide
+ /com/xeonyu
++/com/xfc-arch
+ /com/xfers
+ /com/xfinity
+ /com/xfmeet
+@@ -12755,6 +12781,7 @@
+ /com/xposedornot
+ /com/xpressj
+ /com/xqbase
++/com/xqiou
+ /com/xqlee
+ /com/xracoon
+ /com/xrayradar
+@@ -13216,6 +13243,7 @@
+ /com/zwendo
+ /com/zwenkai
+ /com/zwitserloot
++/com/zwvpp
+ /com/zx5435
+ /com/zxk175
+ /com/zxyinfo
+@@ -14542,6 +14570,7 @@
+ /io/jexxa
+ /io/jguard
+ /io/jhdf
++/io/jikkou
+ /io/jitstatic
+ /io/jmad
+ /io/jmnarloch
+@@ -14819,6 +14848,7 @@
+ /io/mateo
+ /io/mateu
+ /io/mathan
++/io/matrixconnect
+ /io/mats3
+ /io/matthewbradshaw
+ /io/matthewnelson
+@@ -14841,6 +14871,7 @@
+ /io/membrane-api
+ /io/memoria
+ /io/meshware
++/io/metabilia
+ /io/metacopier
+ /io/metaloom
+ /io/metamask
+@@ -14929,6 +14960,7 @@
+ /io/mzlnk
+ /io/nabstract
+ /io/nacular
++/io/naftiko
+ /io/nagurea
+ /io/namastack
+ /io/nangos
+@@ -15240,6 +15272,7 @@
+ /io/quarkiverse
+ /io/quarkus
+ /io/quarkuscoffeeshop
++/io/quasient
+ /io/qubite
+ /io/quckoo
+ /io/quee
+@@ -16348,6 +16381,7 @@
+ /net/bzdyl
+ /net/bzzt
+ /net/c0f3
++/net/cacheoverflow
+ /net/cacheux
+ /net/cactusthorn
+ /net/cadrian
+@@ -17114,6 +17148,7 @@
+ /net/noerd
+ /net/nokok
+ /net/northfuse
++/net/nova
+ /net/nowina
+ /net/nowtryz
+ /net/nprod
+@@ -18369,6 +18404,7 @@
+ /org/commonjava
+ /org/commonmark
+ /org/commonsources
++/org/commonutils
+ /org/commonvox
+ /org/commonwl
+ /org/compacto
+@@ -20060,6 +20096,7 @@
+ /org/lerch
+ /org/lesscss
+ /org/lestr
++/org/lexstandard
+ /org/lfenergy
+ /org/libelektra
+ /org/libheiffx
+@@ -20951,6 +20988,7 @@
+ /org/pitest
+ /org/pivot4j
+ /org/piwik
++/org/pixode
+ /org/pkaq
+ /org/pkl-lang
+ /org/pksprojects
+@@ -22065,6 +22103,7 @@
+ /org/vidtec
+ /org/viduus
+ /org/viewstreet
++/org/viktor44
+ /org/vincenzolabs
+ /org/vineflower
+ /org/vinniks
+diff --git a/.m2-temp/.meta/prefixes-central.txt.sha1 b/.m2-temp/.meta/prefixes-central.txt.sha1
+index 1777259..6aefffb 100644
+--- a/.m2-temp/.meta/prefixes-central.txt.sha1
++++ b/.m2-temp/.meta/prefixes-central.txt.sha1
+@@ -1 +1 @@
+-1c7f479f8f415742a3abed84881b2d7094703ae4
+\ No newline at end of file
++513a62770b0456a6d45fcff1dd52799a173d5587
+\ No newline at end of file
+diff --git a/.m2-temp/.meta/resolver-status.properties b/.m2-temp/.meta/resolver-status.properties
+index 8428c0c..5048e8a 100644
+--- a/.m2-temp/.meta/resolver-status.properties
++++ b/.m2-temp/.meta/resolver-status.properties
+@@ -1,12 +1,11 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Thu Apr 30 09:59:05 GMT+07:00 2026
+-prefixes-apache.snapshots-c1d4c55f9308e5ac18a4069bed41dca64d85c515.txt.error=Could not transfer metadata /.meta/prefixes.txt from/to apache.snapshots-c1d4c55f9308e5ac18a4069bed41dca64d85c515 (https\://repository.apache.org/snapshots)\: HTTP connect timed out
+-prefixes-apache.snapshots-c1d4c55f9308e5ac18a4069bed41dca64d85c515.txt/@default-apache.snapshots-c1d4c55f9308e5ac18a4069bed41dca64d85c515-https\://repository.apache.org/snapshots/.lastUpdated=1777517941458
++#Wed May 06 20:23:44 GMT+07:00 2026
++prefixes-apache.snapshots-c1d4c55f9308e5ac18a4069bed41dca64d85c515.txt.lastUpdated=1778073818915
+ prefixes-central-snapshots-352bfcd0a19f69feab0d695da3597248f399af75.txt.error=
+-prefixes-central-snapshots-352bfcd0a19f69feab0d695da3597248f399af75.txt.lastUpdated=1777517909901
+-prefixes-central.txt.lastUpdated=1777517908747
+-prefixes-ow2-snapshot-40669f8efefaadb4c1705a2585cefc8851f735ac.txt.lastUpdated=1777517945175
++prefixes-central-snapshots-352bfcd0a19f69feab0d695da3597248f399af75.txt.lastUpdated=1778073816746
++prefixes-central.txt.lastUpdated=1778073815395
++prefixes-ow2-snapshot-40669f8efefaadb4c1705a2585cefc8851f735ac.txt.lastUpdated=1778073824212
+ prefixes-plexus.snapshots-9dedea94451709299d055319c137abeb30aacdef.txt.error=
+-prefixes-plexus.snapshots-9dedea94451709299d055319c137abeb30aacdef.txt.lastUpdated=1777517942370
++prefixes-plexus.snapshots-9dedea94451709299d055319c137abeb30aacdef.txt.lastUpdated=1778073819874
+ prefixes-sonatype-nexus-snapshots-696eddf78d2a1df624a12b8dedcbe2cacce1d215.txt.error=
+-prefixes-sonatype-nexus-snapshots-696eddf78d2a1df624a12b8dedcbe2cacce1d215.txt.lastUpdated=1777517943457
++prefixes-sonatype-nexus-snapshots-696eddf78d2a1df624a12b8dedcbe2cacce1d215.txt.lastUpdated=1778073821004
+diff --git a/.m2-temp/io/github/git-commit-id/resolver-status.properties b/.m2-temp/io/github/git-commit-id/resolver-status.properties
+index e1b4777..9e131d6 100644
+--- a/.m2-temp/io/github/git-commit-id/resolver-status.properties
++++ b/.m2-temp/io/github/git-commit-id/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Thu Apr 30 09:58:31 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1777517911319
++#Wed May 06 20:23:37 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778073817953
+diff --git a/.m2-temp/org/apache/maven/plugins/resolver-status.properties b/.m2-temp/org/apache/maven/plugins/resolver-status.properties
+index b19655b..3493143 100644
+--- a/.m2-temp/org/apache/maven/plugins/resolver-status.properties
++++ b/.m2-temp/org/apache/maven/plugins/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Mon May 04 21:03:19 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1777903399178
++#Wed May 06 20:23:37 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778073817956
+diff --git a/.m2-temp/org/codehaus/mojo/resolver-status.properties b/.m2-temp/org/codehaus/mojo/resolver-status.properties
+index b19655b..3493143 100644
+--- a/.m2-temp/org/codehaus/mojo/resolver-status.properties
++++ b/.m2-temp/org/codehaus/mojo/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Mon May 04 21:03:19 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1777903399178
++#Wed May 06 20:23:37 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778073817956
+diff --git a/.m2-temp/org/cyclonedx/resolver-status.properties b/.m2-temp/org/cyclonedx/resolver-status.properties
+index bf1df36..96b3b5d 100644
+--- a/.m2-temp/org/cyclonedx/resolver-status.properties
++++ b/.m2-temp/org/cyclonedx/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Mon May 04 21:03:19 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1777903399170
++#Wed May 06 20:23:37 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778073817952
+diff --git a/.m2-temp/org/flywaydb/resolver-status.properties b/.m2-temp/org/flywaydb/resolver-status.properties
+index 94a0e3e..9e131d6 100644
+--- a/.m2-temp/org/flywaydb/resolver-status.properties
++++ b/.m2-temp/org/flywaydb/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Mon May 04 21:03:19 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1777903399171
++#Wed May 06 20:23:37 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778073817953
+diff --git a/.m2-temp/org/graalvm/buildtools/resolver-status.properties b/.m2-temp/org/graalvm/buildtools/resolver-status.properties
+index c5cb1de..6168494 100644
+--- a/.m2-temp/org/graalvm/buildtools/resolver-status.properties
++++ b/.m2-temp/org/graalvm/buildtools/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Mon May 04 21:03:19 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1777903399177
++#Wed May 06 20:23:37 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778073817955
+diff --git a/.m2-temp/org/jetbrains/kotlin/resolver-status.properties b/.m2-temp/org/jetbrains/kotlin/resolver-status.properties
+index cfe4520..e24ef17 100644
+--- a/.m2-temp/org/jetbrains/kotlin/resolver-status.properties
++++ b/.m2-temp/org/jetbrains/kotlin/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Mon May 04 21:03:19 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1777903399175
++#Wed May 06 20:23:37 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778073817954
+diff --git a/.m2-temp/org/jooq/resolver-status.properties b/.m2-temp/org/jooq/resolver-status.properties
+index fd81834..e24ef17 100644
+--- a/.m2-temp/org/jooq/resolver-status.properties
++++ b/.m2-temp/org/jooq/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Mon May 04 21:03:19 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1777903399173
++#Wed May 06 20:23:37 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778073817954
+diff --git a/.m2-temp/org/liquibase/resolver-status.properties b/.m2-temp/org/liquibase/resolver-status.properties
+index 5973c0b..6168494 100644
+--- a/.m2-temp/org/liquibase/resolver-status.properties
++++ b/.m2-temp/org/liquibase/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Mon May 04 21:03:19 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1777903399176
++#Wed May 06 20:23:37 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778073817955
+diff --git a/.m2-temp/org/springframework/boot/resolver-status.properties b/.m2-temp/org/springframework/boot/resolver-status.properties
+index 91afeaf..59e16ea 100644
+--- a/.m2-temp/org/springframework/boot/resolver-status.properties
++++ b/.m2-temp/org/springframework/boot/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Mon May 04 21:03:19 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1777903399168
++#Wed May 06 20:23:37 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778073817951
+diff --git a/AGRIBRIDGE-BE/src/main/resources/application.yml b/AGRIBRIDGE-BE/src/main/resources/application.yml
+index f0b25c2..4b017a8 100644
+--- a/AGRIBRIDGE-BE/src/main/resources/application.yml
++++ b/AGRIBRIDGE-BE/src/main/resources/application.yml
+@@ -9,6 +9,8 @@ server:
+     max-swallow-size: -1
+ 
+ spring:
++  config:
++    import: optional:file:.env.local[.properties]
+   application:
+     name: agribridge-be
+   servlet:
+diff --git a/AGRIBRIDGE-FE/src/services/currentUserService.ts b/AGRIBRIDGE-FE/src/services/currentUserService.ts
+index 1eeaa6d..1980fbf 100644
+--- a/AGRIBRIDGE-FE/src/services/currentUserService.ts
++++ b/AGRIBRIDGE-FE/src/services/currentUserService.ts
+@@ -1,4 +1,5 @@
+ import { apiClient } from './apiClient'
++import { getStoredAuthSession } from './authSession'
+ 
+ export type CurrentUserProfile = {
+   userId?: number
+@@ -28,8 +29,37 @@ export type CurrentUserProfile = {
+   description: string
+ }
+ 
+-type CurrentUserProfileResponse = Omit<CurrentUserProfile, 'shortName'> & {
+-  shortName?: string
++type UserApiModel = {
++  id?: number
++  companyId?: number
++  fullName?: string
++  phone?: string
++  email?: string
++  role?: string
++  status?: string
++  createdAt?: string
++}
++
++type CompanyApiModel = {
++  id?: number
++  name?: string
++  companyType?: string
++  businessType?: string
++  ownerName?: string
++  phone?: string
++  email?: string
++  address?: string
++  province?: string
++  district?: string
++  ward?: string | null
++  taxCode?: string
++  registrationNumber?: string
++  establishedYear?: string
++  website?: string
++  status?: string
++  createdAt?: string
++  description?: string
++  accountCode?: string
+ }
+ 
+ let cachedProfile: CurrentUserProfile | null = null
+@@ -81,6 +111,7 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
+       taxCode: 'N/A',
+       address: 'N/A',
+       ownerName: fullName,
++      companyType: companyTypeRaw || 'admin',
+       companyTypeLabel: mapCompanyTypeLabel(companyTypeRaw),
+       businessTypeLabel: 'N/A',
+       accountCode: resolvedUserId ? `ADM-${String(resolvedUserId).padStart(6, '0')}` : 'ADM-000000',
+@@ -100,34 +131,37 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
+     return profile
+   }
+ 
+-  const companyTypeRaw = (sessionStorage.getItem('agribridge.auth.companyType') ?? '').trim()
+-  const normalizedCompanyType = companyTypeRaw.toLowerCase()
+-  if (normalizedCompanyType === 'admin' || normalizedCompanyType === 'system') {
+-    let userIdRaw = sessionStorage.getItem('agribridge.auth.userId')
+-    let userId = userIdRaw ? Number(userIdRaw) : undefined
+-    if (!userId) {
+-      hydrateSessionFromAuthPayload()
+-      userIdRaw = sessionStorage.getItem('agribridge.auth.userId')
+-      userId = userIdRaw ? Number(userIdRaw) : undefined
+-    }
++  let companyIdRaw = sessionStorage.getItem('agribridge.auth.companyId')
++  let companyId = companyIdRaw ? Number(companyIdRaw) : undefined
++  let userIdRaw = sessionStorage.getItem('agribridge.auth.userId')
++  let userId = userIdRaw ? Number(userIdRaw) : undefined
+ 
+-    const emailFromSession = (sessionStorage.getItem('agribridge.auth.email') ?? '').trim()
+-    const nameFromSession = (sessionStorage.getItem('agribridge.auth.name') ?? '').trim()
++  if (!companyId && !userId) {
++    hydrateSessionFromAuthPayload()
++    companyIdRaw = sessionStorage.getItem('agribridge.auth.companyId')
++    companyId = companyIdRaw ? Number(companyIdRaw) : undefined
++    userIdRaw = sessionStorage.getItem('agribridge.auth.userId')
++    userId = userIdRaw ? Number(userIdRaw) : undefined
++  }
++
++  const emailFromSession = (sessionStorage.getItem('agribridge.auth.email') ?? '').trim()
++  const nameFromSession = (sessionStorage.getItem('agribridge.auth.name') ?? '').trim()
++  const phoneFromSession = (sessionStorage.getItem('agribridge.auth.phone') ?? '').trim()
+ 
+   let user: UserApiModel | undefined
+   if (userId) {
+     try {
+       const userResponse = await apiClient.get<UserApiModel>(`/api/users/${userId}`)
+       user = userResponse.data
+-    } catch(error){
++    } catch (error) {
+       console.error('GET /api/users/:id failed', error)
+       user = undefined
+     }
++  }
+ 
+-    if (user?.companyId && (!companyId || companyId !== user.companyId)) {
+-      companyId = user.companyId
+-      sessionStorage.setItem('agribridge.auth.companyId', String(user.companyId))
+-    }
++  if (user?.companyId && (!companyId || companyId !== user.companyId)) {
++    companyId = user.companyId
++    sessionStorage.setItem('agribridge.auth.companyId', String(user.companyId))
+   }
+ 
+   if (!user) {
+@@ -161,21 +195,58 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
+   const companyResponse = await apiClient.get<CompanyApiModel>(`/api/companies/${companyId}`)
+   const company = companyResponse.data
+ 
+-  const fullName = user?.fullName || company.ownerName || sessionStorage.getItem('agribridge.auth.name') || 'Ngu?i dùng'
+-  const phone = user?.phone || company.phone || sessionStorage.getItem('agribridge.auth.phone') || 'N/A'
+-  const email = user?.email || company.email || 'N/A'
++  const fullName = user?.fullName || company.ownerName || nameFromSession || 'Ngu?i dùng'
++  const phone = user?.phone || company.phone || phoneFromSession || 'N/A'
++  const email = user?.email || company.email || emailFromSession || 'N/A'
+   const joinedAtSource = user?.createdAt || company.createdAt
+ 
+   const profile: CurrentUserProfile = {
+-    ...value,
+-    shortName: value.shortName ?? abbreviateVietnameseName(value.fullName),
+-    ward: value.ward ?? null,
++    userId: user?.id ?? userId,
++    companyId,
++    fullName,
++    shortName: abbreviateVietnameseName(fullName),
++    email,
++    phone,
++    roleLabel: mapRoleLabel(companyTypeRaw || company.companyType),
++    companyName: readUnknown(company.name),
++    taxCode: readUnknown(company.taxCode),
++    address: readUnknown(company.address),
++    ownerName: readUnknown(company.ownerName || fullName),
++    companyType: readUnknown(company.companyType || companyTypeRaw),
++    companyTypeLabel: mapCompanyTypeLabel(company.companyType || companyTypeRaw),
++    businessTypeLabel: mapBusinessTypeLabel(company.businessType),
++    accountCode: readUnknown(company.accountCode || (companyId ? `CMP-${String(companyId).padStart(6, '0')}` : undefined)),
++    joinedAt: formatDate(joinedAtSource),
++    statusLabel: readUnknown(company.status || 'Ðang ho?t d?ng'),
++    initials: makeInitials(fullName),
++    registrationNumber: readUnknown(company.registrationNumber),
++    establishedYear: readUnknown(company.establishedYear),
++    website: readUnknown(company.website),
++    province: readUnknown(company.province),
++    district: readUnknown(company.district),
++    ward: readNullable(company.ward),
++    description: readUnknown(company.description),
+   }
+ 
+   cachedProfile = profile
+   return profile
+ }
+ 
++function hydrateSessionFromAuthPayload() {
++  const payload = getStoredAuthSession()
++  if (!payload) return
++
++  if (payload.companyId) {
++    sessionStorage.setItem('agribridge.auth.companyId', String(payload.companyId))
++  }
++  if (payload.userId) {
++    sessionStorage.setItem('agribridge.auth.userId', String(payload.userId))
++  }
++  if (payload.companyType) {
++    sessionStorage.setItem('agribridge.auth.companyType', payload.companyType)
++  }
++}
++
+ export function clearCurrentUserProfileCache(): void {
+   cachedProfile = null
+ }
+diff --git a/AGRIBRIDGE-FE/src/services/uploadService.ts b/AGRIBRIDGE-FE/src/services/uploadService.ts
+index b23c18e..ef3b7b4 100644
+--- a/AGRIBRIDGE-FE/src/services/uploadService.ts
++++ b/AGRIBRIDGE-FE/src/services/uploadService.ts
+@@ -17,6 +17,8 @@ type UploadErrorPayload = {
+ 
+ type UploadFieldName = 'file' | 'document' | 'video'
+ 
++const UPLOAD_TIMEOUT_MS = 120_000
++
+ function toFormData(file: File, fieldName: UploadFieldName = 'file'): FormData {
+   const formData = new FormData()
+   formData.append(fieldName, file, file.name)
+@@ -56,6 +58,10 @@ function extractUploadErrorMessage(error: unknown, fallbackMessage: string): str
+     return 'Upload lên Cloudinary th?t b?i. Ki?m tra API key, API secret ho?c k?t n?i m?ng backend.'
+   }
+ 
++  if (error.code === 'ECONNABORTED') {
++    return 'Upload m?t quá nhi?u th?i gian. Th? file nh? hon ho?c ki?m tra k?t n?i m?ng.'
++  }
++
+   return fallbackMessage
+ }
+ 
+@@ -74,6 +80,7 @@ export async function uploadRegistrationFile(file: File): Promise<UploadedFilePa
+     const response = await apiClient.post<UploadedFilePayload>(
+       '/api/uploads/registration-file',
+       toFormData(file, 'document'),
++      { timeout: UPLOAD_TIMEOUT_MS },
+     )
+ 
+     return normalizeUploadedPayload(response.data)
+@@ -87,6 +94,7 @@ export async function uploadSupplierDocument(file: File): Promise<UploadedFilePa
+     const response = await apiClient.post<UploadedFilePayload>(
+       '/api/uploads/supplier-document',
+       toFormData(file, 'document'),
++      { timeout: UPLOAD_TIMEOUT_MS },
+     )
+ 
+     return normalizeUploadedPayload(response.data)
+@@ -100,6 +108,7 @@ export async function uploadBatchVideo(file: File): Promise<UploadedFilePayload>
+     const response = await apiClient.post<UploadedFilePayload>(
+       '/api/uploads/batch-video',
+       toFormData(file, 'video'),
++      { timeout: UPLOAD_TIMEOUT_MS },
+     )
+ 
+     return normalizeUploadedPayload(response.data)
+@@ -148,4 +157,4 @@ export function resolveUploadedFileUrl(url?: string | null): string | null {
+ 
+ export function canOpenUploadedFile(url?: string | null): boolean {
+   return Boolean(resolveUploadedFileUrl(url))
+-}
+\ No newline at end of file
++}

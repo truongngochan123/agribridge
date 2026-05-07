@@ -27,6 +27,14 @@ public class GlobalExceptionHandler {
                         "message", "File size exceeds the maximum allowed limit of 100MB"));
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalArgumentException(IllegalArgumentException ex) {
+        return ResponseEntity
+                .badRequest()
+                .body(Map.of(
+                        "message", ex.getMessage() == null ? "BAD_REQUEST" : ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleException(Exception ex) {
         return ResponseEntity

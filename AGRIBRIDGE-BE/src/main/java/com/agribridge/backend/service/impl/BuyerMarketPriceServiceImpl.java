@@ -6,12 +6,12 @@ import com.agribridge.backend.entity.CategoryEntity;
 import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.MarketPriceSnapshotEntity;
 import com.agribridge.backend.entity.ProductEntity;
-import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.CategoryRepository;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.MarketPriceSnapshotRepository;
 import com.agribridge.backend.repository.ProductRepository;
+import com.agribridge.backend.service.BatchAvailabilityService;
 import com.agribridge.backend.service.BuyerMarketPriceService;
 import com.agribridge.backend.service.CurrentUserService;
 import java.math.BigDecimal;
@@ -46,6 +46,7 @@ public class BuyerMarketPriceServiceImpl implements BuyerMarketPriceService {
     private final BatchRepository batchRepository;
     private final CompanyRepository companyRepository;
     private final MarketPriceAggregationServiceImpl marketPriceAggregationService;
+    private final BatchAvailabilityService batchAvailabilityService;
 
     @Override
     @Transactional
@@ -149,8 +150,11 @@ public class BuyerMarketPriceServiceImpl implements BuyerMarketPriceService {
                 .collect(Collectors.toMap(CompanyEntity::getId, Function.identity()));
         return batchRepository.findByProductIdInOrderByCreatedAtDesc(products.stream().map(ProductEntity::getId).toList()).stream()
                 .filter(batch -> batch.getPrice() != null)
-                .filter(batch -> batch.getStatus() == null || BatchStatusEnum.AVAILABLE.equals(batch.getStatus()))
-                .filter(batch -> batch.getQuantity() == null || batch.getQuantity().compareTo(BigDecimal.ZERO) > 0)
+                .filter(batch -> {
+                    ProductEntity product = productById.get(batch.getProductId());
+                    CompanyEntity supplier = product == null ? null : suppliers.get(product.getSupplierCompanyId());
+                    return batchAvailabilityService.isBuyerVisible(batch, supplier);
+                })
                 .filter(batch -> matches(batch.getGrade(), grade))
                 .filter(batch -> matches(batch.getSize(), size))
                 .filter(batch -> {

@@ -32,6 +32,7 @@ import com.agribridge.backend.repository.OrderRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.QuoteRepository;
 import com.agribridge.backend.repository.RfqRepository;
+import com.agribridge.backend.service.BatchAvailabilityService;
 import com.agribridge.backend.service.BuyerRfqService;
 import com.agribridge.backend.service.CurrentUserService;
 import java.math.BigDecimal;
@@ -84,6 +85,7 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
     private final CategoryRepository categoryRepository;
     private final CompanyRepository companyRepository;
     private final CurrentUserService currentUserService;
+    private final BatchAvailabilityService batchAvailabilityService;
 
     @Override
     @Transactional(readOnly = true)
@@ -277,11 +279,16 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
         if (quote.getBatchId() == null) {
             throw new IllegalArgumentException(QUOTE_NOT_AVAILABLE + ": batch_id is required");
         }
-        BatchEntity batch = batchRepository.findById(quote.getBatchId())
+        BatchEntity batch = batchRepository.findByIdForUpdate(quote.getBatchId())
                 .orElseThrow(() -> new IllegalArgumentException(QUOTE_NOT_AVAILABLE + ": batch not found"));
         if (rfq.getProductId() != null && !Objects.equals(rfq.getProductId(), batch.getProductId())) {
             throw new IllegalArgumentException(QUOTE_NOT_AVAILABLE + ": batch does not match RFQ product");
         }
+        CompanyEntity supplier = companyRepository.findById(quote.getSupplierCompanyId()).orElse(null);
+        if (!batchAvailabilityService.isSupplierApproved(supplier)) {
+            throw new IllegalArgumentException(BatchAvailabilityService.UNAVAILABLE_MESSAGE);
+        }
+        batchAvailabilityService.validateOrderable(batch, batch.getProductId(), quote.getQuantity());
         if (orderRepository.existsByQuoteId(quoteId)) {
             throw new IllegalArgumentException(RFQ_ALREADY_CONVERTED);
         }
@@ -316,6 +323,13 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
                 .unit(rfq.getUnit())
                 .subtotal(totalAmount)
                 .build());
+
+        BigDecimal remainingQuantity = safeAmount(batch.getQuantity()).subtract(safeAmount(quote.getQuantity()));
+        batch.setQuantity(remainingQuantity.compareTo(BigDecimal.ZERO) <= 0 ? BigDecimal.ZERO : remainingQuantity);
+        if (batch.getQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            batch.setStatus(com.agribridge.backend.entity.enums.BatchStatusEnum.SOLD_OUT);
+        }
+        batchRepository.save(batch);
 
         InvoiceEntity invoice = null;
         if (request == null || !Boolean.FALSE.equals(request.createInvoice())) {

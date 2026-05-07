@@ -45,6 +45,8 @@ type BatchFormFieldsProps = {
   onUploadVideo: (file: File) => void
   onUploadBatchImage?: (file: File) => void
   showBatchImages?: boolean
+  disableExpiryDate?: boolean
+  expiryDateDisabledMessage?: string
 }
 
 export function BatchFormFields({
@@ -58,6 +60,8 @@ export function BatchFormFields({
   onUploadVideo,
   onUploadBatchImage,
   showBatchImages = false,
+  disableExpiryDate = false,
+  expiryDateDisabledMessage,
 }: BatchFormFieldsProps) {
   return (
     <div className="space-y-2 text-xs">
@@ -74,6 +78,9 @@ export function BatchFormFields({
           type="date"
           value={form.expiryDate}
           onChange={(value) => setForm((prev) => ({ ...prev, expiryDate: value }))}
+          disabled={disableExpiryDate}
+          hint={disableExpiryDate ? expiryDateDisabledMessage : undefined}
+          required
         />
         <FieldSelect
           label="Grade"
@@ -238,12 +245,16 @@ function Field({
   onChange,
   type = 'text',
   required,
+  disabled,
+  hint,
 }: {
   label: string
   value: string
   onChange: (value: string) => void
   type?: 'text' | 'number' | 'date'
   required?: boolean
+  disabled?: boolean
+  hint?: string
 }) {
   return (
     <label className="block">
@@ -255,8 +266,10 @@ function Field({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         type={type}
-        className="h-8 w-full rounded border border-slate-300 px-2 text-[12px]"
+        disabled={disabled}
+        className="h-8 w-full rounded border border-slate-300 px-2 text-[12px] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
       />
+      {hint ? <span className="mt-1 block text-[10px] font-medium text-amber-700">{hint}</span> : null}
     </label>
   )
 }

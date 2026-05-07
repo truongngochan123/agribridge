@@ -6,6 +6,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
@@ -25,9 +27,23 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     List<UserEntity> findByCompanyIdInAndRole(Collection<Long> companyIds, UserRoleEnum role);
 
+    @Query(value = """
+            SELECT u.id AS id, u.company_id AS companyId
+            FROM users u
+            WHERE u.company_id IN (:companyIds)
+              AND UPPER(u.role) = 'OWNER'
+            """, nativeQuery = true)
+    List<SupplierOwnerRef> findSupplierOwnerRefsByCompanyIds(@Param("companyIds") Collection<Long> companyIds);
+
     List<UserEntity> findByCompanyIdAndBranchIdOrderByCreatedAtDesc(Long companyId, Long branchId);
 
     boolean existsByBranchId(Long branchId);
 
     long countByCompanyIdAndBranchId(Long companyId, Long branchId);
+
+    interface SupplierOwnerRef {
+        Long getId();
+
+        Long getCompanyId();
+    }
 }

@@ -68,6 +68,12 @@
     return parsed.toLocaleDateString('vi-VN')
   }
 
+  function isExpiredTarget(target: BuyerQuickOrderTarget): boolean {
+    if (target.expired) return true
+    if (!target.expiryDate) return true
+    return target.expiryDate < new Date().toISOString().slice(0, 10)
+  }
+
   function estimateWeightInGram(quantity: number, unit?: string | null) {
     if (!quantity || Number.isNaN(quantity)) return null
     const normalized = (unit || '').toLowerCase()
@@ -437,6 +443,7 @@
       target.availableQuantity > 0 &&
       quantityNumber > 0 &&
       quantityNumber > target.availableQuantity
+    const targetExpired = isExpiredTarget(target)
     const validationIssue =
       !buyerCompanyId
         ? 'Thiếu thông tin công ty buyer, vui lòng đăng nhập lại.'
@@ -463,6 +470,7 @@
                             : ''
     const canSubmit =
       !validationIssue &&
+      !targetExpired &&
       !showStockError &&
       quantityNumber > 0 &&
       !submitting &&
@@ -1277,7 +1285,7 @@ const handleOpenEdit = () => {
           {/* ── Footer ── */}
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-3">
             <p className="min-w-0 flex-1 text-xs font-semibold text-rose-600">
-              {validationIssue || (showStockError ? 'Số lượng đặt vượt quá tồn kho hiện có.' : '')}
+              {validationIssue || (targetExpired ? 'Lô hàng này đã hết hạn hoặc không còn khả dụng.' : '') || (showStockError ? 'Số lượng đặt vượt quá tồn kho hiện có.' : '')}
             </p>
             <div className="flex shrink-0 items-center gap-2">
             <button

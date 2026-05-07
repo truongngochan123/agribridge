@@ -86,11 +86,18 @@ export interface SupplierBatchCard {
   moq: number
   price: number
   status: string
+  statusLabel?: string | null
   harvestDate?: string | null
   expiryDate?: string | null
   productUnit: string
   productName: string
   imageUrl?: string | null
+  expired?: boolean | null
+  warningMessage?: string | null
+  daysUntilExpiry?: number | null
+  soonExpiryWarning?: string | null
+  canEditExpiry?: boolean | null
+  canCreateNewBatchFromThis?: boolean | null
 }
 
 export interface SupplierBatchDetail {
@@ -110,10 +117,17 @@ export interface SupplierBatchDetail {
   storageTemp?: string | null
   videoUrl?: string | null
   status: string
+  statusLabel?: string | null
   imageUrls: string[]
   qcResult?: QcResult | null
   qcDocumentUrl?: string | null
   qcNotes?: string | null
+  expired?: boolean | null
+  warningMessage?: string | null
+  daysUntilExpiry?: number | null
+  soonExpiryWarning?: string | null
+  canEditExpiry?: boolean | null
+  canCreateNewBatchFromThis?: boolean | null
 }
 
 export interface SupplierProductDetail {
@@ -164,6 +178,13 @@ export interface SupplierCreateFlowResponse {
     storageTemp?: string | null
     videoUrl?: string | null
     status: string
+    statusLabel?: string | null
+    expired?: boolean | null
+    warningMessage?: string | null
+    daysUntilExpiry?: number | null
+    soonExpiryWarning?: string | null
+    canEditExpiry?: boolean | null
+    canCreateNewBatchFromThis?: boolean | null
   }
   qc: {
     id: number

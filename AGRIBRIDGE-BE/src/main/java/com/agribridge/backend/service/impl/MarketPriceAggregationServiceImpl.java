@@ -5,7 +5,6 @@ import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.OrderEntity;
 import com.agribridge.backend.entity.OrderItemEntity;
 import com.agribridge.backend.entity.ProductEntity;
-import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.CompanyRepository;
@@ -13,6 +12,7 @@ import com.agribridge.backend.repository.MarketPriceSnapshotRepository;
 import com.agribridge.backend.repository.OrderItemRepository;
 import com.agribridge.backend.repository.OrderRepository;
 import com.agribridge.backend.repository.ProductRepository;
+import com.agribridge.backend.service.BatchAvailabilityService;
 import com.agribridge.backend.service.MarketPriceAggregationService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -45,6 +45,7 @@ public class MarketPriceAggregationServiceImpl implements MarketPriceAggregation
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final CompanyRepository companyRepository;
+    private final BatchAvailabilityService batchAvailabilityService;
 
     @Override
     @Transactional
@@ -62,6 +63,8 @@ public class MarketPriceAggregationServiceImpl implements MarketPriceAggregation
     public void updateFromSupplierListings() {
         List<ProductEntity> products = productRepository.findAll();
         Map<Long, ProductEntity> productById = products.stream().collect(HashMap::new, (map, product) -> map.put(product.getId(), product), HashMap::putAll);
+        Map<Long, CompanyEntity> supplierById = companyRepository.findAllById(products.stream().map(ProductEntity::getSupplierCompanyId).filter(Objects::nonNull).distinct().toList())
+                .stream().collect(HashMap::new, (map, company) -> map.put(company.getId(), company), HashMap::putAll);
         List<BatchEntity> batches = products.isEmpty()
                 ? List.of()
                 : batchRepository.findByProductIdInOrderByCreatedAtDesc(products.stream().map(ProductEntity::getId).toList());
@@ -69,8 +72,7 @@ public class MarketPriceAggregationServiceImpl implements MarketPriceAggregation
         for (BatchEntity batch : batches) {
             ProductEntity product = productById.get(batch.getProductId());
             if (product == null || batch.getPrice() == null) continue;
-            if (batch.getQuantity() != null && batch.getQuantity().compareTo(BigDecimal.ZERO) <= 0) continue;
-            if (batch.getStatus() != null && !BatchStatusEnum.AVAILABLE.equals(batch.getStatus())) continue;
+            if (!batchAvailabilityService.isBuyerVisible(batch, supplierById.get(product.getSupplierCompanyId()))) continue;
             Key key = key(product, batch.getGrade(), batch.getSize(), firstText(product.getUnit(), "kg"), firstText(product.getOriginProvince(), "Không xác định"), LocalDate.now(), SOURCE_LISTING);
             buckets.computeIfAbsent(key, Bucket::new).add(batch.getPrice(), BigDecimal.ONE, product.getSupplierCompanyId());
         }

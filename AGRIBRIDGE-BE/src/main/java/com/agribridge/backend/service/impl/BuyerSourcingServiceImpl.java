@@ -23,6 +23,7 @@ import com.agribridge.backend.repository.ProductImageRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.QcRecordRepository;
 import com.agribridge.backend.repository.RfqRepository;
+import com.agribridge.backend.service.BatchAvailabilityService;
 import com.agribridge.backend.service.BuyerSourcingService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -57,6 +58,7 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
         private final CategoryRepository categoryRepository;
         private final QcRecordRepository qcRecordRepository;
         private final RfqRepository rfqRepository;
+        private final BatchAvailabilityService batchAvailabilityService;
 
         @Override
         @Transactional(readOnly = true)
@@ -112,8 +114,13 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                                 .map(ProductImageEntity::getImageUrl)
                                 .orElse(null);
 
+                CompanyEntity supplier = resolveSupplierForProduct(productId);
+                if (!batchAvailabilityService.isSupplierApproved(supplier)) {
+                        return List.of();
+                }
+
                 return batches.stream()
-                                .filter(this::isAvailableBatch)
+                                .filter(batch -> batchAvailabilityService.isBuyerVisible(batch, supplier))
                                 .map(batch -> {
                                         List<String> imageUrls = imageUrlsByBatchId.getOrDefault(batch.getId(),
                                                         List.of());
@@ -180,10 +187,25 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                 }
 
                 List<Long> productIds = products.stream().map(ProductEntity::getId).filter(Objects::nonNull).toList();
+                Map<Long, CompanyEntity> supplierById = companyRepository.findAllById(products.stream()
+                                .map(ProductEntity::getSupplierCompanyId)
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toSet()))
+                                .stream()
+                                .collect(Collectors.toMap(CompanyEntity::getId, value -> value, (left, right) -> left));
+
+                Map<Long, ProductEntity> productById = products.stream()
+                                .filter(product -> product.getId() != null)
+                                .collect(Collectors.toMap(ProductEntity::getId, value -> value, (left, right) -> left));
+
                 Map<Long, List<BatchEntity>> availableBatchesByProduct = batchRepository
                                 .findByProductIdInOrderByCreatedAtDesc(productIds)
                                 .stream()
-                                .filter(this::isAvailableBatch)
+                                .filter(batch -> {
+                                        ProductEntity product = productById.get(batch.getProductId());
+                                        CompanyEntity supplier = product == null ? null : supplierById.get(product.getSupplierCompanyId());
+                                        return batchAvailabilityService.isBuyerVisible(batch, supplier);
+                                })
                                 .collect(Collectors.groupingBy(BatchEntity::getProductId, LinkedHashMap::new,
                                                 Collectors.toList()));
 
@@ -210,12 +232,6 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                                 .map(ProductEntity::getId)
                                 .filter(Objects::nonNull)
                                 .collect(Collectors.groupingBy(id -> id, Collectors.counting()));
-                Map<Long, CompanyEntity> supplierById = companyRepository.findAllById(products.stream()
-                                .map(ProductEntity::getSupplierCompanyId)
-                                .filter(Objects::nonNull)
-                                .collect(Collectors.toSet()))
-                                .stream()
-                                .collect(Collectors.toMap(CompanyEntity::getId, value -> value, (left, right) -> left));
                 Map<Long, CategoryEntity> categoryById = categoryRepository.findAllById(products.stream()
                                 .map(ProductEntity::getCategoryId)
                                 .filter(Objects::nonNull)
@@ -385,10 +401,10 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                 return "BATCH-" + String.format("%06d", idValue);
         }
 
-        private boolean isAvailableBatch(BatchEntity batch) {
-                return batch != null
-                                && BatchStatusEnum.AVAILABLE.equals(batch.getStatus())
-                                && batch.getQuantity() != null
-                                && batch.getQuantity().compareTo(BigDecimal.ZERO) > 0;
+        private CompanyEntity resolveSupplierForProduct(Long productId) {
+                return productRepository.findById(productId)
+                                .map(ProductEntity::getSupplierCompanyId)
+                                .flatMap(companyRepository::findById)
+                                .orElse(null);
         }
 }

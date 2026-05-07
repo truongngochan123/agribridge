@@ -12,4 +12,6 @@ public interface OrderItemRepository extends JpaRepository<OrderItemEntity, Long
     List<OrderItemEntity> findByOrderIdOrderByIdAsc(Long orderId);
 
     boolean existsByBatchIdIn(Collection<Long> batchIds);
+
+    boolean existsByBatchId(Long batchId);
 }

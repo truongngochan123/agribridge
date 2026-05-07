@@ -33,6 +33,7 @@ import com.agribridge.backend.repository.PaymentRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.ShipmentEventRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
+import com.agribridge.backend.service.BatchAvailabilityService;
 import com.agribridge.backend.service.BuyerOrderService;
 import com.agribridge.backend.service.CurrentUserService;
 import java.math.BigDecimal;
@@ -76,6 +77,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
     private final BranchRepository branchRepository;
     private final ComplaintRepository complaintRepository;
     private final CurrentUserService currentUserService;
+    private final BatchAvailabilityService batchAvailabilityService;
 
     @Override
     @Transactional(readOnly = true)
@@ -122,15 +124,10 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         if (!Objects.equals(product.getSupplierCompanyId(), supplier.getId())) {
             throw new IllegalArgumentException("Product does not belong to this supplier");
         }
-        if (!Objects.equals(batch.getProductId(), product.getId())) {
-            throw new IllegalArgumentException("Batch does not belong to this product");
+        if (!batchAvailabilityService.isSupplierApproved(supplier)) {
+            throw new IllegalArgumentException(BatchAvailabilityService.UNAVAILABLE_MESSAGE);
         }
-        if (!BatchStatusEnum.AVAILABLE.equals(batch.getStatus())) {
-            throw new IllegalArgumentException("Batch is not available");
-        }
-        if (batch.getQuantity() == null || batch.getQuantity().compareTo(request.quantity()) < 0) {
-            throw new IllegalArgumentException("Batch quantity is not enough");
-        }
+        batchAvailabilityService.validateOrderable(batch, product.getId(), request.quantity());
 
         BigDecimal subtotal = request.subtotal();
         BigDecimal shippingFee = positiveOrZero(request.shippingFee());

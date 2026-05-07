@@ -182,7 +182,8 @@ function getBatchImages(batch: BuyerBatchPreview, product?: BuyerSourcingProduct
 
 function deriveBatchStatus(batch: BuyerBatchPreview): 'available' | 'out-of-stock' {
   const normalized = (batch.status || '').toUpperCase()
-  if (normalized.includes('OUT') || normalized.includes('SOLD') || normalized.includes('HET')) return 'out-of-stock'
+  if (batch.expired || normalized.includes('EXPIRED') || normalized.includes('OUT') || normalized.includes('SOLD') || normalized.includes('HET')) return 'out-of-stock'
+  if (!batch.expiryDate || batch.expiryDate < new Date().toISOString().slice(0, 10)) return 'out-of-stock'
   const quantity = getBatchQuantity(batch)
   if (quantity != null && quantity <= 0) return 'out-of-stock'
   return 'available'
@@ -218,6 +219,7 @@ function toQuickOrderTarget(product: BuyerSourcingProductDetail, batch: BuyerBat
     grade: batch.grade,
     size: batch.size,
     expiryDate: batch.expiryDate,
+    expired: batch.expired,
   }
 }
 

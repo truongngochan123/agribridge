@@ -80,14 +80,12 @@ function DeliveryCard({
   onTimeline,
   onDetail,
   onMap,
-  onIncident,
   onConfirm,
 }: {
   item: BuyerDeliveryItem
   onTimeline: () => void
   onDetail: () => void
   onMap: () => void
-  onIncident: () => void
   onConfirm: () => void
 }) {
   const { color } = getStatusMeta(item.status)
@@ -311,7 +309,6 @@ export function BuyerDeliveryPage() {
               onTimeline={() => void openTimeline(item)}
               onDetail={() => void openDetail(item)}
               onMap={() => setMapShipment(item)}
-              onIncident={() => setIncidentShipment(item)}
               onConfirm={() => setConfirmShipment(item)}
             />
           ))}
@@ -525,21 +522,5 @@ function SubmitRow({ saving, onClose, onSubmit, submitText }: { saving: boolean;
       <button className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" onClick={onClose} disabled={saving}>Đóng</button>
       <button className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-60" onClick={onSubmit} disabled={saving}>{saving ? 'Đang gửi...' : submitText}</button>
     </div>
-  )
-}
-
-function DeliveryStatusBadge({ label, status }: { label: string; status: string }) {
-  const map: Record<string, { badge: string; dot: string }> = {
-    preparing: { badge: 'bg-amber-100 text-amber-700',  dot: 'bg-amber-400' },
-    transit:   { badge: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-400' },
-    done:      { badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
-    issue:     { badge: 'bg-rose-100 text-rose-700',    dot: 'bg-rose-400' },
-  }
-  const cls = map[status] ?? { badge: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' }
-  return (
-    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${cls.badge}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${cls.dot}`} />
-      {label}
-    </span>
   )
 }

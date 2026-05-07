@@ -66,6 +66,13 @@ function deriveLotStatus(quantity: number): 'con-hang' | 'sap-het' | 'het-hang' 
   return 'con-hang'
 }
 
+function isExpiredBatch(batch: Pick<SupplierBatchCard, 'status' | 'expiryDate' | 'expired'>): boolean {
+  if (batch.expired) return true
+  if ((batch.status || '').toUpperCase() === 'EXPIRED') return true
+  if (!batch.expiryDate) return false
+  return batch.expiryDate < new Date().toISOString().slice(0, 10)
+}
+
 function stockLabel(status: 'con-hang' | 'sap-het' | 'het-hang'): string {
   if (status === 'con-hang') return 'Còn hàng'
   if (status === 'sap-het') return 'Đang bán'
@@ -126,6 +133,7 @@ export function SupplierLotListPage() {
 
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
   const [editingBatchId, setEditingBatchId] = useState<number | null>(null)
+  const [editingBatchDetail, setEditingBatchDetail] = useState<SupplierBatchDetail | null>(null)
   const [editForm, setEditForm] = useState<BatchForm>(EMPTY_BATCH_FORM)
 
   const [openCreateModal, setOpenCreateModal] = useState(false)
@@ -229,7 +237,7 @@ export function SupplierLotListPage() {
 
   const summary = useMemo(() => {
     const total = batches.length
-    const active = batches.filter((batch) => Number(batch.quantity || 0) > 0).length
+    const active = batches.filter((batch) => Number(batch.quantity || 0) > 0 && !isExpiredBatch(batch)).length
     const closed = total - active
     return { total, active, closed }
   }, [batches])
@@ -255,6 +263,7 @@ export function SupplierLotListPage() {
     try {
       const batchDetail = await getSupplierBatchDetail(batchId)
       setEditingBatchId(batchDetail.id)
+      setEditingBatchDetail(batchDetail)
       setEditForm({
         harvestDate: batchDetail.harvestDate,
         expiryDate: batchDetail.expiryDate ?? '',
@@ -275,6 +284,30 @@ export function SupplierLotListPage() {
     }
   }
 
+  const openCreateFromBatch = async (batchId: number) => {
+    try {
+      const batchDetail = await getSupplierBatchDetail(batchId)
+      setCreateForm({
+        harvestDate: '',
+        expiryDate: '',
+        grade: (batchDetail.grade as 'A' | 'B' | 'C') || '',
+        size: batchDetail.size ?? '',
+        quantity: '',
+        price: String(batchDetail.price ?? ''),
+        moq: String(batchDetail.moq ?? ''),
+        storageTempValue: toStorageValue(batchDetail.storageTemp),
+        videoUrl: '',
+        imageUrls: [],
+        qcResult: '',
+        qcDocumentUrl: '',
+        qcNotes: '',
+      })
+      setOpenCreateModal(true)
+    } catch {
+      showToast('Không thể tạo lô mới từ lô này.', 'error')
+    }
+  }
+
   const validateBatchForm = (form: BatchForm): boolean => {
     if (!form.harvestDate) {
       showToast('Ngày thu hoạch là bắt buộc.', 'error')
@@ -284,6 +317,11 @@ export function SupplierLotListPage() {
     const today = new Date().toISOString().slice(0, 10)
     if (form.harvestDate > today) {
       showToast('Ngày thu hoạch không được ở tương lai.', 'error')
+      return false
+    }
+
+    if (!form.expiryDate) {
+      showToast('Ngày hết hạn là bắt buộc.', 'error')
       return false
     }
 
@@ -364,11 +402,12 @@ export function SupplierLotListPage() {
     try {
       await updateSupplierBatch(editingBatchId, payload)
       setEditingBatchId(null)
+      setEditingBatchDetail(null)
       setEditForm(EMPTY_BATCH_FORM)
       showToast('Cập nhật lô hàng thành công.', 'success')
       await loadData()
-    } catch {
-      showToast('Cập nhật lô hàng thất bại.', 'error')
+    } catch (error) {
+      showToast(readApiErrorMessage(error) || 'Cập nhật lô hàng thất bại.', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -609,6 +648,7 @@ export function SupplierLotListPage() {
           <div className="flex-1 overflow-y-auto space-y-3 pr-1">
             {filteredBatches.map((batch) => {
               const lotStatus = deriveLotStatus(Number(batch.quantity || 0))
+              const expired = isExpiredBatch(batch)
               const batchDetail = batchDetailsById[batch.id]
               const previewImages = [batch.imageUrl, ...(batchDetail?.imageUrls ?? []), ...(product?.imageUrls ?? [])]
                 .map((url) => resolveUploadedFileUrl(url || '') || '')
@@ -638,7 +678,9 @@ export function SupplierLotListPage() {
                         <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">
                           {batch.batchCode || `BATCH-${batch.id}`}
                         </h3>
-                        <Badge className={stockBadgeStyle(lotStatus)}>{stockLabel(lotStatus)}</Badge>
+                        <Badge className={expired ? 'bg-rose-100 text-rose-700 border border-rose-200' : stockBadgeStyle(lotStatus)}>
+                          {batch.statusLabel || (expired ? 'Đã hết hạn' : stockLabel(lotStatus))}
+                        </Badge>
                         <Badge className={batchStateStyle(batch.status)}>{batchStateLabel(batch.status)}</Badge>
                         <Badge className="bg-amber-50 text-amber-700 border border-amber-200">Grade {batch.grade || 'N/A'}</Badge>
                         {batchDetail?.qcResult === 'PASS' ? (
@@ -672,6 +714,14 @@ export function SupplierLotListPage() {
                         >
                           Sửa
                         </button>
+                        {batch.canCreateNewBatchFromThis !== false ? (
+                          <button
+                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 active:scale-95"
+                            onClick={() => void openCreateFromBatch(batch.id)}
+                          >
+                            Tạo lô mới
+                          </button>
+                        ) : null}
                         <button
                           className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 active:scale-95"
                           onClick={() => void handleDelete(batch.id)}
@@ -681,6 +731,16 @@ export function SupplierLotListPage() {
                         </button>
                       </div>
                     </div>
+
+                    {(batch.warningMessage || batch.soonExpiryWarning) ? (
+                      <div className={`mt-3 rounded-xl border px-3 py-2 ${
+                        batch.warningMessage
+                          ? 'border-rose-200 bg-rose-50 text-rose-700'
+                          : 'border-amber-200 bg-amber-50 text-amber-700'
+                      }`}>
+                        <p className="text-xs font-semibold">{batch.warningMessage || batch.soonExpiryWarning}</p>
+                      </div>
+                    ) : null}
 
                     {/* Row 2: Images */}
                     <div className="mt-3 flex items-center gap-2">
@@ -796,12 +856,15 @@ export function SupplierLotListPage() {
           uploadingBatchImage={uploadingBatchImage}
           onClose={() => {
             setEditingBatchId(null)
+            setEditingBatchDetail(null)
             setEditForm(EMPTY_BATCH_FORM)
           }}
           onSubmit={() => void submitEditBatch()}
           onUploadQc={(file) => void uploadQcDocument(file, false)}
           onUploadVideo={(file) => void uploadVideoDocument(file, false)}
           onUploadBatchImage={(file) => void uploadBatchImageDocument(file, false)}
+          disableExpiryDate={editingBatchDetail?.canEditExpiry === false}
+          expiryDateDisabledMessage="Không thể tự ý gia hạn ngày hết hạn cho lô hàng đã public, đã hết hạn hoặc đã phát sinh giao dịch. Vui lòng tạo lô mới hoặc gửi yêu cầu điều chỉnh."
         />
       ) : null}
     </>
@@ -890,6 +953,8 @@ function BatchModal({
   onUploadQc,
   onUploadVideo,
   onUploadBatchImage,
+  disableExpiryDate,
+  expiryDateDisabledMessage,
 }: {
   title: string
   form: BatchForm
@@ -904,6 +969,8 @@ function BatchModal({
   onUploadQc: (file: File) => void
   onUploadVideo: (file: File) => void
   onUploadBatchImage: (file: File) => void
+  disableExpiryDate?: boolean
+  expiryDateDisabledMessage?: string
 }) {
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm">
@@ -932,6 +999,8 @@ function BatchModal({
             onUploadQc={onUploadQc}
             onUploadVideo={onUploadVideo}
             onUploadBatchImage={onUploadBatchImage}
+            disableExpiryDate={disableExpiryDate}
+            expiryDateDisabledMessage={expiryDateDisabledMessage}
           />
         </div>
 
