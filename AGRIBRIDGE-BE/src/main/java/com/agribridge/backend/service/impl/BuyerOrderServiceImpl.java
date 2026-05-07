@@ -9,6 +9,7 @@ import com.agribridge.backend.entity.BranchEntity;
 import com.agribridge.backend.entity.ComplaintEntity;
 import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.CreditLimitEntity;
+import com.agribridge.backend.entity.EscrowTransactionEntity;
 import com.agribridge.backend.entity.InvoiceEntity;
 import com.agribridge.backend.entity.OrderEntity;
 import com.agribridge.backend.entity.OrderItemEntity;
@@ -16,6 +17,7 @@ import com.agribridge.backend.entity.PaymentEntity;
 import com.agribridge.backend.entity.ProductEntity;
 import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.ShipmentEventEntity;
+import com.agribridge.backend.entity.SupplierPayoutEntity;
 import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.ComplaintStatusEnum;
 import com.agribridge.backend.entity.enums.InvoiceStatusEnum;
@@ -26,6 +28,7 @@ import com.agribridge.backend.repository.BranchRepository;
 import com.agribridge.backend.repository.ComplaintRepository;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.CreditLimitRepository;
+import com.agribridge.backend.repository.EscrowTransactionRepository;
 import com.agribridge.backend.repository.InvoiceRepository;
 import com.agribridge.backend.repository.OrderItemRepository;
 import com.agribridge.backend.repository.OrderRepository;
@@ -33,6 +36,7 @@ import com.agribridge.backend.repository.PaymentRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.ShipmentEventRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
+import com.agribridge.backend.repository.SupplierPayoutRepository;
 import com.agribridge.backend.service.BatchAvailabilityService;
 import com.agribridge.backend.service.BuyerOrderService;
 import com.agribridge.backend.service.CurrentUserService;
@@ -76,6 +80,8 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
     private final CreditLimitRepository creditLimitRepository;
     private final BranchRepository branchRepository;
     private final ComplaintRepository complaintRepository;
+    private final EscrowTransactionRepository escrowTransactionRepository;
+    private final SupplierPayoutRepository supplierPayoutRepository;
     private final CurrentUserService currentUserService;
     private final BatchAvailabilityService batchAvailabilityService;
 
@@ -106,18 +112,27 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
     public BuyerQuickOrderResponseDto createQuickOrder(BuyerQuickOrderRequestDto request) {
         validateRequest(request);
 
-        PaymentMethod paymentMethod = parsePaymentMethod(request.paymentMethod());
-        CompanyEntity buyer = companyRepository.findById(request.buyerCompanyId())
-                .orElseThrow(() -> new IllegalArgumentException("Buyer company not found"));
-        CompanyEntity supplier = companyRepository.findById(request.supplierId())
+        PaymentMethod paymentMethod = parsePaymentMethod(firstText(request.paymentOption(), request.paymentMethod()));
+        CompanyEntity buyer = currentUserService.requireCurrentBuyerCompany();
+        if (request.buyerCompanyId() != null && !buyer.getId().equals(request.buyerCompanyId())) {
+            throw new IllegalArgumentException("Buyer company does not match current user");
+        }
+        CompanyEntity supplier = request.supplierId() == null ? null : companyRepository.findById(request.supplierId())
                 .orElseThrow(() -> new IllegalArgumentException("Supplier company not found"));
         if (request.branchId() != null) {
-            BranchEntity branch = branchRepository.findByIdAndCompanyId(request.branchId(), buyer.getId())
+            branchRepository.findByIdAndCompanyId(request.branchId(), buyer.getId())
                     .filter(item -> Boolean.TRUE.equals(item.getIsActive()))
                     .orElseThrow(() -> new IllegalArgumentException("Branch is inactive or does not belong to this buyer"));
         }
         ProductEntity product = productRepository.findById(request.productId())
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+        if (supplier == null) {
+            supplier = companyRepository.findById(product.getSupplierCompanyId())
+                    .orElseThrow(() -> new IllegalArgumentException("Supplier company not found"));
+        }
+        if (buyer.getId().equals(supplier.getId())) {
+            throw new IllegalArgumentException("Supplier cannot buy from itself");
+        }
         BatchEntity batch = batchRepository.findByIdForUpdate(request.batchId())
                 .orElseThrow(() -> new IllegalArgumentException("Batch not found"));
 
@@ -129,37 +144,41 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         }
         batchAvailabilityService.validateOrderable(batch, product.getId(), request.quantity());
 
-        BigDecimal subtotal = request.subtotal();
-        BigDecimal shippingFee = positiveOrZero(request.shippingFee());
+        BigDecimal unitPrice = request.unitPrice() == null ? batch.getPrice() : request.unitPrice();
+        BigDecimal subtotal = request.quantity().multiply(unitPrice);
+        BigDecimal shippingFee = BigDecimal.ZERO;
         BigDecimal grandTotal = subtotal.add(shippingFee);
         LocalDateTime now = LocalDateTime.now();
-        LocalDate creditDueDate = null;
-
-        if (paymentMethod == PaymentMethod.CREDIT) {
-            creditDueDate = validateCreditLimit(supplier.getId(), buyer.getId(), grandTotal, request.creditTermDays());
-        } else if (paymentMethod == PaymentMethod.DEPOSIT_50) {
-            validateDeposit(request, grandTotal);
-        }
+        LocalDateTime expectedDeliveryDate = now.plusDays(demoDeliveryDays(buyer));
+        BigDecimal depositAmount = paymentMethod == PaymentMethod.DEPOSIT_50 ? grandTotal.multiply(new BigDecimal("0.50")) : null;
+        BigDecimal remainingAmount = paymentMethod == PaymentMethod.DEPOSIT_50 ? grandTotal.subtract(depositAmount) : BigDecimal.ZERO;
 
         OrderEntity order = orderRepository.save(OrderEntity.builder()
                 .buyerCompanyId(buyer.getId())
                 .supplierCompanyId(supplier.getId())
                 .branchId(request.branchId())
-                .status(OrderStatusEnum.PENDING)
+                .status(paymentMethod == PaymentMethod.DEPOSIT_50 ? OrderStatusEnum.PENDING_DEPOSIT : OrderStatusEnum.PENDING_PAYMENT)
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
                 .totalAmount(grandTotal)
-                .paymentMethod(paymentMethod.name())
-                .depositRate(paymentMethod == PaymentMethod.DEPOSIT_50 ? request.depositRate() : null)
-                .depositAmount(paymentMethod == PaymentMethod.DEPOSIT_50 ? request.depositAmount() : null)
-                .balanceAmount(paymentMethod == PaymentMethod.DEPOSIT_50 ? request.balanceAmount() : null)
-                .deliveryName(trim(request.deliveryName()))
-                .deliveryPhone(trim(request.deliveryPhone()))
-                .deliveryProvince(trim(request.deliveryProvince()))
-                .deliveryWard(trim(request.deliveryWard()))
-                .deliveryAddress(trim(request.deliveryAddress()))
+                .paymentMethod("BANK_TRANSFER_DEMO")
+                .paymentOption(paymentMethod.name())
+                .paymentStatus("WAITING_TRANSFER")
+                .escrowStatus("NOT_FUNDED")
+                .depositRate(paymentMethod == PaymentMethod.DEPOSIT_50 ? new BigDecimal("50") : null)
+                .depositAmount(depositAmount)
+                .balanceAmount(remainingAmount)
+                .remainingAmount(remainingAmount)
+                .deliveryName(firstText(buyer.getOwnerName(), buyer.getName()))
+                .deliveryPhone(trim(buyer.getPhone()))
+                .deliveryProvince(trim(buyer.getProvince()))
+                .deliveryWard(trim(buyer.getWard()))
+                .deliveryAddress(trim(buyer.getAddress()))
+                .shippingAddressSnapshot(addressSnapshot(buyer))
+                .expectedDeliveryDate(expectedDeliveryDate)
                 .note(trim(request.note()))
                 .createdAt(now)
+                .updatedAt(now)
                 .build());
 
         orderItemRepository.save(OrderItemEntity.builder()
@@ -167,8 +186,8 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .batchId(batch.getId())
                 .productId(product.getId())
                 .quantity(request.quantity())
-                .unit(trim(request.unit()))
-                .price(request.unitPrice())
+                .unit(firstText(request.unit(), product.getUnit()))
+                .price(unitPrice)
                 .subtotal(subtotal)
                 .build());
         BigDecimal remainingQuantity = batch.getQuantity().subtract(request.quantity());
@@ -189,36 +208,116 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .totalAmount(grandTotal)
                 .adjustedAmount(grandTotal)
                 .paymentMethod(paymentMethod.name())
-                .depositRate(paymentMethod == PaymentMethod.DEPOSIT_50 ? request.depositRate() : null)
-                .depositAmount(paymentMethod == PaymentMethod.DEPOSIT_50 ? request.depositAmount() : null)
-                .balanceAmount(paymentMethod == PaymentMethod.DEPOSIT_50 ? request.balanceAmount() : null)
-                .dueDate(paymentMethod == PaymentMethod.CREDIT ? creditDueDate : null)
-                .status(invoiceStatus(paymentMethod))
+                .depositRate(paymentMethod == PaymentMethod.DEPOSIT_50 ? new BigDecimal("50") : null)
+                .depositAmount(depositAmount)
+                .balanceAmount(remainingAmount)
+                .status(InvoiceStatusEnum.UNPAID)
                 .createdAt(now)
                 .build());
 
-        PaymentEntity payment = paymentRepository.save(buildInitialPayment(invoice, paymentMethod, request, grandTotal, creditDueDate, now));
-        ShipmentEntity shipment = shipmentRepository.save(buildInitialShipment(order, request, shippingFee, now));
-        shipmentEventRepository.save(ShipmentEventEntity.builder()
+        PaymentEntity payment = paymentRepository.save(buildInitialPayment(invoice, order, paymentMethod, grandTotal, depositAmount, now));
+        ShipmentEntity shipment = null;
+        if (shipment != null) {
+            shipmentEventRepository.save(ShipmentEventEntity.builder()
                 .shipmentId(shipment.getId())
                 .status(shipment.getStatus().name())
                 .description("Đã lưu thông tin vận chuyển dự kiến. GHN sandbox chỉ quote phí, chưa tạo vận đơn thật.")
                 .eventTime(now)
                 .build());
 
+        }
         return new BuyerQuickOrderResponseDto(
                 order.getId(),
                 orderCode(order.getId()),
                 invoice.getId(),
-                shipment.getId(),
-                paymentMethod == PaymentMethod.CREDIT ? null : payment.getId(),
-                paymentMethod == PaymentMethod.CREDIT ? payment.getId() : null,
+                null,
+                payment.getId(),
+                null,
                 order.getStatus().name(),
                 invoice.getStatus().name(),
                 payment.getStatus(),
-                shipment.getQuoteStatus(),
+                order.getEscrowStatus(),
+                payment.getTransferContent(),
+                payment.getAmount(),
+                order.getDepositAmount(),
+                order.getRemainingAmount(),
+                null,
                 grandTotal,
                 "Tạo đơn hàng thành công");
+    }
+
+    @Override
+    @Transactional
+    public BuyerOrderDto demoConfirmPayment(Long orderId) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
+        OrderEntity order = requireBuyerOrder(buyerCompanyId, orderId);
+        if (!OrderStatusEnum.PENDING_PAYMENT.equals(order.getStatus())
+                && !OrderStatusEnum.PENDING_DEPOSIT.equals(order.getStatus())) {
+            throw new IllegalArgumentException("Order is not waiting for initial payment");
+        }
+        PaymentEntity payment = paymentRepository.findByOrderIdOrderByPaymentDateDesc(orderId).stream()
+                .filter(item -> "FULL".equals(item.getPaymentType()) || "DEPOSIT".equals(item.getPaymentType()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Payment not found"));
+        LocalDateTime now = LocalDateTime.now();
+        boolean deposit = "DEPOSIT_50".equals(order.getPaymentOption());
+        payment.setPaidAmount(payment.getAmount());
+        payment.setStatus(deposit ? "PARTIALLY_PAID" : "PAID");
+        payment.setEscrowStatus(deposit ? "PARTIALLY_HELD" : "HELD");
+        payment.setPaidAt(now);
+        payment.setVerifiedAt(now);
+        payment.setUpdatedAt(now);
+        paymentRepository.save(payment);
+        order.setStatus(deposit ? OrderStatusEnum.DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM : OrderStatusEnum.PAID_WAITING_SUPPLIER_CONFIRM);
+        order.setPaymentStatus(deposit ? "PARTIALLY_PAID" : "PAID");
+        order.setEscrowStatus(deposit ? "PARTIALLY_HELD" : "HELD");
+        order.setUpdatedAt(now);
+        orderRepository.save(order);
+        createEscrowHold(order, payment, payment.getAmount(), deposit ? "Platform holds buyer deposit" : "Platform holds full payment from buyer", now);
+        markLatestInvoiceStatus(orderId, deposit ? InvoiceStatusEnum.PARTIAL : InvoiceStatusEnum.PAID);
+        return getCurrentBuyerOrder(orderId);
+    }
+
+    @Override
+    @Transactional
+    public BuyerOrderDto demoPayRemaining(Long orderId) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
+        OrderEntity order = requireBuyerOrder(buyerCompanyId, orderId);
+        if (!OrderStatusEnum.WAITING_FINAL_PAYMENT.equals(order.getStatus())) {
+            throw new IllegalArgumentException("Order is not waiting for final payment");
+        }
+        if (paymentRepository.findTopByOrderIdAndPaymentTypeOrderByPaymentDateDesc(orderId, "REMAINING").isPresent()) {
+            throw new IllegalArgumentException("Remaining payment already exists");
+        }
+        InvoiceEntity invoice = latestInvoice(orderId);
+        LocalDateTime now = LocalDateTime.now();
+        BigDecimal remaining = safeAmount(order.getRemainingAmount());
+        PaymentEntity payment = paymentRepository.save(PaymentEntity.builder()
+                .invoiceId(invoice.getId())
+                .orderId(order.getId())
+                .buyerCompanyId(order.getBuyerCompanyId())
+                .amount(remaining)
+                .paidAmount(remaining)
+                .paymentMethod("BANK_TRANSFER_DEMO")
+                .paymentType("REMAINING")
+                .status("PAID")
+                .escrowStatus("HELD")
+                .transferContent("AGRI-REMAINING-" + order.getId())
+                .paymentDate(now)
+                .paidAt(now)
+                .verifiedAt(now)
+                .createdAt(now)
+                .updatedAt(now)
+                .note("Buyer thanh toán phần còn lại qua demo")
+                .build());
+        order.setPaymentStatus("PAID");
+        order.setEscrowStatus("HELD");
+        order.setStatus(OrderStatusEnum.WAITING_BUYER_CONFIRM);
+        order.setUpdatedAt(now);
+        orderRepository.save(order);
+        createEscrowHold(order, payment, remaining, "Platform holds remaining payment", now);
+        markLatestInvoiceStatus(orderId, InvoiceStatusEnum.PAID);
+        return getCurrentBuyerOrder(orderId);
     }
 
     @Override
@@ -231,6 +330,10 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .orElseThrow(() -> new IllegalArgumentException("Order not found"));
         if (!buyerCompanyId.equals(order.getBuyerCompanyId())) {
             throw new IllegalArgumentException("Order does not belong to this buyer");
+        }
+        if (OrderStatusEnum.WAITING_BUYER_CONFIRM.equals(order.getStatus())) {
+            releaseEscrowAndComplete(order);
+            return;
         }
         if (!OrderStatusEnum.CONFIRMED.equals(order.getStatus())) {
             throw new IllegalArgumentException("Only confirmed orders can be received");
@@ -489,31 +592,22 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         if (request.batchId() == null) {
             throw new IllegalArgumentException("batchId is required");
         }
-        if (request.buyerCompanyId() == null) {
-            throw new IllegalArgumentException("buyerCompanyId is required");
-        }
-        if (request.supplierId() == null) {
-            throw new IllegalArgumentException("supplierId is required");
-        }
         if (request.quantity() == null || request.quantity().compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("quantity must be greater than 0");
         }
-        if (request.unitPrice() == null || request.unitPrice().compareTo(BigDecimal.ZERO) < 0) {
+        if (request.unitPrice() != null && request.unitPrice().compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("unitPrice must be greater than or equal to 0");
         }
-        if (request.subtotal() == null || request.subtotal().compareTo(BigDecimal.ZERO) < 0) {
+        if (request.subtotal() != null && request.subtotal().compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("subtotal must be greater than or equal to 0");
         }
-        BigDecimal expectedSubtotal = request.quantity().multiply(request.unitPrice());
-        if (expectedSubtotal.subtract(request.subtotal()).abs().compareTo(SUBTOTAL_TOLERANCE) > 0) {
+        BigDecimal expectedSubtotal = request.unitPrice() == null || request.subtotal() == null
+                ? null
+                : request.quantity().multiply(request.unitPrice());
+        if (expectedSubtotal != null && expectedSubtotal.subtract(request.subtotal()).abs().compareTo(SUBTOTAL_TOLERANCE) > 0) {
             throw new IllegalArgumentException("subtotal does not match quantity * unitPrice");
         }
-        if (isBlank(request.deliveryName()) || isBlank(request.deliveryPhone())
-                || isBlank(request.deliveryProvince()) || isBlank(request.deliveryWard())
-                || isBlank(request.deliveryAddress())) {
-            throw new IllegalArgumentException("Delivery name, phone, province, ward and address are required");
-        }
-        parsePaymentMethod(request.paymentMethod());
+        parsePaymentMethod(firstText(request.paymentOption(), request.paymentMethod()));
     }
 
     private void validateDeposit(BuyerQuickOrderRequestDto request, BigDecimal grandTotal) {
@@ -574,6 +668,117 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    private OrderEntity requireBuyerOrder(Long buyerCompanyId, Long orderId) {
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+        if (!buyerCompanyId.equals(order.getBuyerCompanyId())) {
+            throw new IllegalArgumentException("Order does not belong to this buyer");
+        }
+        return order;
+    }
+
+    private InvoiceEntity latestInvoice(Long orderId) {
+        return invoiceRepository.findByOrderIdInOrderByCreatedAtDesc(List.of(orderId)).stream()
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
+    }
+
+    private void markLatestInvoiceStatus(Long orderId, InvoiceStatusEnum status) {
+        InvoiceEntity invoice = latestInvoice(orderId);
+        invoice.setStatus(status);
+        invoiceRepository.save(invoice);
+    }
+
+    private void createEscrowHold(OrderEntity order, PaymentEntity payment, BigDecimal amount, String description, LocalDateTime now) {
+        escrowTransactionRepository.save(EscrowTransactionEntity.builder()
+                .orderId(order.getId())
+                .paymentId(payment.getId())
+                .buyerCompanyId(order.getBuyerCompanyId())
+                .supplierCompanyId(order.getSupplierCompanyId())
+                .amount(amount)
+                .transactionType("HOLD")
+                .status("SUCCESS")
+                .description(description)
+                .createdAt(now)
+                .build());
+    }
+
+    private void releaseEscrowAndComplete(OrderEntity order) {
+        if ("RELEASED".equals(order.getEscrowStatus())
+                || escrowTransactionRepository.existsByOrderIdAndTransactionTypeAndStatus(order.getId(), "RELEASE", "SUCCESS")) {
+            throw new IllegalArgumentException("Escrow already released");
+        }
+        if (supplierPayoutRepository.existsByOrderId(order.getId())) {
+            throw new IllegalArgumentException("Payout already exists");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        ShipmentEntity shipment = shipmentRepository.findTopByOrderIdOrderByCreatedAtDesc(order.getId()).orElse(null);
+        if (shipment != null) {
+            shipment.setConfirmedReceivedAt(now);
+            shipment.setConfirmedReceivedByUserId(currentUserService.requireCurrentUser().getId());
+            shipment.setUpdatedAt(now);
+            shipmentRepository.save(shipment);
+        }
+        BigDecimal heldAmount = paymentRepository.findByOrderIdOrderByPaymentDateDesc(order.getId()).stream()
+                .map(payment -> safeAmount(payment.getPaidAmount()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        order.setStatus(OrderStatusEnum.COMPLETED);
+        order.setEscrowStatus("RELEASED");
+        order.setCompletedAt(now);
+        order.setUpdatedAt(now);
+        orderRepository.save(order);
+        escrowTransactionRepository.save(EscrowTransactionEntity.builder()
+                .orderId(order.getId())
+                .buyerCompanyId(order.getBuyerCompanyId())
+                .supplierCompanyId(order.getSupplierCompanyId())
+                .amount(heldAmount)
+                .transactionType("RELEASE")
+                .status("SUCCESS")
+                .description("Platform releases payment to supplier")
+                .createdAt(now)
+                .build());
+        supplierPayoutRepository.save(SupplierPayoutEntity.builder()
+                .orderId(order.getId())
+                .supplierCompanyId(order.getSupplierCompanyId())
+                .amount(heldAmount)
+                .payoutStatus("PAID")
+                .transactionCode("PAYOUT-" + order.getId())
+                .paidAt(now)
+                .createdAt(now)
+                .updatedAt(now)
+                .build());
+    }
+
+    private PaymentEntity buildInitialPayment(
+            InvoiceEntity invoice,
+            OrderEntity order,
+            PaymentMethod paymentMethod,
+            BigDecimal grandTotal,
+            BigDecimal depositAmount,
+            LocalDateTime now) {
+        BigDecimal amount = paymentMethod == PaymentMethod.DEPOSIT_50 ? depositAmount : grandTotal;
+        String paymentType = paymentMethod == PaymentMethod.DEPOSIT_50 ? "DEPOSIT" : "FULL";
+        String transferContent = (paymentMethod == PaymentMethod.DEPOSIT_50 ? "AGRI-DEPOSIT-" : "AGRI-ORDER-") + order.getId();
+        return PaymentEntity.builder()
+                .invoiceId(invoice.getId())
+                .orderId(order.getId())
+                .buyerCompanyId(order.getBuyerCompanyId())
+                .amount(amount)
+                .paidAmount(BigDecimal.ZERO)
+                .paymentMethod("BANK_TRANSFER_DEMO")
+                .paymentType(paymentType)
+                .status("WAITING_TRANSFER")
+                .escrowStatus("NOT_FUNDED")
+                .transferContent(transferContent)
+                .paymentDate(now)
+                .createdAt(now)
+                .updatedAt(now)
+                .note(paymentMethod == PaymentMethod.DEPOSIT_50
+                        ? "Buyer chọn đặt cọc 50%, chờ chuyển khoản demo"
+                        : "Buyer chọn thanh toán 100% qua sàn, chờ chuyển khoản demo")
+                .build();
+    }
+
     private PaymentEntity buildInitialPayment(
             InvoiceEntity invoice,
             PaymentMethod paymentMethod,
@@ -582,19 +787,19 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
             LocalDate creditDueDate,
             LocalDateTime now) {
         BigDecimal amount = switch (paymentMethod) {
-            case ESCROW_TRANSFER -> grandTotal;
+            case FULL_PAYMENT, ESCROW_TRANSFER -> grandTotal;
             case DEPOSIT_50 -> request.depositAmount();
             case CREDIT -> grandTotal;
         };
         String paymentType = switch (paymentMethod) {
-            case ESCROW_TRANSFER -> "ESCROW";
+            case FULL_PAYMENT, ESCROW_TRANSFER -> "ESCROW";
             case DEPOSIT_50 -> "DEPOSIT";
             case CREDIT -> "CREDIT";
         };
         String status = paymentMethod == PaymentMethod.CREDIT ? "UNPAID" : "PENDING";
         String escrowStatus = paymentMethod == PaymentMethod.CREDIT ? null : "WAITING_BUYER_PAYMENT";
         String note = switch (paymentMethod) {
-            case ESCROW_TRANSFER -> "Buyer chọn chuyển khoản qua sàn, chờ thanh toán";
+            case FULL_PAYMENT, ESCROW_TRANSFER -> "Buyer chọn chuyển khoản qua sàn, chờ thanh toán";
             case DEPOSIT_50 -> "Buyer chọn đặt cọc 50%, chờ thanh toán khoản cọc";
             case CREDIT -> "Buyer chọn công nợ, không yêu cầu thanh toán ngay";
         };
@@ -646,8 +851,15 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
     }
 
     private PaymentMethod parsePaymentMethod(String raw) {
+        String normalized = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
+        if ("FULL_PAYMENT".equals(normalized) || "ESCROW_TRANSFER".equals(normalized)) {
+            return PaymentMethod.FULL_PAYMENT;
+        }
+        if ("DEPOSIT_50".equals(normalized)) {
+            return PaymentMethod.DEPOSIT_50;
+        }
         try {
-            return PaymentMethod.valueOf(raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT));
+            return PaymentMethod.valueOf(normalized);
         } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException("paymentMethod is invalid");
         }
@@ -728,7 +940,20 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         return value == null || value.isBlank();
     }
 
+    private String addressSnapshot(CompanyEntity buyer) {
+        return List.of(buyer.getAddress(), buyer.getWard(), buyer.getProvince()).stream()
+                .map(this::trim)
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining(", "));
+    }
+
+    private int demoDeliveryDays(CompanyEntity buyer) {
+        String province = buyer.getProvince() == null ? "" : buyer.getProvince().toLowerCase(Locale.ROOT);
+        return province.contains("hồ chí minh") || province.contains("ho chi minh") ? 1 : 2;
+    }
+
     private enum PaymentMethod {
+        FULL_PAYMENT,
         ESCROW_TRANSFER,
         DEPOSIT_50,
         CREDIT

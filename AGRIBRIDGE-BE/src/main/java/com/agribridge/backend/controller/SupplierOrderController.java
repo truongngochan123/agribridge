@@ -58,4 +58,29 @@ public class SupplierOrderController {
             @Valid @RequestBody UpdateSupplierShipmentStatusDto request) {
         return supplierOrderService.updateShipmentStatus(companyId, orderId, request);
     }
+
+    @PostMapping("/{orderId}/confirm")
+    public SupplierOrderDto confirm(@PathVariable Long orderId) {
+        return supplierOrderService.confirmDemoOrder(orderId);
+    }
+
+    @PostMapping("/{orderId}/prepare")
+    public SupplierOrderDto prepare(@PathVariable Long orderId) {
+        return supplierOrderService.prepareDemoOrder(orderId);
+    }
+
+    @PostMapping("/{orderId}/ready-to-ship")
+    public SupplierOrderDto readyToShip(@PathVariable Long orderId) {
+        return supplierOrderService.readyToShipDemoOrder(orderId);
+    }
+
+    @PostMapping("/{orderId}/start-shipping")
+    public SupplierOrderDto startShipping(@PathVariable Long orderId) {
+        return supplierOrderService.startShippingDemoOrder(orderId);
+    }
+
+    @PostMapping("/{orderId}/mark-delivered")
+    public SupplierOrderDto markDelivered(@PathVariable Long orderId) {
+        return supplierOrderService.markDeliveredDemoOrder(orderId);
+    }
 }

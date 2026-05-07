@@ -838,6 +838,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             case SHIPPING -> "Đang giao";
             case DELIVERED -> "Hoàn thành";
             case CANCELLED -> "Đã hủy";
+            default -> status.name();
         };
     }
 
@@ -846,13 +847,13 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             return "Chuẩn bị";
         }
         return switch (status) {
-            case PENDING, PREPARING -> "Chuẩn bị";
+            case CREATED, PENDING, PREPARING -> "Chuẩn bị";
             case SHIPPED -> "Đã rời kho";
             case IN_TRANSIT, SHIPPING -> "Đang vận chuyển";
             case WAITING_CONFIRMATION -> "Chờ buyer xác nhận";
             case DELIVERED -> "Đã giao";
             case CANCELLED -> "Đã hủy";
-            case INCIDENT, FAILED -> "Sự cố";
+            case INCIDENT, FAILED, FAILED_DELIVERY -> "Sự cố";
         };
     }
 
@@ -861,12 +862,12 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             return 15;
         }
         return switch (status) {
-            case PENDING, PREPARING -> 20;
+            case CREATED, PENDING, PREPARING -> 20;
             case SHIPPED -> 45;
             case IN_TRANSIT, SHIPPING -> 65;
             case WAITING_CONFIRMATION -> 85;
             case DELIVERED -> 100;
-            case CANCELLED, INCIDENT, FAILED -> 45;
+            case CANCELLED, INCIDENT, FAILED, FAILED_DELIVERY -> 45;
         };
     }
 

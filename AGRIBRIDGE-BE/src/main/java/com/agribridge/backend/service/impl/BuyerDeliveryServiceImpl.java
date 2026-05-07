@@ -350,13 +350,13 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
 
     private int progress(ShipmentStatusEnum status) {
         return switch (status) {
-            case PENDING -> 10;
+            case CREATED, PENDING -> 10;
             case PREPARING -> 25;
             case SHIPPED, SHIPPING -> 55;
             case IN_TRANSIT -> 75;
             case WAITING_CONFIRMATION -> 90;
             case DELIVERED -> 100;
-            case INCIDENT, FAILED, CANCELLED -> 100;
+            case INCIDENT, FAILED, FAILED_DELIVERY, CANCELLED -> 100;
         };
     }
 

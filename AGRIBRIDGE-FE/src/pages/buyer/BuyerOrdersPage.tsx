@@ -9,6 +9,8 @@ import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   confirmBuyerOrderReceived,
   createBuyerOrderComplaint,
+  demoConfirmBuyerOrderPayment,
+  demoPayBuyerOrderRemaining,
   fetchBuyerOrder,
   fetchBuyerOrders,
   type BuyerOrder,
@@ -24,6 +26,30 @@ function formatDate(value?: string | null) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
   return parsed.toLocaleDateString('vi-VN')
+}
+
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  PENDING_PAYMENT: 'Chờ thanh toán',
+  PENDING_DEPOSIT: 'Chờ thanh toán tiền cọc',
+  DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM: 'Đã cọc, chờ supplier xác nhận',
+  PAID_WAITING_SUPPLIER_CONFIRM: 'Đã thanh toán, chờ supplier xác nhận',
+  SUPPLIER_CONFIRMED: 'Supplier đã xác nhận',
+  PREPARING: 'Đang chuẩn bị hàng',
+  READY_TO_SHIP: 'Sẵn sàng giao hàng',
+  SHIPPING: 'Đang giao hàng',
+  DELIVERED: 'Đã giao tới nơi',
+  WAITING_FINAL_PAYMENT: 'Chờ thanh toán phần còn lại',
+  WAITING_BUYER_CONFIRM: 'Chờ buyer xác nhận nhận hàng',
+  COMPLETED: 'Hoàn tất',
+  CANCELLED: 'Đã hủy',
+  DISPUTED: 'Đang khiếu nại',
+  REFUND_PENDING: 'Chờ hoàn tiền',
+  REFUNDED: 'Đã hoàn tiền',
+}
+
+function statusLabel(status?: string | null) {
+  if (!status) return 'Chưa có trạng thái'
+  return `${ORDER_STATUS_LABELS[status] || status} (${status})`
 }
 
 export function BuyerOrdersPage() {
@@ -122,6 +148,32 @@ export function BuyerOrdersPage() {
     }
   }
 
+  const handleDemoConfirmPayment = async () => {
+    if (!selectedOrder?.orderId) return
+    try {
+      const updated = await demoConfirmBuyerOrderPayment(selectedOrder.orderId)
+      setOrders((current) => current.map((item) => (item.orderId === updated.orderId ? updated : item)))
+      setSelectedOrderId(updated.id)
+      showToast('Đã demo xác nhận thanh toán.', 'success')
+      await loadOrders()
+    } catch (requestError) {
+      showToast(readApiErrorMessage(requestError) || 'Không thể xác nhận thanh toán demo.', 'error')
+    }
+  }
+
+  const handleDemoPayRemaining = async () => {
+    if (!selectedOrder?.orderId) return
+    try {
+      const updated = await demoPayBuyerOrderRemaining(selectedOrder.orderId)
+      setOrders((current) => current.map((item) => (item.orderId === updated.orderId ? updated : item)))
+      setSelectedOrderId(updated.id)
+      showToast('Đã demo thanh toán phần còn lại.', 'success')
+      await loadOrders()
+    } catch (requestError) {
+      showToast(readApiErrorMessage(requestError) || 'Không thể thanh toán phần còn lại.', 'error')
+    }
+  }
+
   const handleCreateComplaint = async () => {
     if (!selectedOrder?.orderId || !complaintDraft.title.trim() || !complaintDraft.description.trim()) {
       showToast('Vui lòng nhập tiêu đề và nội dung khiếu nại.', 'error')
@@ -215,7 +267,7 @@ export function BuyerOrdersPage() {
                     </td>
                     <td className="px-3 py-2.5 text-slate-700">{row.branch}</td>
                     <td className="px-3 py-2.5 font-bold text-slate-900">{row.value}</td>
-                    <td className="px-3 py-2.5"><BuyerStatusPill status={row.status} /></td>
+                    <td className="px-3 py-2.5"><BuyerStatusPill status={statusLabel(row.status)} /></td>
                     <td className="px-3 py-2.5">
                       <button
                         className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors active:scale-95"
@@ -247,7 +299,7 @@ export function BuyerOrdersPage() {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="rounded-md bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-600">{selectedOrder.status}</span>
+                <span className="rounded-md bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-600">{statusLabel(selectedOrder.status)}</span>
                 <button className="text-slate-500" onClick={() => setOpenDetail(false)}>
                   <X className="h-4 w-4" />
                 </button>
@@ -432,9 +484,21 @@ export function BuyerOrdersPage() {
               </button>
               <div className="flex gap-2">
                 <button className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700"><Printer className="h-3.5 w-3.5" /> In đơn hàng</button>
-                <button className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white" onClick={() => void handleConfirmReceived()}>
-                  <Truck className="h-3.5 w-3.5" /> Xác nhận nhận hàng
-                </button>
+                {selectedOrder.status === 'PENDING_PAYMENT' || selectedOrder.status === 'PENDING_DEPOSIT' ? (
+                  <button className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white" onClick={() => void handleDemoConfirmPayment()}>
+                    <Receipt className="h-3.5 w-3.5" /> Demo xác nhận thanh toán
+                  </button>
+                ) : null}
+                {selectedOrder.status === 'WAITING_FINAL_PAYMENT' ? (
+                  <button className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white" onClick={() => void handleDemoPayRemaining()}>
+                    <Receipt className="h-3.5 w-3.5" /> Thanh toán phần còn lại
+                  </button>
+                ) : null}
+                {selectedOrder.status === 'WAITING_BUYER_CONFIRM' ? (
+                  <button className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white" onClick={() => void handleConfirmReceived()}>
+                    <Truck className="h-3.5 w-3.5" /> Đã nhận hàng
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>

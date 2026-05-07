@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Clock, MapPin, Package, PhoneCall, Truck, X } from 'lucide-react'
 import { SearchInput } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
@@ -200,23 +200,42 @@ export function BuyerDeliveryPage() {
   const [incidentShipment, setIncidentShipment] = useState<BuyerDeliveryItem | null>(null)
   const [confirmShipment, setConfirmShipment] = useState<BuyerDeliveryItem | null>(null)
 
+  const deliveryRequestId = useRef(0)
+
+  const loadBranches = useCallback(async () => {
+    try {
+      setBranches(await fetchBuyerBranches())
+    } catch {
+      setBranches([])
+    }
+  }, [])
+
   const loadDeliveries = useCallback(async () => {
+    const requestId = deliveryRequestId.current + 1
+    deliveryRequestId.current = requestId
+
     try {
       setLoading(true)
       setError('')
-      const [deliveryData, branchData] = await Promise.all([
-        fetchBuyerDeliveries(filters),
-        branches.length ? Promise.resolve(branches) : fetchBuyerBranches(),
-      ])
+      const deliveryData = await fetchBuyerDeliveries(filters)
+      if (deliveryRequestId.current !== requestId) return
+
       setDeliveries(deliveryData)
-      setBranches(branchData)
     } catch (requestError) {
+      if (deliveryRequestId.current !== requestId) return
+
       setDeliveries([])
       setError(readApiErrorMessage(requestError) || 'Không thể tải danh sách giao hàng.')
     } finally {
-      setLoading(false)
+      if (deliveryRequestId.current === requestId) {
+        setLoading(false)
+      }
     }
-  }, [branches, filters])
+  }, [filters])
+
+  useEffect(() => {
+    void loadBranches()
+  }, [loadBranches])
 
   useEffect(() => {
     void loadDeliveries()

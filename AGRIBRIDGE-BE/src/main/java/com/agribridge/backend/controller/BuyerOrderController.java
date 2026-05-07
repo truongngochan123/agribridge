@@ -39,6 +39,26 @@ public class BuyerOrderController {
         return buyerOrderService.createQuickOrder(request);
     }
 
+    @PostMapping("/checkout")
+    public BuyerQuickOrderResponseDto checkout(@Valid @RequestBody BuyerQuickOrderRequestDto request) {
+        return buyerOrderService.createQuickOrder(request);
+    }
+
+    @PostMapping("/{orderId}/demo-confirm-payment")
+    public BuyerOrderDto demoConfirmPayment(@PathVariable Long orderId) {
+        return buyerOrderService.demoConfirmPayment(orderId);
+    }
+
+    @PostMapping("/{orderId}/demo-pay-remaining")
+    public BuyerOrderDto demoPayRemaining(@PathVariable Long orderId) {
+        return buyerOrderService.demoPayRemaining(orderId);
+    }
+
+    @PostMapping("/{orderId}/confirm-received")
+    public void postConfirmReceived(@PathVariable Long orderId) {
+        buyerOrderService.confirmReceived(orderId);
+    }
+
     @PostMapping("/{orderId}/complaints")
     public BuyerOrderDto.ComplaintDto createComplaint(
             @PathVariable Long orderId,

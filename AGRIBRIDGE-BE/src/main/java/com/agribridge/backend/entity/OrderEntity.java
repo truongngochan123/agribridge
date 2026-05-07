@@ -77,6 +77,15 @@ public class OrderEntity {
     @Column(name = "payment_method")
     private String paymentMethod;
 
+    @Column(name = "payment_option")
+    private String paymentOption;
+
+    @Column(name = "payment_status")
+    private String paymentStatus;
+
+    @Column(name = "escrow_status")
+    private String escrowStatus;
+
     @Column(name = "deposit_rate")
     private BigDecimal depositRate;
 
@@ -86,6 +95,9 @@ public class OrderEntity {
     @Column(name = "balance_amount")
     private BigDecimal balanceAmount;
 
+    @Column(name = "remaining_amount")
+    private BigDecimal remainingAmount;
+
     @Column(name = "delivery_name")
     private String deliveryName;
 
@@ -94,6 +106,12 @@ public class OrderEntity {
 
     @Column(name = "delivery_address")
     private String deliveryAddress;
+
+    @Column(name = "shipping_address_snapshot", length = 1000)
+    private String shippingAddressSnapshot;
+
+    @Column(name = "expected_delivery_date")
+    private LocalDateTime expectedDeliveryDate;
 
     @Column(name = "delivery_province")
     private String deliveryProvince;
@@ -106,4 +124,13 @@ public class OrderEntity {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
 }

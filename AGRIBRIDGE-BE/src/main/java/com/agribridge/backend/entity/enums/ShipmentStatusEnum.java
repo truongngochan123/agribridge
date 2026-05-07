@@ -1,6 +1,7 @@
 package com.agribridge.backend.entity.enums;
 
 public enum ShipmentStatusEnum {
+    CREATED,
     PENDING,
     SHIPPED,
     IN_TRANSIT,
@@ -10,5 +11,6 @@ public enum ShipmentStatusEnum {
     SHIPPING,
     DELIVERED,
     INCIDENT,
-    FAILED
+    FAILED,
+    FAILED_DELIVERY
 }
