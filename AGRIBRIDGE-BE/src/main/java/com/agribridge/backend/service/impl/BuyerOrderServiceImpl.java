@@ -335,8 +335,8 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
             releaseEscrowAndComplete(order);
             return;
         }
-        if (!OrderStatusEnum.CONFIRMED.equals(order.getStatus())) {
-            throw new IllegalArgumentException("Only confirmed orders can be received");
+        if (!OrderStatusEnum.WAITING_BUYER_CONFIRM.equals(order.getStatus())) {
+            throw new IllegalArgumentException("Order is not waiting for buyer confirmation");
         }
 
         ShipmentEntity shipment = shipmentRepository.findTopByOrderIdOrderByCreatedAtDesc(orderId)
@@ -405,11 +405,10 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         Map<Long, List<OrderItemEntity>> itemsByOrder = orderItemRepository.findByOrderIdIn(orderIds).stream()
                 .collect(Collectors.groupingBy(OrderItemEntity::getOrderId));
         Map<Long, InvoiceEntity> invoiceByOrder = latestByOrder(invoiceRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds), InvoiceEntity::getOrderId, InvoiceEntity::getCreatedAt);
-        List<Long> invoiceIds = invoiceByOrder.values().stream().map(InvoiceEntity::getId).filter(Objects::nonNull).toList();
-        Map<Long, List<PaymentEntity>> paymentsByInvoice = invoiceIds.isEmpty()
+        Map<Long, List<PaymentEntity>> paymentsByOrder = orderIds.isEmpty()
                 ? Map.of()
-                : paymentRepository.findByInvoiceIdInOrderByPaymentDateDesc(invoiceIds).stream()
-                        .collect(Collectors.groupingBy(PaymentEntity::getInvoiceId));
+                : paymentRepository.findByOrderIdInOrderByPaymentDateDesc(orderIds).stream()
+                        .collect(Collectors.groupingBy(PaymentEntity::getOrderId));
         Map<Long, ShipmentEntity> shipmentByOrder = latestByOrder(shipmentRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds), ShipmentEntity::getOrderId, ShipmentEntity::getCreatedAt);
         Map<Long, List<ComplaintEntity>> complaintsByOrder = complaintRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds).stream()
                 .collect(Collectors.groupingBy(ComplaintEntity::getOrderId));
@@ -450,7 +449,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                         invoiceByOrder.get(order.getId()),
                         shipmentByOrder.get(order.getId()),
                         trackingByShipment,
-                        paymentsByInvoice,
+                        paymentsByOrder,
                         complaintsByOrder.getOrDefault(order.getId(), List.of()),
                         branchesById,
                         companiesById,
@@ -465,7 +464,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
             InvoiceEntity invoice,
             ShipmentEntity shipment,
             Map<Long, List<BuyerOrderDto.TrackingEventDto>> trackingByShipment,
-            Map<Long, List<PaymentEntity>> paymentsByInvoice,
+            Map<Long, List<PaymentEntity>> paymentsByOrder,
             List<ComplaintEntity> complaints,
             Map<Long, BranchEntity> branchesById,
             Map<Long, CompanyEntity> companiesById,
@@ -474,11 +473,10 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         List<BuyerOrderDto.ItemDto> itemDtos = items.stream()
                 .map(item -> mapItem(item, productsById.get(item.getProductId()), batchesById.get(item.getBatchId())))
                 .toList();
-        BigDecimal paidAmount = invoice == null
-                ? BigDecimal.ZERO
-                : paymentsByInvoice.getOrDefault(invoice.getId(), List.of()).stream()
-                        .map(payment -> payment.getPaidAmount() == null ? BigDecimal.ZERO : payment.getPaidAmount())
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<PaymentEntity> payments = paymentsByOrder.getOrDefault(order.getId(), List.of());
+        BigDecimal paidAmount = payments.stream()
+                .map(payment -> payment.getPaidAmount() == null ? BigDecimal.ZERO : payment.getPaidAmount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         BranchEntity branch = branchesById.get(order.getBranchId());
         CompanyEntity supplier = companiesById.get(order.getSupplierCompanyId());
         List<BuyerOrderDto.TrackingEventDto> trackingEvents = shipment == null
@@ -507,9 +505,13 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 safeAmount(order.getTotalAmount()),
                 formatMoney(safeAmount(order.getTotalAmount())),
                 order.getPaymentMethod(),
+                order.getPaymentOption(),
+                order.getPaymentStatus(),
+                order.getEscrowStatus(),
                 order.getDepositRate(),
                 order.getDepositAmount(),
                 order.getBalanceAmount(),
+                order.getRemainingAmount(),
                 order.getDeliveryName(),
                 order.getDeliveryPhone(),
                 order.getDeliveryProvince(),
@@ -520,7 +522,9 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 shipment == null ? null : firstText(shipment.getProviderName(), shipment.getCarrierName()),
                 shipment == null ? null : firstText(shipment.getServiceName(), shipment.getShippingMethod()),
                 shipment == null ? null : shipment.getShippingPayer(),
-                shipment == null ? null : shipment.getEstimatedDeliveryTime(),
+                shipment == null ? null : firstText(shipment.getEstimatedDeliveryTime(), shipment.getExpectedDeliveryDate() == null ? null : formatDateTime(shipment.getExpectedDeliveryDate())),
+                order.getExpectedDeliveryDate(),
+                mapShipment(shipment),
                 trackingEvents,
                 shipment == null ? null : shipment.getDriverName(),
                 shipment == null ? null : shipment.getDriverPhone(),
@@ -530,7 +534,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 paidAmount,
                 invoice == null ? null : invoice.getDueDate(),
                 invoice == null || invoice.getStatus() == null ? null : invoice.getStatus().name(),
-                invoice == null ? List.of() : paymentsByInvoice.getOrDefault(invoice.getId(), List.of()).stream().map(this::mapPayment).toList(),
+                payments.stream().map(this::mapPayment).toList(),
                 complaints.stream().map(this::mapComplaint).toList(),
                 order.getNote(),
                 order.getCreatedAt());
@@ -560,9 +564,29 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 payment.getPaymentType(),
                 payment.getStatus(),
                 payment.getEscrowStatus(),
+                payment.getTransferContent(),
                 payment.getDueDate(),
                 payment.getPaymentDate(),
+                payment.getPaidAt(),
+                payment.getVerifiedAt(),
                 payment.getNote());
+    }
+
+    private BuyerOrderDto.ShipmentDto mapShipment(ShipmentEntity shipment) {
+        if (shipment == null) {
+            return null;
+        }
+        return new BuyerOrderDto.ShipmentDto(
+                shipment.getId(),
+                firstText(shipment.getProviderName(), firstText(shipment.getCarrierName(), shipment.getProviderCode())),
+                shipment.getTrackingCode(),
+                shipment.getStatus() == null ? null : shipment.getStatus().name(),
+                shipment.getReceiverName(),
+                shipment.getReceiverPhone(),
+                shipment.getReceiverAddress(),
+                shipment.getExpectedDeliveryDate(),
+                shipment.getShippingFee(),
+                shipment.getDeliveredAt());
     }
 
     private BuyerOrderDto.ComplaintDto mapComplaint(ComplaintEntity complaint) {

@@ -22,16 +22,38 @@ export type BuyerOrderPayment = {
   paymentType?: string | null
   status?: string | null
   escrowStatus?: string | null
+  transferContent?: string | null
   dueDate?: string | null
   paymentDate?: string | null
+  paidAt?: string | null
+  verifiedAt?: string | null
   note?: string | null
 }
 
+export type BuyerOrderShipment = {
+  id?: number | null
+  provider?: string | null
+  trackingCode?: string | null
+  shipmentStatus?: string | null
+  receiverName?: string | null
+  receiverPhone?: string | null
+  receiverAddress?: string | null
+  expectedDeliveryDate?: string | null
+  shippingFee?: number | null
+  deliveredAt?: string | null
+}
+
 export type BuyerOrder = BuyerOrderRow & {
+  paymentOption?: string | null
+  paymentStatus?: string | null
+  escrowStatus?: string | null
+  remainingAmount?: number | null
+  expectedDeliveryDate?: string | null
   driverName?: string | null
   driverPhone?: string | null
   vehicleInfo?: string | null
   trackingCode?: string | null
+  shipment?: BuyerOrderShipment | null
   payments?: BuyerOrderPayment[]
   complaints?: BuyerOrderComplaint[]
 }

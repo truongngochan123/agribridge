@@ -18,7 +18,7 @@ import type { RfqMessage } from '../../types/rfqChat'
 import type { RfqItem } from '../../types/supplierDashboard'
 
 type RfqTabKey = 'all' | 'pending' | 'quoted' | 'accepted' | 'rejected'
-type QuoteStatusCode = 'PENDING' | 'ACCEPTED' | 'APPROVED' | 'REJECTED' | 'SENT' | 'DRAFT'
+type QuoteStatusCode = 'PENDING' | 'SUBMITTED' | 'UPDATED' | 'ACCEPTED' | 'APPROVED' | 'REJECTED' | 'SENT' | 'DRAFT'
 
 function parseRfqId(value?: string): number | null {
   if (!value) return null
@@ -99,7 +99,7 @@ function isQuoteTerminal(rfq: RfqItem): boolean {
 
 function canChangeQuote(rfq: RfqItem): boolean {
   const status = normalizeQuoteStatus(rfq)
-  return !rfq.hasExistingQuote || status === null || status === 'PENDING' || status === 'SENT' || status === 'DRAFT'
+  return !rfq.hasExistingQuote || status === null || status === 'PENDING' || status === 'SUBMITTED' || status === 'UPDATED' || status === 'SENT' || status === 'DRAFT'
 }
 
 function quoteBadgeLabel(rfq: RfqItem): string {
@@ -450,8 +450,8 @@ export function SupplierRfqQuotesPage() {
 
     if (normalizedBatchId !== null) {
       const batch = availableBatches.find((item) => item.id === normalizedBatchId)
-      if (!batch || batch.productId !== quoteContext?.rfq.productId || batch.status !== 'AVAILABLE') {
-        showToast('Lô dự kiến giao không hợp lệ hoặc không còn AVAILABLE.', 'error')
+      if (!batch || (quoteContext?.rfq.productId != null && batch.productId !== quoteContext.rfq.productId) || !['AVAILABLE', 'LOW_STOCK'].includes(batch.status || '')) {
+        showToast('Lô dự kiến giao không hợp lệ hoặc không còn hàng.', 'error')
         return
       }
       if (normalizedQuantity > batch.quantity) {

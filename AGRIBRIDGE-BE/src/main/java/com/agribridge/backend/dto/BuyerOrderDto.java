@@ -24,9 +24,13 @@ public record BuyerOrderDto(
         BigDecimal totalAmount,
         String value,
         String paymentMethod,
+        String paymentOption,
+        String paymentStatus,
+        String escrowStatus,
         BigDecimal depositRate,
         BigDecimal depositAmount,
         BigDecimal balanceAmount,
+        BigDecimal remainingAmount,
         String deliveryName,
         String deliveryPhone,
         String deliveryProvince,
@@ -38,6 +42,8 @@ public record BuyerOrderDto(
         String shippingServiceName,
         String shippingPayer,
         String estimatedDeliveryTime,
+        LocalDateTime expectedDeliveryDate,
+        ShipmentDto shipment,
         List<TrackingEventDto> trackingEvents,
         String driverName,
         String driverPhone,
@@ -84,9 +90,26 @@ public record BuyerOrderDto(
             String paymentType,
             String status,
             String escrowStatus,
+            String transferContent,
             LocalDate dueDate,
             LocalDateTime paymentDate,
+            LocalDateTime paidAt,
+            LocalDateTime verifiedAt,
             String note
+    ) {
+    }
+
+    public record ShipmentDto(
+            Long id,
+            String provider,
+            String trackingCode,
+            String shipmentStatus,
+            String receiverName,
+            String receiverPhone,
+            String receiverAddress,
+            LocalDateTime expectedDeliveryDate,
+            BigDecimal shippingFee,
+            LocalDateTime deliveredAt
     ) {
     }
 

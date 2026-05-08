@@ -2,13 +2,17 @@ export type BuyerRfqListItem = {
   id: number
   code?: string | null
   title?: string | null
+  type?: 'DIRECT' | 'MARKETPLACE' | string | null
   status?: string | null
   quoteCount?: number | null
   createdAt?: string | null
   deadline?: string | null
   expiredAt?: string | null
   product?: string | null
+  productName?: string | null
   productId?: number | null
+  supplierId?: number | null
+  supplierName?: string | null
   categoryId?: number | null
   quantity?: number | null
   unit?: string | null
@@ -44,6 +48,7 @@ export type BuyerRfqCompareInfo = {
   code?: string | null
   title?: string | null
   product?: string | null
+  productName?: string | null
   quantity?: number | null
   unit?: string | null
   targetPrice?: number | null
@@ -83,6 +88,10 @@ export type BuyerRfqCompareResponse = {
 
 export type CreateBuyerRfqRequest = {
   title: string
+  type?: 'DIRECT' | 'MARKETPLACE' | string
+  productName?: string | null
+  supplierId?: number | null
+  supplierCompanyId?: number | null
   productId?: number | null
   categoryId?: number | null
   branchId?: number | null

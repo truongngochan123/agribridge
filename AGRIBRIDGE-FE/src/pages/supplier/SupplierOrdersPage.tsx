@@ -22,6 +22,7 @@ import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
 
 type OrderTabKey = 'all' | 'PENDING' | 'CONFIRMED' | 'SHIPPING' | 'DELIVERED' | 'CANCELLED'
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const ORDER_TABS: Array<{ key: OrderTabKey; label: string }> = [
   { key: 'all', label: 'Tất cả' },
   { key: 'PENDING', label: 'Chờ xác nhận' },

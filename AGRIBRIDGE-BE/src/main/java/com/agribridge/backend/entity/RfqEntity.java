@@ -1,6 +1,7 @@
 package com.agribridge.backend.entity;
 
 import com.agribridge.backend.entity.enums.RfqStatusEnum;
+import com.agribridge.backend.entity.enums.RfqTypeEnum;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -41,6 +42,17 @@ public class RfqEntity {
     @JoinColumn(name = "buyer_company_id", insertable = false, updatable = false)
     private CompanyEntity buyerCompany;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = false)
+    private RfqTypeEnum type;
+
+    @Column(name = "supplier_company_id")
+    private Long supplierCompanyId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_company_id", insertable = false, updatable = false)
+    private CompanyEntity supplierCompany;
+
     @Column(name = "branch_id")
     private Long branchId;
 
@@ -65,6 +77,9 @@ public class RfqEntity {
     @Column(name = "title", nullable = false)
     private String title;
 
+    @Column(name = "product_name")
+    private String productName;
+
     @Column(name = "description")
     private String description;
 
@@ -86,6 +101,9 @@ public class RfqEntity {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
     @Column(name = "expired_at")
     private LocalDateTime expiredAt;

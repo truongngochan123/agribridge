@@ -42,10 +42,23 @@ public class SupplierProductBatchController {
     @PostMapping("/categories")
     public CategoryOptionDto createCategory(@Valid @RequestBody CreateSupplierCategoryDto request) {
         String name = request.name().trim();
-        boolean exists = categoryRepository.existsByUserIdAndNameIgnoreCase(request.userId(), name)
-                || categoryRepository.existsByUserIdIsNullAndNameIgnoreCase(name);
-        if (exists) {
+        if (categoryRepository.existsByUserIdAndNameIgnoreCase(request.userId(), name)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Category name already exists");
+        }
+
+        CategoryEntity common = categoryRepository.findFirstByNameIgnoreCaseAndUserIdIsNull(name).orElse(null);
+        if (common != null) {
+            return new CategoryOptionDto(common.getId(), common.getName());
+        }
+
+        if (categoryRepository.existsByNameIgnoreCaseAndUserIdNot(name, request.userId())) {
+            CategoryEntity shared = CategoryEntity.builder()
+                    .name(name)
+                    .userId(null)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            CategoryEntity saved = categoryRepository.save(shared);
+            return new CategoryOptionDto(saved.getId(), saved.getName());
         }
 
         CategoryEntity category = CategoryEntity.builder()

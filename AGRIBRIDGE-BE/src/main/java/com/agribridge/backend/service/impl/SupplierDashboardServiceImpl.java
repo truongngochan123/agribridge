@@ -209,6 +209,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
                         .collect(Collectors.toMap(OrderEntity::getQuoteId, value -> value, (left, right) -> left));
 
         List<RfqEntity> rfqs = loadRelevantRfqs(
+                resolvedSupplierId,
                 supplierCategoryIds,
                 supplierProductIds,
                 supplierProvinces,
@@ -617,18 +618,21 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
     }
 
     private List<RfqEntity> loadRelevantRfqs(
+            Long supplierCompanyId,
             Set<Long> supplierCategoryIds,
             Set<Long> supplierProductIds,
             Set<String> supplierProvinces,
             Set<Long> quotedRfqIds) {
         boolean hasRelevantFilters = !supplierCategoryIds.isEmpty()
                 || !supplierProductIds.isEmpty()
-                || !supplierProvinces.isEmpty();
+                || !supplierProvinces.isEmpty()
+                || supplierCompanyId != null;
 
         List<RfqEntity> relevantOpenRfqs = hasRelevantFilters
                 ? rfqRepository.findRelevantOpenRfqs(
-                        RfqStatusEnum.OPEN,
+                        List.of(RfqStatusEnum.OPEN, RfqStatusEnum.QUOTED),
                         java.time.LocalDateTime.now(),
+                        supplierCompanyId,
                         !supplierCategoryIds.isEmpty(),
                         supplierCategoryIds.isEmpty() ? List.of(-1L) : supplierCategoryIds,
                         !supplierProductIds.isEmpty(),
@@ -738,7 +742,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
         return new SupplierDashboardResponseDto.RfqDto(
                 "RFQ-" + (rfq == null ? "N/A" : rfq.getId()),
                 buyer != null ? buyer.getName() : "Khách hàng",
-                product != null ? product.getName() : (rfq != null ? safeText(rfq.getTitle()) : "N/A"),
+                product != null ? product.getName() : (rfq != null ? safeText(firstText(rfq.getProductName(), rfq.getTitle())) : "N/A"),
                 category != null ? safeText(category.getName()) : "N/A",
                 quantity,
                 quote != null ? formatMoney(quote.getPrice()) : "Thỏa thuận",
@@ -911,6 +915,10 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             return "";
         }
         return value;
+    }
+
+    private String firstText(String first, String fallback) {
+        return first == null || first.isBlank() ? fallback : first;
     }
 
     private String formatQuantity(BigDecimal value) {

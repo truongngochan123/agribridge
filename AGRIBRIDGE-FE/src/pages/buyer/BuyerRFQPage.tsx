@@ -7,14 +7,17 @@ import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   cancelBuyerRfq,
   convertQuoteToOrder,
-  createBuyerRfq,
+  createMarketplaceBuyerRfq,
   getBuyerRfqCompare,
   getBuyerRfqDetail,
   getBuyerRfqOrders,
   getBuyerRfqs,
   updateBuyerRfq,
 } from '../../services/buyerRfqApi'
+import { fetchBuyerBranches, type BuyerBranchSummary } from '../../services/buyerBranchService'
+import { fetchCategories } from '../../services/supplierService'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
+import type { CategoryOption } from '../../types/supplierCreateFlow'
 import type {
   BuyerQuoteCompareItem,
   BuyerRfqCompareResponse,
@@ -29,7 +32,7 @@ type RfqFormMode = 'create' | 'update'
 
 type RfqFormState = {
   title: string
-  productId: string
+  productName: string
   categoryId: string
   branchId: string
   quantity: string
@@ -42,7 +45,7 @@ type RfqFormState = {
 
 const emptyForm: RfqFormState = {
   title: '',
-  productId: '',
+  productName: '',
   categoryId: '',
   branchId: '',
   quantity: '',
@@ -87,6 +90,10 @@ export function BuyerRFQPage() {
   const [submittingUpdate, setSubmittingUpdate] = useState(false)
   const [cancelling, setCancelling] = useState<number | null>(null)
   const [openedRfqParam, setOpenedRfqParam] = useState('')
+  const [categories, setCategories] = useState<CategoryOption[]>([])
+  const [branches, setBranches] = useState<BuyerBranchSummary[]>([])
+  const [optionsLoading, setOptionsLoading] = useState(false)
+  const [optionsError, setOptionsError] = useState<string | null>(null)
 
   const loadRfqs = useCallback(async () => {
     setLoadingList(true)
@@ -110,6 +117,52 @@ export function BuyerRFQPage() {
     void loadRfqs()
   }, [loadRfqs])
 
+  useEffect(() => {
+    if (!formMode) return
+    let isActive = true
+    setOptionsLoading(true)
+    setOptionsError(null)
+
+    Promise.allSettled([
+      fetchCategories(),
+      fetchBuyerBranches(),
+    ])
+      .then((results) => {
+        if (!isActive) return
+        const [categoriesResult, branchesResult] = results
+        if (categoriesResult.status === 'fulfilled') {
+          setCategories(categoriesResult.value ?? [])
+        }
+        if (branchesResult.status === 'fulfilled') {
+          setBranches(branchesResult.value ?? [])
+        }
+        if ([categoriesResult, branchesResult].some((result) => result.status === 'rejected')) {
+          setOptionsError('Không thể tải danh sách danh mục/chi nhánh. Vui lòng thử lại.')
+        }
+      })
+      .finally(() => {
+        if (isActive) setOptionsLoading(false)
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [formMode])
+
+  useEffect(() => {
+    if (formMode !== 'create') return
+    if (branches.length === 0) return
+    if (form.branchId.trim()) return
+    const firstBranch = branches[0]
+    if (!firstBranch) return
+    const deliveryLocation = firstBranch.deliveryAddress || firstBranch.address || firstBranch.province || ''
+    setForm((prev) => ({
+      ...prev,
+      branchId: String(firstBranch.rawId),
+      province: deliveryLocation || prev.province,
+    }))
+  }, [branches, form.branchId, form.province, formMode])
+
   
   const openUpdateForm = async (rfq: BuyerRfqListItem | BuyerRfqDetail) => {
     setFormMode('update')
@@ -118,7 +171,7 @@ export function BuyerRFQPage() {
     const current = 'description' in rfq ? rfq : await safeLoadDetail(rfq.id)
     setForm({
       title: current?.title ?? rfq.title ?? '',
-      productId: String(current?.productId ?? rfq.productId ?? ''),
+      productName: current?.productName ?? current?.product ?? rfq.productName ?? rfq.product ?? '',
       categoryId: String(current?.categoryId ?? rfq.categoryId ?? ''),
       branchId: String(current?.branchId ?? rfq.branchId ?? ''),
       quantity: String(current?.quantity ?? rfq.quantity ?? ''),
@@ -207,7 +260,7 @@ export function BuyerRFQPage() {
     try {
       if (formMode === 'create') {
         setSubmittingCreate(true)
-        await createBuyerRfq(buildCreatePayload(form))
+        await createMarketplaceBuyerRfq(buildCreatePayload(form))
         alert('Tạo RFQ thành công')
       } else if (formMode === 'update' && editingRfqId) {
         setSubmittingUpdate(true)
@@ -292,6 +345,8 @@ export function BuyerRFQPage() {
             >
               <option value="">Tất cả trạng thái</option>
               <option value="OPEN">OPEN</option>
+              <option value="QUOTED">QUOTED</option>
+              <option value="ACCEPTED">ACCEPTED</option>
               <option value="CLOSED">CLOSED</option>
               <option value="CANCELLED">CANCELLED</option>
             </select>
@@ -313,7 +368,7 @@ export function BuyerRFQPage() {
               className="ml-auto h-9 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 text-xs font-bold text-white shadow-sm hover:opacity-90 active:scale-95 transition-all"
               onClick={() => setFormMode('create')}
             >
-              + Tạo RFQ
+              + Đăng nhu cầu mua
             </button>
           </div>
         }
@@ -444,6 +499,10 @@ export function BuyerRFQPage() {
           title={formTitle}
           form={form}
           error={formError}
+          optionsError={optionsError}
+          optionsLoading={optionsLoading}
+          categories={categories}
+          branches={branches}
           submitting={formSubmitting}
           onChange={setForm}
           onClose={() => {
@@ -632,6 +691,10 @@ function FormModal({
   title,
   form,
   error,
+  optionsError,
+  optionsLoading,
+  categories,
+  branches,
   submitting,
   onChange,
   onClose,
@@ -640,6 +703,10 @@ function FormModal({
   title: string
   form: RfqFormState
   error: string | null
+  optionsError: string | null
+  optionsLoading: boolean
+  categories: CategoryOption[]
+  branches: BuyerBranchSummary[]
   submitting: boolean
   onChange: (form: RfqFormState) => void
   onClose: () => void
@@ -654,18 +721,28 @@ function FormModal({
           <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose}>x</button>
         </div>
         {error ? <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p> : null}
+        {optionsError ? <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">{optionsError}</p> : null}
+        {optionsLoading ? <p className="mt-2 text-xs font-semibold text-slate-500">Đang tải danh sách danh mục/chi nhánh...</p> : null}
         <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <FormField label="Tiêu đề" value={form.title} onChange={(value) => setField('title', value)} />
-          <FormField label="Product ID" type="number" value={form.productId} onChange={(value) => setField('productId', value)} />
-          <FormField label="Category ID" type="number" value={form.categoryId} onChange={(value) => setField('categoryId', value)} />
-          <FormField label="Branch ID" type="number" value={form.branchId} onChange={(value) => setField('branchId', value)} />
-          <FormField label="Số lượng" type="number" value={form.quantity} onChange={(value) => setField('quantity', value)} />
-          <FormField label="Đơn vị" value={form.unit} onChange={(value) => setField('unit', value)} />
-          <FormField label="Tỉnh giao" value={form.province} onChange={(value) => setField('province', value)} />
-          <FormField label="Ngày giao" type="date" value={form.deliveryDate} onChange={(value) => setField('deliveryDate', value)} />
-          <FormField label="Hạn RFQ" type="datetime-local" value={form.expiredAt} onChange={(value) => setField('expiredAt', value)} />
+          <FormField label="Tiêu đề *" value={form.title} onChange={(value) => setField('title', value)} />
+          <FormField label="Sản phẩm cần mua *" value={form.productName} onChange={(value) => setField('productName', value)} />
+          <SelectField
+            label="Danh mục *"
+            value={form.categoryId}
+            onChange={(value) => setField('categoryId', value)}
+            placeholder="Chọn danh mục"
+            options={categories.map((item) => ({
+              value: String(item.id),
+              label: item.name,
+            }))}
+          />
+          <FormField label="Số lượng *" type="number" value={form.quantity} onChange={(value) => setField('quantity', value)} />
+          <FormField label="Đơn vị *" value={form.unit} onChange={(value) => setField('unit', value)} />
+          <FormField label="Địa điểm giao hàng *" value={form.province} onChange={(value) => setField('province', value)} />
+          <FormField label="Ngày giao mong muốn *" type="date" value={form.deliveryDate} onChange={(value) => setField('deliveryDate', value)} />
+          <FormField label="Hạn nhận báo giá *" type="datetime-local" value={form.expiredAt} onChange={(value) => setField('expiredAt', value)} />
           <label className="md:col-span-2">
-            <span className="text-xs font-semibold text-slate-600">Mô tả</span>
+            <span className="text-xs font-semibold text-slate-600">Mô tả / Yêu cầu thêm</span>
             <textarea value={form.description} onChange={(event) => setField('description', event.target.value)} className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400" />
           </label>
         </div>
@@ -728,6 +805,36 @@ function FormField({ label, value, onChange, type = 'text' }: { label: string; v
   )
 }
 
+function SelectField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  options,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  options: Array<{ value: string; label: string }>
+}) {
+  return (
+    <label>
+      <span className="text-xs font-semibold text-slate-600">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-400"
+      >
+        <option value="">{placeholder}</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 function StateBox({ text }: { text: string }) {
   return <div className="my-3 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/60 p-5 text-center text-sm font-semibold text-emerald-800">{text}</div>
 }
@@ -750,9 +857,13 @@ function ToastModal({ title, message, onClose }: { title: string; message: strin
 
 function validateForm(form: RfqFormState, mode: RfqFormMode | null): string | null {
   if (!form.title.trim()) return 'title không được để trống'
+  if (!form.productName.trim()) return 'productName không được để trống'
+  if (!optionalNumber(form.categoryId)) return 'categoryId không được để trống'
   const quantity = Number(form.quantity)
   if (!Number.isFinite(quantity) || quantity <= 0) return 'quantity phải lớn hơn 0'
-  if (mode === 'create' && !form.productId.trim() && !form.categoryId.trim()) return 'productId hoặc categoryId phải có ít nhất một'
+  if (!form.unit.trim()) return 'unit không được để trống'
+  if (!form.province.trim()) return 'province không được để trống'
+  if (!form.deliveryDate) return 'deliveryDate không được để trống'
   if (form.expiredAt && new Date(form.expiredAt).getTime() <= Date.now()) return 'expiredAt phải lớn hơn hiện tại'
   if (mode === 'create' && !form.expiredAt) return 'expiredAt không được để trống'
   return null
@@ -764,13 +875,18 @@ function formatBuyerRfqError(error: unknown, fallback: string) {
   if (message === 'COMPANY_IS_NOT_BUYER') return 'Tài khoản hiện tại không phải buyer.'
   if (message === 'USER_HAS_NO_COMPANY') return 'Tài khoản chưa gắn với công ty.'
   if (message === 'COMPANY_NOT_FOUND') return 'Không tìm thấy công ty của tài khoản hiện tại.'
+  if (message === 'PRODUCT_NOT_FOUND') return 'Không tìm thấy sản phẩm. Vui lòng chọn lại.'
   return message ?? fallback
 }
 
 function buildCreatePayload(form: RfqFormState): CreateBuyerRfqRequest {
   return {
     title: form.title.trim(),
-    productId: optionalNumber(form.productId),
+    type: 'MARKETPLACE',
+    productName: form.productName.trim() || form.title.trim(),
+    supplierId: null,
+    supplierCompanyId: null,
+    productId: null,
     categoryId: optionalNumber(form.categoryId),
     branchId: optionalNumber(form.branchId),
     quantity: Number(form.quantity),
@@ -799,12 +915,15 @@ function optionalNumber(value: string): number | null {
   const trimmed = value.trim()
   if (!trimmed) return null
   const parsed = Number(trimmed)
-  return Number.isFinite(parsed) ? parsed : null
+  if (!Number.isFinite(parsed) || parsed <= 0) return null
+  return parsed
 }
 
 function RfqStatusBadge({ status }: { status?: string | null }) {
   const map: Record<string, { badge: string; dot: string }> = {
     OPEN:      { badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+    QUOTED:    { badge: 'bg-blue-100 text-blue-700',        dot: 'bg-blue-500' },
+    ACCEPTED:  { badge: 'bg-teal-100 text-teal-700',        dot: 'bg-teal-500' },
     CLOSED:    { badge: 'bg-slate-100 text-slate-600',     dot: 'bg-slate-400' },
     CANCELLED: { badge: 'bg-rose-100 text-rose-700',       dot: 'bg-rose-400' },
     PENDING:   { badge: 'bg-amber-100 text-amber-700',     dot: 'bg-amber-400' },
@@ -820,7 +939,7 @@ function RfqStatusBadge({ status }: { status?: string | null }) {
 
 function canCancel(status?: string | null) {
   const normalized = status?.toUpperCase()
-  return normalized === 'OPEN' || normalized === 'PENDING'
+  return normalized === 'OPEN' || normalized === 'QUOTED' || normalized === 'PENDING'
 }
 
 function canEdit(status?: string | null) {

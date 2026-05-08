@@ -48,6 +48,16 @@ export async function createBuyerRfq(payload: CreateBuyerRfqRequest): Promise<Bu
   return response.data
 }
 
+export async function createMarketplaceBuyerRfq(payload: CreateBuyerRfqRequest): Promise<BuyerRfqDetail> {
+  const response = await apiClient.post<BuyerRfqDetail>('/api/buyer/rfqs/marketplace', compactPayload({ ...payload, type: 'MARKETPLACE' }))
+  return response.data
+}
+
+export async function createDirectBuyerRfq(payload: CreateBuyerRfqRequest): Promise<BuyerRfqDetail> {
+  const response = await apiClient.post<BuyerRfqDetail>('/api/buyer/rfqs/direct', compactPayload({ ...payload, type: 'DIRECT' }))
+  return response.data
+}
+
 export async function updateBuyerRfq(rfqId: number, payload: UpdateBuyerRfqRequest): Promise<BuyerRfqDetail> {
   const response = await apiClient.put<BuyerRfqDetail>(`/api/buyer/rfqs/${rfqId}`, compactPayload(payload))
   return response.data
@@ -64,6 +74,19 @@ export async function convertQuoteToOrder(
 ): Promise<ConvertQuoteToOrderResponse> {
   const response = await apiClient.post<ConvertQuoteToOrderResponse>(
     `/api/buyer/rfqs/${rfqId}/quotes/${quoteId}/convert-to-order`,
+    payload,
+    { timeout: 20000 },
+  )
+  return response.data
+}
+
+export async function acceptBuyerRfqQuote(
+  rfqId: number,
+  quoteId: number,
+  payload: ConvertQuoteToOrderRequest,
+): Promise<ConvertQuoteToOrderResponse> {
+  const response = await apiClient.post<ConvertQuoteToOrderResponse>(
+    `/api/buyer/rfqs/${rfqId}/quotes/${quoteId}/accept`,
     payload,
     { timeout: 20000 },
   )

@@ -70,7 +70,7 @@ export interface RfqItem {
   supplierQuoteNote: string
   hasExistingQuote: boolean
   quoteId?: number | null
-  quoteStatus?: 'PENDING' | 'ACCEPTED' | 'APPROVED' | 'REJECTED' | 'SENT' | 'DRAFT' | string | null
+  quoteStatus?: 'PENDING' | 'SUBMITTED' | 'UPDATED' | 'ACCEPTED' | 'APPROVED' | 'REJECTED' | 'SENT' | 'DRAFT' | string | null
   orderId?: number | null
   status: 'Chờ báo giá' | 'Đã báo giá' | 'Chấp nhận' | 'Từ chối' | 'Đã hủy'
 }

@@ -9,6 +9,10 @@ import java.time.LocalDateTime;
 
 public record CreateBuyerRfqRequest(
         @NotNull(message = "title is required") String title,
+        String type,
+        @JsonAlias("supplier_id") Long supplierId,
+        @JsonAlias("supplier_company_id") Long supplierCompanyId,
+        @JsonAlias("product_name") String productName,
         @JsonAlias("product_id") Long productId,
         @JsonAlias("category_id") Long categoryId,
         @JsonAlias("branch_id") Long branchId,

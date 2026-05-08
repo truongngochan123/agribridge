@@ -30,6 +30,11 @@ type CategoryOption = {
   name: string
 }
 
+type CategoryFilterOption = {
+  value: string
+  name: string
+}
+
 type RfqFormState = {
   quantity: string
   unit: string
@@ -121,6 +126,10 @@ function normalizeDefaultProvince(value?: string | null) {
   const trimmed = value?.trim()
   if (!trimmed || trimmed === '--' || trimmed.toUpperCase() === 'N/A') return ''
   return trimmed
+}
+
+function normalizeFilterText(value?: string | null) {
+  return value?.trim().toLowerCase() ?? ''
 }
 
 function getBuyerDefaultDeliveryProvince() {
@@ -357,9 +366,45 @@ export function BuyerSourcingPage() {
     })
   }, [buyerDefaultProvince])
 
-  const categoryOptions = useMemo(() => {
-    return categories
-  }, [categories])
+  const categoryOptions = useMemo<CategoryFilterOption[]>(() => {
+    const options = new Map<string, CategoryFilterOption>()
+
+    categories.forEach((category) => {
+      const name = category.name?.trim()
+      if (!name) return
+      const normalizedName = normalizeFilterText(name)
+      options.set(normalizedName, {
+        value: `name:${normalizedName}`,
+        name,
+      })
+    })
+
+    products.forEach((product) => {
+      const name = product.categoryName?.trim()
+      if (name) {
+        const normalizedName = normalizeFilterText(name)
+        if (!options.has(normalizedName)) {
+          options.set(normalizedName, {
+            value: `name:${normalizedName}`,
+            name,
+          })
+        }
+        return
+      }
+
+      if (product.categoryId != null) {
+        const key = `id:${product.categoryId}`
+        if (!options.has(key)) {
+          options.set(key, {
+            value: key,
+            name: `Danh mục #${product.categoryId}`,
+          })
+        }
+      }
+    })
+
+    return Array.from(options.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+  }, [categories, products])
 
   const regionOptions = useMemo(() => {
     return provinces
@@ -382,7 +427,11 @@ export function BuyerSourcingPage() {
     const next = products.filter((product) => {
       const searchable = [product.productName, product.supplierName, product.originRegion].join(' ').toLowerCase()
       const matchSearch = !keyword || searchable.includes(keyword)
-      const matchCategory = categoryId === 'all' || String(product.categoryId) === categoryId
+      const matchCategory =
+        categoryId === 'all' ||
+        (categoryId.startsWith('name:') && normalizeFilterText(product.categoryName) === categoryId.slice(5)) ||
+        (categoryId.startsWith('id:') && String(product.categoryId) === categoryId.slice(3)) ||
+        String(product.categoryId) === categoryId
       const matchRegion = region === 'all' || product.originRegion === region
       const matchPrice = productMatchesPrice(product, priceFilter)
       const matchGrade = gradeFilter === 'all' || (product.gradeSummary || '').toLowerCase().includes(gradeFilter.toLowerCase())
@@ -609,7 +658,7 @@ export function BuyerSourcingPage() {
             >
               <option value="all">Tất cả danh mục</option>
               {categoryOptions.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
+                <option key={item.value} value={item.value}>{item.name}</option>
               ))}
             </select>
             <select value={region} onChange={(event) => setRegion(event.target.value)} className="h-9 appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs outline-none transition focus:border-emerald-400 focus:bg-white">

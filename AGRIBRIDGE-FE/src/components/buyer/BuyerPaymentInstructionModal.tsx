@@ -8,6 +8,8 @@ export type BuyerPaymentInstructionModalProps = {
   totalAmount?: number | null
   depositAmount?: number | null
   balanceAmount?: number | null
+  transferContent?: string | null
+  payableAmount?: number | null
   onClose: () => void
   onDemoPaid?: () => void
 }
@@ -28,6 +30,8 @@ export function BuyerPaymentInstructionModal({
   totalAmount,
   depositAmount,
   balanceAmount,
+  transferContent: backendTransferContent,
+  payableAmount,
   onClose,
   onDemoPaid,
 }: BuyerPaymentInstructionModalProps) {
@@ -36,7 +40,8 @@ export function BuyerPaymentInstructionModal({
   const isDeposit = paymentMethod === 'DEPOSIT_50'
   const isCredit = paymentMethod === 'CREDIT'
   const orderNumber = String(orderCode || '').replace(/\D/g, '') || 'DEMO'
-  const transferContent = isDeposit ? `AGRI-DEPOSIT-${orderNumber}` : `AGRI-ORDER-${orderNumber}`
+  const transferContent = backendTransferContent || (isDeposit ? `AGRI-DEPOSIT-${orderNumber}` : `AGRI-ORDER-${orderNumber}`)
+  const upfrontAmount = payableAmount ?? (isDeposit ? depositAmount : totalAmount)
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
@@ -77,7 +82,7 @@ export function BuyerPaymentInstructionModal({
                   <span className="font-semibold">{transferContent}</span>
                   <span className="text-slate-500">{isDeposit ? 'Tiền cọc cần chuyển' : 'Số tiền cần chuyển'}</span>
                   <span className="font-bold text-emerald-700">
-                    {isDeposit ? formatMoney(depositAmount) : formatMoney(totalAmount)}
+                    {formatMoney(upfrontAmount)}
                   </span>
                   {isDeposit ? (
                     <>
