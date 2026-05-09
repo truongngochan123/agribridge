@@ -248,7 +248,7 @@ function ShipmentDetailModal({
       showToast('Không tìm thấy mã đơn hàng để cập nhật.', 'error')
       return
     }
-    const companyId = Number(sessionStorage.getItem('agribridge.auth.companyId'))
+    const companyId = Number(localStorage.getItem('agribridge.auth.companyId'))
     if (!companyId) {
       showToast('Chưa xác định công ty, vui lòng đăng nhập lại.', 'error')
       return

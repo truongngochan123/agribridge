@@ -145,7 +145,7 @@ export function SupplierLotListPage() {
   const [gradeFilter, setGradeFilter] = useState<'all' | 'A' | 'B' | 'C'>('all')
 
   const parsedProductId = Number(productId)
-  const userId = Number(sessionStorage.getItem('agribridge.auth.userId') ?? 0)
+  const userId = Number(localStorage.getItem('agribridge.auth.userId') ?? 0)
 
   const loadData = useCallback(async () => {
     if (!parsedProductId) {

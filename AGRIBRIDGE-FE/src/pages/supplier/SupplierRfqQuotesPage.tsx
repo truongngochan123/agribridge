@@ -337,8 +337,8 @@ export function SupplierRfqQuotesPage() {
 
   const handleSendChatMessage = () => {
     const parsedRfqId = parseRfqId(activeRfqId)
-    const senderUserId = Number(sessionStorage.getItem('agribridge.auth.userId'))
-    const senderCompanyId = Number(sessionStorage.getItem('agribridge.auth.companyId'))
+    const senderUserId = Number(localStorage.getItem('agribridge.auth.userId'))
+    const senderCompanyId = Number(localStorage.getItem('agribridge.auth.companyId'))
     const message = chatInput.trim()
 
     if (!message) {
@@ -374,7 +374,7 @@ export function SupplierRfqQuotesPage() {
     }
 
     const parsedRfqId = parseRfqId(rfqId)
-    const companyId = Number(sessionStorage.getItem('agribridge.auth.companyId'))
+    const companyId = Number(localStorage.getItem('agribridge.auth.companyId'))
 
     if (!parsedRfqId || !Number.isFinite(companyId) || companyId <= 0) {
       showToast('Không xác định được RFQ hoặc tài khoản nhà cung cấp.', 'error')
@@ -417,7 +417,7 @@ export function SupplierRfqQuotesPage() {
     }
 
     const parsedRfqId = parseRfqId(activeRfq?.id)
-    const companyId = Number(sessionStorage.getItem('agribridge.auth.companyId'))
+    const companyId = Number(localStorage.getItem('agribridge.auth.companyId'))
     const normalizedPrice = Number(stripToNumeric(priceInput))
     const normalizedQuantity = Number(stripToNumeric(quantityInput))
     const normalizedDeliveryDays = deliveryDaysInput.trim() ? Number(deliveryDaysInput.trim()) : undefined

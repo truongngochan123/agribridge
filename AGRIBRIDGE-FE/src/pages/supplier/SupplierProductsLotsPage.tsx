@@ -141,8 +141,8 @@ export function SupplierProductsLotsPage() {
   const [flowMessage, setFlowMessage] = useState('')
   const [createdResult, setCreatedResult] = useState<SupplierCreateFlowResponse | null>(null)
 
-  const companyId = Number(sessionStorage.getItem('agribridge.auth.companyId') ?? 0)
-  const userId = Number(sessionStorage.getItem('agribridge.auth.userId') ?? 0)
+  const companyId = Number(localStorage.getItem('agribridge.auth.companyId') ?? 0)
+  const userId = Number(localStorage.getItem('agribridge.auth.userId') ?? 0)
 
   const selectedExistingProduct = useMemo(
     () => supplierProducts.find((item) => item.id === Number(selectedExistingProductId)) ?? null,

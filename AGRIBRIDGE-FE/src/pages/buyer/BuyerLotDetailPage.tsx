@@ -195,9 +195,9 @@ function normalizeDefaultProvince(value?: string | null) {
 
 function getBuyerDefaultDeliveryProvince() {
   return (
-    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.branchProvince')) ||
-    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.companyProvince')) ||
-    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.province')) ||
+    normalizeDefaultProvince(localStorage.getItem('agribridge.auth.branchProvince')) ||
+    normalizeDefaultProvince(localStorage.getItem('agribridge.auth.companyProvince')) ||
+    normalizeDefaultProvince(localStorage.getItem('agribridge.auth.province')) ||
     ''
   )
 }
@@ -344,7 +344,7 @@ export function BuyerLotDetailPage() {
   const submitRfq = async () => {
     if (!lot || !rfqForm) return
     const quantityValue = Number(rfqForm.quantity)
-    const buyerCompanyId = Number(sessionStorage.getItem('agribridge.auth.companyId'))
+    const buyerCompanyId = Number(localStorage.getItem('agribridge.auth.companyId'))
     if (!buyerCompanyId) {
       showToast('Thiếu thông tin công ty buyer, vui lòng đăng nhập lại.', 'error')
       return
@@ -405,7 +405,7 @@ export function BuyerLotDetailPage() {
   const contactSupplier = () => {
     if (!lot) return
     if (lot.supplierId) {
-      sessionStorage.setItem('agribridge.buyer.contact.context', JSON.stringify({ supplierId: lot.supplierId, batchId: getLotId(lot), productId: lot.productId }))
+      localStorage.setItem('agribridge.buyer.contact.context', JSON.stringify({ supplierId: lot.supplierId, batchId: getLotId(lot), productId: lot.productId }))
     }
     if (lot.supplierPhone) {
       window.location.href = `tel:${lot.supplierPhone}`

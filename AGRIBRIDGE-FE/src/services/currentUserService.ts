@@ -69,19 +69,19 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
     return cachedProfile
   }
 
-  const companyTypeRaw = (sessionStorage.getItem('agribridge.auth.companyType') ?? '').trim()
+  const companyTypeRaw = (localStorage.getItem('agribridge.auth.companyType') ?? '').trim()
   const normalizedCompanyType = companyTypeRaw.toLowerCase()
   if (normalizedCompanyType === 'admin' || normalizedCompanyType === 'system') {
-    let userIdRaw = sessionStorage.getItem('agribridge.auth.userId')
+    let userIdRaw = localStorage.getItem('agribridge.auth.userId')
     let userId = userIdRaw ? Number(userIdRaw) : undefined
     if (!userId) {
       hydrateSessionFromAuthPayload()
-      userIdRaw = sessionStorage.getItem('agribridge.auth.userId')
+      userIdRaw = localStorage.getItem('agribridge.auth.userId')
       userId = userIdRaw ? Number(userIdRaw) : undefined
     }
 
-    const emailFromSession = (sessionStorage.getItem('agribridge.auth.email') ?? '').trim()
-    const nameFromSession = (sessionStorage.getItem('agribridge.auth.name') ?? '').trim()
+    const emailFromSession = (localStorage.getItem('agribridge.auth.email') ?? '').trim()
+    const nameFromSession = (localStorage.getItem('agribridge.auth.name') ?? '').trim()
 
     let user: UserApiModel | undefined
     if (userId) {
@@ -131,22 +131,22 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
     return profile
   }
 
-  let companyIdRaw = sessionStorage.getItem('agribridge.auth.companyId')
+  let companyIdRaw = localStorage.getItem('agribridge.auth.companyId')
   let companyId = companyIdRaw ? Number(companyIdRaw) : undefined
-  let userIdRaw = sessionStorage.getItem('agribridge.auth.userId')
+  let userIdRaw = localStorage.getItem('agribridge.auth.userId')
   let userId = userIdRaw ? Number(userIdRaw) : undefined
 
   if (!companyId && !userId) {
     hydrateSessionFromAuthPayload()
-    companyIdRaw = sessionStorage.getItem('agribridge.auth.companyId')
+    companyIdRaw = localStorage.getItem('agribridge.auth.companyId')
     companyId = companyIdRaw ? Number(companyIdRaw) : undefined
-    userIdRaw = sessionStorage.getItem('agribridge.auth.userId')
+    userIdRaw = localStorage.getItem('agribridge.auth.userId')
     userId = userIdRaw ? Number(userIdRaw) : undefined
   }
 
-  const emailFromSession = (sessionStorage.getItem('agribridge.auth.email') ?? '').trim()
-  const nameFromSession = (sessionStorage.getItem('agribridge.auth.name') ?? '').trim()
-  const phoneFromSession = (sessionStorage.getItem('agribridge.auth.phone') ?? '').trim()
+  const emailFromSession = (localStorage.getItem('agribridge.auth.email') ?? '').trim()
+  const nameFromSession = (localStorage.getItem('agribridge.auth.name') ?? '').trim()
+  const phoneFromSession = (localStorage.getItem('agribridge.auth.phone') ?? '').trim()
 
   let user: UserApiModel | undefined
   if (userId) {
@@ -161,7 +161,7 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
 
   if (user?.companyId && (!companyId || companyId !== user.companyId)) {
     companyId = user.companyId
-    sessionStorage.setItem('agribridge.auth.companyId', String(user.companyId))
+    localStorage.setItem('agribridge.auth.companyId', String(user.companyId))
   }
 
   if (!user) {
@@ -180,11 +180,11 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
 
     if (user?.id) {
       userId = user.id
-      sessionStorage.setItem('agribridge.auth.userId', String(user.id))
+      localStorage.setItem('agribridge.auth.userId', String(user.id))
     }
     if (user?.companyId && (!companyId || companyId !== user.companyId)) {
       companyId = user.companyId
-      sessionStorage.setItem('agribridge.auth.companyId', String(user.companyId))
+      localStorage.setItem('agribridge.auth.companyId', String(user.companyId))
     }
   }
 
@@ -237,13 +237,13 @@ function hydrateSessionFromAuthPayload() {
   if (!payload) return
 
   if (payload.companyId) {
-    sessionStorage.setItem('agribridge.auth.companyId', String(payload.companyId))
+    localStorage.setItem('agribridge.auth.companyId', String(payload.companyId))
   }
   if (payload.userId) {
-    sessionStorage.setItem('agribridge.auth.userId', String(payload.userId))
+    localStorage.setItem('agribridge.auth.userId', String(payload.userId))
   }
   if (payload.companyType) {
-    sessionStorage.setItem('agribridge.auth.companyType', payload.companyType)
+    localStorage.setItem('agribridge.auth.companyType', payload.companyType)
   }
 }
 

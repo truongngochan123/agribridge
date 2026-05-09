@@ -283,8 +283,8 @@ export function SupplierProductListPage() {
   const [uploadingVideo, setUploadingVideo] = useState(false)
   const [uploadingBatchImage, setUploadingBatchImage] = useState(false)
 
-  const companyId = Number(sessionStorage.getItem('agribridge.auth.companyId') ?? 0)
-  const userId = Number(sessionStorage.getItem('agribridge.auth.userId') ?? 0)
+  const companyId = Number(localStorage.getItem('agribridge.auth.companyId') ?? 0)
+  const userId = Number(localStorage.getItem('agribridge.auth.userId') ?? 0)
 
   const loadInitial = async () => {
     if (!companyId) {
