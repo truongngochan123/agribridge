@@ -102,9 +102,9 @@ function normalizeDefaultProvince(value?: string | null) {
 
 function getBuyerDefaultDeliveryProvince() {
   return (
-    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.branchProvince')) ||
-    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.companyProvince')) ||
-    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.province')) ||
+    normalizeDefaultProvince(localStorage.getItem('agribridge.auth.branchProvince')) ||
+    normalizeDefaultProvince(localStorage.getItem('agribridge.auth.companyProvince')) ||
+    normalizeDefaultProvince(localStorage.getItem('agribridge.auth.province')) ||
     ''
   )
 }
@@ -371,7 +371,7 @@ export function BuyerProductBatchesPage() {
   const submitBatchRfq = async () => {
     if (!product || !rfqBatch || !rfqForm) return
     const quantity = Number(rfqForm.quantity)
-    const buyerCompanyId = Number(sessionStorage.getItem('agribridge.auth.companyId'))
+    const buyerCompanyId = Number(localStorage.getItem('agribridge.auth.companyId'))
     if (!buyerCompanyId) {
       showToast('Thiếu thông tin công ty buyer, vui lòng đăng nhập lại.', 'error')
       return

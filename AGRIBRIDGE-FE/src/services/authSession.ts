@@ -5,7 +5,7 @@ type AuthStatus = AuthResponse['status']
 const PAYLOAD_KEY = 'agribridge.auth.payload'
 
 export function getStoredAuthSession(): AuthResponse | null {
-  const raw = sessionStorage.getItem(PAYLOAD_KEY)
+  const raw = localStorage.getItem(PAYLOAD_KEY)
   if (!raw) return null
   try {
     return JSON.parse(raw) as AuthResponse
@@ -18,36 +18,36 @@ export function storeAuthSession(payload: AuthResponse, fallback?: string | { ph
   const fallbackPhone = typeof fallback === 'string' ? fallback : fallback?.phone
   const fallbackEmail = typeof fallback === 'string' ? undefined : fallback?.email
 
-  sessionStorage.setItem(PAYLOAD_KEY, JSON.stringify(payload))
+  localStorage.setItem(PAYLOAD_KEY, JSON.stringify(payload))
   if (payload.companyId) {
-    sessionStorage.setItem('agribridge.auth.companyId', String(payload.companyId))
+    localStorage.setItem('agribridge.auth.companyId', String(payload.companyId))
   }
   if (payload.userId) {
-    sessionStorage.setItem('agribridge.auth.userId', String(payload.userId))
+    localStorage.setItem('agribridge.auth.userId', String(payload.userId))
   }
   if (payload.companyType) {
-    sessionStorage.setItem('agribridge.auth.companyType', payload.companyType)
+    localStorage.setItem('agribridge.auth.companyType', payload.companyType)
   }
   if (payload.accessToken) {
-    sessionStorage.setItem('agribridge.auth.accessToken', payload.accessToken)
+    localStorage.setItem('agribridge.auth.accessToken', payload.accessToken)
   }
   if (fallbackPhone) {
-    sessionStorage.setItem('agribridge.auth.phone', fallbackPhone)
+    localStorage.setItem('agribridge.auth.phone', fallbackPhone)
   }
   if (fallbackEmail) {
-    sessionStorage.setItem('agribridge.auth.email', fallbackEmail)
+    localStorage.setItem('agribridge.auth.email', fallbackEmail)
   }
 }
 
 export function clearAuthSession() {
   const keysToDelete: string[] = []
-  for (let index = 0; index < sessionStorage.length; index += 1) {
-    const key = sessionStorage.key(index)
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index)
     if (key?.startsWith('agribridge.')) {
       keysToDelete.push(key)
     }
   }
-  keysToDelete.forEach((key) => sessionStorage.removeItem(key))
+  keysToDelete.forEach((key) => localStorage.removeItem(key))
 }
 
 export function resolveStatusRedirect(status?: AuthStatus | null): string {

@@ -133,7 +133,7 @@ export function SupplierRegistrationBusinessInfoPage() {
   const [addressLoadError, setAddressLoadError] = useState('')
 
   useEffect(() => {
-    const rawDraft = sessionStorage.getItem(DRAFT_KEY)
+    const rawDraft = localStorage.getItem(DRAFT_KEY)
     if (!rawDraft) return
 
     try {
@@ -343,7 +343,7 @@ export function SupplierRegistrationBusinessInfoPage() {
       }
     }
 
-    sessionStorage.setItem(
+    localStorage.setItem(
       DRAFT_KEY,
       JSON.stringify({
         ...form,

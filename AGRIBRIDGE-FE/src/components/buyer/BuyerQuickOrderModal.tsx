@@ -114,7 +114,7 @@
   }
 
   function getBuyerInfoFromSession(): BuyerQuickOrderBuyerInfo {
-    const get = (key: string) => sessionStorage.getItem(key)?.trim() || null
+    const get = (key: string) => localStorage.getItem(key)?.trim() || null
     return {
       fullName: get('agribridge.auth.fullName'),
       companyName: get('agribridge.auth.companyName'),
@@ -131,7 +131,7 @@
   }
 
   function readSessionNumber(key: string) {
-    const value = Number(sessionStorage.getItem(key))
+    const value = Number(localStorage.getItem(key))
     return Number.isFinite(value) && value > 0 ? value : null
   }
 
@@ -226,13 +226,13 @@
       fetchCurrentUserProfile()
         .then((profile) => {
           if (!profile) return
-          // Write useful fields back to sessionStorage for next time
-          if (profile.fullName) sessionStorage.setItem('agribridge.auth.fullName', profile.fullName)
-          if (profile.phone) sessionStorage.setItem('agribridge.auth.phone', profile.phone)
-          if (profile.companyName) sessionStorage.setItem('agribridge.auth.companyName', profile.companyName)
-          if (profile.province && profile.province !== 'N/A') sessionStorage.setItem('agribridge.auth.companyProvince', profile.province)
-          if (profile.ward && profile.ward !== 'N/A') sessionStorage.setItem('agribridge.auth.companyWard', profile.ward)
-          if (profile.address && profile.address !== 'N/A') sessionStorage.setItem('agribridge.auth.companyAddress', profile.address)
+          // Write useful fields back to localStorage for next time
+          if (profile.fullName) localStorage.setItem('agribridge.auth.fullName', profile.fullName)
+          if (profile.phone) localStorage.setItem('agribridge.auth.phone', profile.phone)
+          if (profile.companyName) localStorage.setItem('agribridge.auth.companyName', profile.companyName)
+          if (profile.province && profile.province !== 'N/A') localStorage.setItem('agribridge.auth.companyProvince', profile.province)
+          if (profile.ward && profile.ward !== 'N/A') localStorage.setItem('agribridge.auth.companyWard', profile.ward)
+          if (profile.address && profile.address !== 'N/A') localStorage.setItem('agribridge.auth.companyAddress', profile.address)
 
           setBuyerInfo((prev) => ({
             fullName: prev.fullName || profile.fullName || null,
@@ -251,7 +251,7 @@
           }))
         })
         .catch(() => {
-          // Silently keep sessionStorage values
+          // Silently keep localStorage values
         })
         .finally(() => {
           setLoadingBuyerInfo(false)
@@ -362,8 +362,8 @@
               }
               return current
             })
-            sessionStorage.removeItem('agribridge.auth.companyWard')
-            sessionStorage.removeItem('agribridge.auth.ward')
+            localStorage.removeItem('agribridge.auth.companyWard')
+            localStorage.removeItem('agribridge.auth.ward')
             return
           }
 

@@ -510,7 +510,7 @@ function Meta({ label, value, valueClassName }: { label: string; value: string; 
 }
 
 function getAdminUserId(): number | undefined {
-  const raw = sessionStorage.getItem('agribridge.auth.userId')
+  const raw = localStorage.getItem('agribridge.auth.userId')
   if (!raw) return undefined
   const value = Number(raw)
   return Number.isFinite(value) && value > 0 ? value : undefined

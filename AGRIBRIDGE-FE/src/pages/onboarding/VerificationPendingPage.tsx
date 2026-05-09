@@ -15,7 +15,7 @@ export function VerificationPendingPage() {
   const [error, setError] = useState('')
 
   const emailFromQuery = searchParams.get('email')?.trim().toLowerCase() ?? ''
-  const pendingEmail = emailFromQuery || (sessionStorage.getItem('agribridge.pending.email') ?? '').trim().toLowerCase()
+  const pendingEmail = emailFromQuery || (localStorage.getItem('agribridge.pending.email') ?? '').trim().toLowerCase()
 
   useEffect(() => {
     if (!pendingEmail) return
@@ -30,7 +30,7 @@ export function VerificationPendingPage() {
         if (!active) return
 
         if (result.status === 'SUCCESS' && result.redirectPath) {
-          sessionStorage.removeItem('agribridge.pending.email')
+          localStorage.removeItem('agribridge.pending.email')
           navigate(result.redirectPath, { replace: true })
           return
         }
@@ -67,7 +67,7 @@ export function VerificationPendingPage() {
       setError('')
       const result = await checkRegistrationStatusByEmail(pendingEmail)
       if (result.status === 'SUCCESS' && result.redirectPath) {
-        sessionStorage.removeItem('agribridge.pending.email')
+        localStorage.removeItem('agribridge.pending.email')
         navigate(result.redirectPath, { replace: true })
         return
       }
