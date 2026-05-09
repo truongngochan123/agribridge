@@ -14,6 +14,7 @@ import com.agribridge.backend.entity.QcRecordEntity;
 import com.agribridge.backend.entity.RfqEntity;
 import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.RfqStatusEnum;
+import com.agribridge.backend.entity.enums.RfqTypeEnum;
 import com.agribridge.backend.repository.BatchImageRepository;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.CategoryRepository;
@@ -164,10 +165,13 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
                 RfqEntity rfq = RfqEntity.builder()
                                 .buyerCompanyId(request.buyerCompanyId())
+                                .type(RfqTypeEnum.DIRECT)
+                                .supplierCompanyId(product.getSupplierCompanyId())
                                 .productId(product.getId())
                                 .categoryId(request.categoryId() == null ? product.getCategoryId()
                                                 : request.categoryId())
                                 .title(product.getName())
+                                .productName(product.getName())
                                 .description(normalizeText(request.description()))
                                 .quantity(request.quantity())
                                 .unit(normalizeText(request.unit()) == null ? product.getUnit()
@@ -177,6 +181,7 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                                 .expiredAt(request.expiredAt())
                                 .status(RfqStatusEnum.OPEN)
                                 .createdAt(LocalDateTime.now())
+                                .updatedAt(LocalDateTime.now())
                                 .build();
                 return rfqRepository.save(rfq).getId();
         }

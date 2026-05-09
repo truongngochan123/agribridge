@@ -18,4 +18,14 @@ public interface SupplierOrderService {
     SupplierOrderDto createShipment(Long supplierCompanyId, Long orderId, CreateSupplierShipmentDto request);
 
     SupplierOrderDto updateShipmentStatus(Long supplierCompanyId, Long orderId, UpdateSupplierShipmentStatusDto request);
+
+    SupplierOrderDto confirmDemoOrder(Long orderId);
+
+    SupplierOrderDto prepareDemoOrder(Long orderId);
+
+    SupplierOrderDto readyToShipDemoOrder(Long orderId);
+
+    SupplierOrderDto startShippingDemoOrder(Long orderId);
+
+    SupplierOrderDto markDeliveredDemoOrder(Long orderId);
 }

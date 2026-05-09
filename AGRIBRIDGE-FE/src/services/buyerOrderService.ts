@@ -22,16 +22,38 @@ export type BuyerOrderPayment = {
   paymentType?: string | null
   status?: string | null
   escrowStatus?: string | null
+  transferContent?: string | null
   dueDate?: string | null
   paymentDate?: string | null
+  paidAt?: string | null
+  verifiedAt?: string | null
   note?: string | null
 }
 
+export type BuyerOrderShipment = {
+  id?: number | null
+  provider?: string | null
+  trackingCode?: string | null
+  shipmentStatus?: string | null
+  receiverName?: string | null
+  receiverPhone?: string | null
+  receiverAddress?: string | null
+  expectedDeliveryDate?: string | null
+  shippingFee?: number | null
+  deliveredAt?: string | null
+}
+
 export type BuyerOrder = BuyerOrderRow & {
+  paymentOption?: string | null
+  paymentStatus?: string | null
+  escrowStatus?: string | null
+  remainingAmount?: number | null
+  expectedDeliveryDate?: string | null
   driverName?: string | null
   driverPhone?: string | null
   vehicleInfo?: string | null
   trackingCode?: string | null
+  shipment?: BuyerOrderShipment | null
   payments?: BuyerOrderPayment[]
   complaints?: BuyerOrderComplaint[]
 }
@@ -46,6 +68,11 @@ export type BuyerQuickOrderResponse = {
   orderStatus?: string | null
   invoiceStatus?: string | null
   paymentStatus?: string | null
+  escrowStatus?: string | null
+  transferContent?: string | null
+  payableAmount?: number | null
+  depositAmount?: number | null
+  remainingAmount?: number | null
   shippingStatus?: string | null
   grandTotal?: number | null
   message?: string | null
@@ -69,7 +96,17 @@ export async function fetchBuyerOrder(orderId: number): Promise<BuyerOrder> {
 }
 
 export async function confirmBuyerOrderReceived(orderId: number): Promise<void> {
-  await apiClient.patch(`/api/buyer/orders/${orderId}/confirm-received`)
+  await apiClient.post(`/api/buyer/orders/${orderId}/confirm-received`)
+}
+
+export async function demoConfirmBuyerOrderPayment(orderId: number): Promise<BuyerOrder> {
+  const response = await apiClient.post(`/api/buyer/orders/${orderId}/demo-confirm-payment`)
+  return response.data?.data ?? response.data
+}
+
+export async function demoPayBuyerOrderRemaining(orderId: number): Promise<BuyerOrder> {
+  const response = await apiClient.post(`/api/buyer/orders/${orderId}/demo-pay-remaining`)
+  return response.data?.data ?? response.data
 }
 
 export async function createBuyerOrderComplaint(

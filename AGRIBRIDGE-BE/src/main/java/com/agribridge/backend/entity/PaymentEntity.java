@@ -38,6 +38,12 @@ public class PaymentEntity {
     @JoinColumn(name = "invoice_id", insertable = false, updatable = false)
     private InvoiceEntity invoice;
 
+    @Column(name = "order_id")
+    private Long orderId;
+
+    @Column(name = "buyer_company_id")
+    private Long buyerCompanyId;
+
     @Column(name = "amount", nullable = false)
     private BigDecimal amount;
 
@@ -59,8 +65,26 @@ public class PaymentEntity {
     @Column(name = "due_date")
     private LocalDate dueDate;
 
+    @Column(name = "transfer_content")
+    private String transferContent;
+
+    @Column(name = "proof_image_url")
+    private String proofImageUrl;
+
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
+
+    @Column(name = "verified_at")
+    private LocalDateTime verifiedAt;
+
     @Column(name = "payment_date", nullable = false)
     private LocalDateTime paymentDate;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
     @Column(name = "confirmed_by_user_id")
     private Long confirmedByUserId;

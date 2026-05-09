@@ -12,6 +12,11 @@ public record BuyerQuickOrderResponseDto(
         String orderStatus,
         String invoiceStatus,
         String paymentStatus,
+        String escrowStatus,
+        String transferContent,
+        BigDecimal payableAmount,
+        BigDecimal depositAmount,
+        BigDecimal remainingAmount,
         String shippingStatus,
         BigDecimal grandTotal,
         String message) {

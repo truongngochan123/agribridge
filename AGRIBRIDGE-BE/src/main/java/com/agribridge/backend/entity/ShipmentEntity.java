@@ -91,6 +91,9 @@ public class ShipmentEntity {
     @Column(name = "estimated_delivery_at")
     private LocalDateTime estimatedDeliveryAt;
 
+    @Column(name = "expected_delivery_date")
+    private LocalDateTime expectedDeliveryDate;
+
     @Column(name = "current_location")
     private String currentLocation;
 
@@ -134,4 +137,7 @@ public class ShipmentEntity {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 }

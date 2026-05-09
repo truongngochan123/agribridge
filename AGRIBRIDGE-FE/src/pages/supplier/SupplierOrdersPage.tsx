@@ -9,6 +9,7 @@ import {
   createSupplierShipment,
   fetchSupplierOrders,
   getSupplierOrderDetail,
+  runSupplierDemoOrderAction,
   updateSupplierOrderStatus,
   updateSupplierShipmentStatus,
   type CreateSupplierShipmentRequest,
@@ -21,6 +22,7 @@ import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
 
 type OrderTabKey = 'all' | 'PENDING' | 'CONFIRMED' | 'SHIPPING' | 'DELIVERED' | 'CANCELLED'
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const ORDER_TABS: Array<{ key: OrderTabKey; label: string }> = [
   { key: 'all', label: 'Tất cả' },
   { key: 'PENDING', label: 'Chờ xác nhận' },
@@ -36,8 +38,10 @@ const ACTION_LABEL: Record<SupplierOrderAction, string> = {
   CANCEL_ORDER: 'Hủy',
   CREATE_SHIPMENT: 'Tạo vận đơn',
   START_SHIPPING: 'Bắt đầu giao',
+  PREPARE_ORDER: 'Đang chuẩn bị hàng',
+  READY_TO_SHIP: 'Sẵn sàng giao',
   MARK_IN_TRANSIT: 'Cập nhật đang vận chuyển',
-  MARK_ARRIVED: 'Đã giao tới nơi',
+  MARK_ARRIVED: 'Đã giao hàng',
   REPORT_INCIDENT: 'Báo sự cố',
   VIEW_SHIPMENT: 'Xem vận đơn',
 }
@@ -219,6 +223,21 @@ export function SupplierOrdersPage() {
     }
   }
 
+  const handleDemoAction = async (order: SupplierOrderRow | SupplierOrderDetail, action: SupplierOrderAction) => {
+    try {
+      setUpdatingOrderId(order.rawId)
+      const updated = await runSupplierDemoOrderAction(order.rawId, action)
+      replaceOrder(updated)
+      if (selectedOrder?.rawId === updated.rawId) await reloadSelectedOrder(updated.rawId)
+      await loadOrders()
+      showToast('Cập nhật đơn hàng demo thành công.', 'success')
+    } catch (requestError) {
+      showToast(readApiErrorMessage(requestError) || 'Không thể cập nhật đơn hàng demo.', 'error')
+    } finally {
+      setUpdatingOrderId(null)
+    }
+  }
+
   const openShipmentModal = (order: SupplierOrderRow | SupplierOrderDetail) => {
     setShipmentOrder(order as SupplierOrderRow)
     setShipmentForm(emptyShipmentForm())
@@ -252,7 +271,7 @@ export function SupplierOrdersPage() {
       )
     }
     if (action === 'CONFIRM_ORDER') {
-      return <ActionButton key={action} label={ACTION_LABEL[action]} disabled={updatingOrderId === order.rawId} onClick={() => void handleOrderStatus(order, 'CONFIRMED')} />
+      return <ActionButton key={action} label={ACTION_LABEL[action]} disabled={updatingOrderId === order.rawId} onClick={() => void handleDemoAction(order, action)} />
     }
     if (action === 'CANCEL_ORDER') {
       return <ActionButton key={action} label={ACTION_LABEL[action]} danger disabled={updatingOrderId === order.rawId} onClick={() => void handleOrderStatus(order, 'CANCELLED')} />
@@ -261,13 +280,16 @@ export function SupplierOrdersPage() {
       return <ActionButton key={action} label={ACTION_LABEL[action]} disabled={updatingOrderId === order.rawId} onClick={() => openShipmentModal(order)} />
     }
     if (action === 'START_SHIPPING') {
-      return <ActionButton key={action} label={ACTION_LABEL[action]} disabled={updatingOrderId === order.rawId} onClick={() => void handleShipmentStatus(order, 'SHIPPED')} />
+      return <ActionButton key={action} label={ACTION_LABEL[action]} disabled={updatingOrderId === order.rawId} onClick={() => void handleDemoAction(order, action)} />
+    }
+    if (action === 'PREPARE_ORDER' || action === 'READY_TO_SHIP') {
+      return <ActionButton key={action} label={ACTION_LABEL[action]} disabled={updatingOrderId === order.rawId} onClick={() => void handleDemoAction(order, action)} />
     }
     if (action === 'MARK_IN_TRANSIT') {
       return <ActionButton key={action} label={ACTION_LABEL[action]} disabled={updatingOrderId === order.rawId} onClick={() => void handleShipmentStatus(order, 'IN_TRANSIT')} />
     }
     if (action === 'MARK_ARRIVED') {
-      return <ActionButton key={action} label={ACTION_LABEL[action]} disabled={updatingOrderId === order.rawId} onClick={() => void handleShipmentStatus(order, 'WAITING_CONFIRMATION')} />
+      return <ActionButton key={action} label={ACTION_LABEL[action]} disabled={updatingOrderId === order.rawId} onClick={() => void handleDemoAction(order, action)} />
     }
     if (action === 'VIEW_SHIPMENT') {
       return <span key={action} className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{ACTION_LABEL[action]}</span>

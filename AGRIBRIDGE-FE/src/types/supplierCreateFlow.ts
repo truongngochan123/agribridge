@@ -9,6 +9,11 @@ export interface MetadataListPayload {
   items: string[]
 }
 
+export interface CreateSupplierCategoryRequest {
+  userId: number
+  name: string
+}
+
 export interface CreateProductCertificationPayload {
   name: string
   documentUrl?: string

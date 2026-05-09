@@ -55,18 +55,25 @@ public interface RfqRepository extends JpaRepository<RfqEntity, Long> {
         @Query("""
                         SELECT r
                         FROM RfqEntity r
-                        WHERE r.status = :status
+                        WHERE r.status IN :statuses
                           AND (r.expiredAt IS NULL OR r.expiredAt > :now)
                           AND (
-                                (:matchCategories = true AND r.categoryId IN :categoryIds)
-                             OR (:matchProducts = true AND r.productId IN :productIds)
-                             OR (:matchProvinces = true AND LOWER(r.province) IN :provinces)
+                                (r.type = com.agribridge.backend.entity.enums.RfqTypeEnum.DIRECT AND r.supplierCompanyId = :supplierCompanyId)
+                             OR (
+                                  (r.type IS NULL OR r.type = com.agribridge.backend.entity.enums.RfqTypeEnum.MARKETPLACE)
+                                  AND (
+                                      (:matchCategories = true AND r.categoryId IN :categoryIds)
+                                   OR (:matchProducts = true AND r.productId IN :productIds)
+                                   OR (:matchProvinces = true AND LOWER(r.province) IN :provinces)
+                                  )
+                                )
                           )
                         ORDER BY r.createdAt DESC, r.id DESC
                         """)
         List<RfqEntity> findRelevantOpenRfqs(
-                        @Param("status") RfqStatusEnum status,
+                        @Param("statuses") Collection<RfqStatusEnum> statuses,
                         @Param("now") LocalDateTime now,
+                        @Param("supplierCompanyId") Long supplierCompanyId,
                         @Param("matchCategories") boolean matchCategories,
                         @Param("categoryIds") Collection<Long> categoryIds,
                         @Param("matchProducts") boolean matchProducts,

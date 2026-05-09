@@ -8,6 +8,8 @@ export type BuyerPaymentInstructionModalProps = {
   totalAmount?: number | null
   depositAmount?: number | null
   balanceAmount?: number | null
+  transferContent?: string | null
+  payableAmount?: number | null
   onClose: () => void
   onDemoPaid?: () => void
 }
@@ -28,6 +30,8 @@ export function BuyerPaymentInstructionModal({
   totalAmount,
   depositAmount,
   balanceAmount,
+  transferContent: backendTransferContent,
+  payableAmount,
   onClose,
   onDemoPaid,
 }: BuyerPaymentInstructionModalProps) {
@@ -35,9 +39,9 @@ export function BuyerPaymentInstructionModal({
 
   const isDeposit = paymentMethod === 'DEPOSIT_50'
   const isCredit = paymentMethod === 'CREDIT'
-  const transferContent = isDeposit
-    ? `${orderCode || 'AGRI-DEMO'}-COC`
-    : orderCode || 'AGRI-DEMO'
+  const orderNumber = String(orderCode || '').replace(/\D/g, '') || 'DEMO'
+  const transferContent = backendTransferContent || (isDeposit ? `AGRI-DEPOSIT-${orderNumber}` : `AGRI-ORDER-${orderNumber}`)
+  const upfrontAmount = payableAmount ?? (isDeposit ? depositAmount : totalAmount)
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
@@ -69,16 +73,16 @@ export function BuyerPaymentInstructionModal({
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-slate-700">
                   <span className="text-slate-500">Ngân hàng</span>
-                  <span className="font-semibold">Vietcombank</span>
+                  <span className="font-semibold">DEMO BANK</span>
                   <span className="text-slate-500">Số tài khoản</span>
-                  <span className="font-semibold">0123456789</span>
+                  <span className="font-semibold">123456789</span>
                   <span className="text-slate-500">Chủ tài khoản</span>
-                  <span className="font-semibold">CONG TY AGRIBRIDGE</span>
+                  <span className="font-semibold">AGRIBRIDGE PLATFORM</span>
                   <span className="text-slate-500">Nội dung</span>
                   <span className="font-semibold">{transferContent}</span>
                   <span className="text-slate-500">{isDeposit ? 'Tiền cọc cần chuyển' : 'Số tiền cần chuyển'}</span>
                   <span className="font-bold text-emerald-700">
-                    {isDeposit ? formatMoney(depositAmount) : formatMoney(totalAmount)}
+                    {formatMoney(upfrontAmount)}
                   </span>
                   {isDeposit ? (
                     <>

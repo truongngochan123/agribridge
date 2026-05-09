@@ -5,6 +5,7 @@ import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   createBatchForExistingProduct,
+  createSupplierCategory,
   createProductWithFirstBatch,
   fetchCategories,
   fetchCertificationNames,
@@ -122,6 +123,9 @@ export function SupplierProductsLotsPage() {
   const [certificationNames, setCertificationNames] = useState<string[]>([])
   const [categories, setCategories] = useState<CategoryOption[]>([])
   const [supplierProducts, setSupplierProducts] = useState<SupplierProductOption[]>([])
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryError, setNewCategoryError] = useState('')
+  const [createCategoryLoading, setCreateCategoryLoading] = useState(false)
 
   const [productForm, setProductForm] = useState<ProductFormState>(createDefaultProductForm)
   const [batchFormForNewProduct, setBatchFormForNewProduct] = useState<BatchFormState>(createDefaultBatchForm)
@@ -152,7 +156,7 @@ export function SupplierProductsLotsPage() {
           fetchMetadataUnits(),
           fetchMetadataProvinces(),
           fetchCertificationNames(),
-          fetchCategories(),
+          fetchCategories(userId || undefined),
         ])
         setUnits(loadedUnits)
         setProvinces(loadedProvinces)
@@ -164,7 +168,7 @@ export function SupplierProductsLotsPage() {
     }
 
     void loadMetadata()
-  }, [])
+  }, [userId])
 
   useEffect(() => {
     if (!companyId) {
@@ -193,6 +197,8 @@ export function SupplierProductsLotsPage() {
     setBatchFormForNewProduct(createDefaultBatchForm())
     setProductErrors({})
     setBatchErrors({})
+    setNewCategoryName('')
+    setNewCategoryError('')
   }
 
   const resetCreateBatchFlow = () => {
@@ -334,6 +340,37 @@ export function SupplierProductsLotsPage() {
       setFlowMessage('Upload file thất bại. Vui lòng thử lại.')
     } finally {
       onUploadingChange(false)
+    }
+  }
+
+  const handleCreateCategory = async () => {
+    const name = newCategoryName.trim()
+    if (!userId) {
+      setNewCategoryError('Thiếu thông tin người dùng.')
+      return
+    }
+    if (!name) {
+      setNewCategoryError('Vui lòng nhập tên danh mục.')
+      return
+    }
+    if (categories.some((category) => category.name.trim().toLowerCase() === name.toLowerCase())) {
+      setNewCategoryError('Danh mục đã tồn tại trong tài khoản này.')
+      return
+    }
+
+    setCreateCategoryLoading(true)
+    setNewCategoryError('')
+    try {
+      const created = await createSupplierCategory({ userId, name })
+      const nextCategories = await fetchCategories(userId)
+      setCategories(nextCategories)
+      setProductForm((prev) => ({ ...prev, categoryId: String(created.id) }))
+      setNewCategoryName('')
+      setFlowMessage('Đã thêm danh mục mới.')
+    } catch {
+      setNewCategoryError('Không thể thêm danh mục. Vui lòng kiểm tra tên có bị trùng không.')
+    } finally {
+      setCreateCategoryLoading(false)
     }
   }
 
@@ -570,15 +607,46 @@ export function SupplierProductsLotsPage() {
                   />
 
                   <div className="grid gap-3 md:grid-cols-2">
-                    <SelectField
-                      label="Danh mục"
-                      required
-                      value={productForm.categoryId}
-                      onChange={(value) => setProductForm((prev) => ({ ...prev, categoryId: value }))}
-                      error={productErrors.categoryId}
-                      options={categories.map((category) => ({ value: String(category.id), label: category.name }))}
-                      placeholder="-- Chọn danh mục --"
-                    />
+                    <div className="space-y-2">
+                      <SelectField
+                        label="Danh mục"
+                        required
+                        value={productForm.categoryId}
+                        onChange={(value) => setProductForm((prev) => ({ ...prev, categoryId: value }))}
+                        error={productErrors.categoryId}
+                        options={categories.map((category) => ({ value: String(category.id), label: category.name }))}
+                        placeholder="-- Chọn danh mục --"
+                      />
+                      <div className="flex gap-2">
+                        <input
+                          className={`h-10 min-w-0 flex-1 rounded-lg border px-3 text-sm text-slate-700 ${
+                            newCategoryError ? 'border-rose-400' : 'border-slate-300'
+                          }`}
+                          value={newCategoryName}
+                          onChange={(event) => {
+                            setNewCategoryName(event.target.value)
+                            setNewCategoryError('')
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault()
+                              void handleCreateCategory()
+                            }
+                          }}
+                          placeholder="Nhập danh mục mới"
+                        />
+                        <button
+                          type="button"
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                          onClick={() => void handleCreateCategory()}
+                          disabled={createCategoryLoading}
+                        >
+                          {createCategoryLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                          Thêm
+                        </button>
+                      </div>
+                      {newCategoryError ? <p className="text-xs font-semibold text-rose-600">{newCategoryError}</p> : null}
+                    </div>
                     <SelectField
                       label="Đơn vị tính"
                       required

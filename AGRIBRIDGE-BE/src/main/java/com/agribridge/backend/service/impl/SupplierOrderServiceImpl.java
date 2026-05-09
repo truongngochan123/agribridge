@@ -25,6 +25,7 @@ import com.agribridge.backend.repository.OrderRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.ShipmentEventRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
+import com.agribridge.backend.service.CurrentUserService;
 import com.agribridge.backend.service.SupplierOrderService;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
@@ -60,6 +61,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
     private final ProductRepository productRepository;
     private final ShipmentRepository shipmentRepository;
     private final ShipmentEventRepository shipmentEventRepository;
+    private final CurrentUserService currentUserService;
 
     @Override
     @Transactional(readOnly = true)
@@ -195,6 +197,120 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         return toOrderDto(order, buildLookup(List.of(order)));
     }
 
+    @Override
+    @Transactional
+    public SupplierOrderDto confirmDemoOrder(Long orderId) {
+        Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
+        OrderEntity order = getSupplierOrder(supplierCompanyId, orderId);
+        if (!OrderStatusEnum.PAID_WAITING_SUPPLIER_CONFIRM.equals(order.getStatus())
+                && !OrderStatusEnum.DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM.equals(order.getStatus())) {
+            throw new IllegalArgumentException("Only paid/deposit-paid orders can be confirmed");
+        }
+        order.setStatus(OrderStatusEnum.SUPPLIER_CONFIRMED);
+        order.setUpdatedAt(LocalDateTime.now());
+        OrderEntity saved = orderRepository.save(order);
+        return toOrderDto(saved, buildLookup(List.of(saved)));
+    }
+
+    @Override
+    @Transactional
+    public SupplierOrderDto prepareDemoOrder(Long orderId) {
+        Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
+        OrderEntity order = getSupplierOrder(supplierCompanyId, orderId);
+        requireOrderStatus(order, OrderStatusEnum.SUPPLIER_CONFIRMED);
+        order.setStatus(OrderStatusEnum.PREPARING);
+        order.setUpdatedAt(LocalDateTime.now());
+        OrderEntity saved = orderRepository.save(order);
+        return toOrderDto(saved, buildLookup(List.of(saved)));
+    }
+
+    @Override
+    @Transactional
+    public SupplierOrderDto readyToShipDemoOrder(Long orderId) {
+        Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
+        OrderEntity order = getSupplierOrder(supplierCompanyId, orderId);
+        requireOrderStatus(order, OrderStatusEnum.PREPARING);
+        LocalDateTime now = LocalDateTime.now();
+        ShipmentEntity shipment = findActiveShipment(orderId);
+        if (shipment == null) {
+            shipment = shipmentRepository.save(ShipmentEntity.builder()
+                    .orderId(orderId)
+                    .carrierName("MANUAL")
+                    .providerCode("MANUAL")
+                    .providerName("MANUAL")
+                    .serviceName("Manual delivery")
+                    .shippingMethod("MANUAL")
+                    .receiverName(order.getDeliveryName())
+                    .receiverPhone(order.getDeliveryPhone())
+                    .receiverProvince(order.getDeliveryProvince())
+                    .receiverWard(order.getDeliveryWard())
+                    .receiverAddress(order.getDeliveryAddress())
+                    .trackingCode("AGRI-MANUAL-" + orderId)
+                    .quoteStatus("CREATED")
+                    .estimatedDeliveryAt(order.getExpectedDeliveryDate())
+                    .expectedDeliveryDate(order.getExpectedDeliveryDate())
+                    .shippingFee(safeAmount(order.getShippingFee()))
+                    .feeConfirmed(Boolean.TRUE)
+                    .status(ShipmentStatusEnum.CREATED)
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build());
+            saveShipmentEvent(shipment, "Tạo vận đơn MANUAL demo");
+        }
+        order.setStatus(OrderStatusEnum.READY_TO_SHIP);
+        order.setUpdatedAt(now);
+        OrderEntity saved = orderRepository.save(order);
+        return toOrderDto(saved, buildLookup(List.of(saved)));
+    }
+
+    @Override
+    @Transactional
+    public SupplierOrderDto startShippingDemoOrder(Long orderId) {
+        Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
+        OrderEntity order = getSupplierOrder(supplierCompanyId, orderId);
+        requireOrderStatus(order, OrderStatusEnum.READY_TO_SHIP);
+        ShipmentEntity shipment = findActiveShipment(orderId);
+        if (shipment == null) {
+            throw new IllegalArgumentException("Shipment not found");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        shipment.setStatus(ShipmentStatusEnum.SHIPPING);
+        shipment.setShippedAt(now);
+        shipment.setUpdatedAt(now);
+        shipmentRepository.save(shipment);
+        saveShipmentEvent(shipment, "Bắt đầu giao hàng");
+        order.setStatus(OrderStatusEnum.SHIPPING);
+        order.setUpdatedAt(now);
+        OrderEntity saved = orderRepository.save(order);
+        return toOrderDto(saved, buildLookup(List.of(saved)));
+    }
+
+    @Override
+    @Transactional
+    public SupplierOrderDto markDeliveredDemoOrder(Long orderId) {
+        Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
+        OrderEntity order = getSupplierOrder(supplierCompanyId, orderId);
+        requireOrderStatus(order, OrderStatusEnum.SHIPPING);
+        ShipmentEntity shipment = findActiveShipment(orderId);
+        if (shipment == null) {
+            throw new IllegalArgumentException("Shipment not found");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        shipment.setStatus(ShipmentStatusEnum.DELIVERED);
+        shipment.setDeliveredAt(now);
+        shipment.setUpdatedAt(now);
+        shipmentRepository.save(shipment);
+        saveShipmentEvent(shipment, "Đã giao hàng tới nơi");
+        boolean deposit = "DEPOSIT_50".equals(order.getPaymentOption());
+        order.setStatus(deposit ? OrderStatusEnum.WAITING_FINAL_PAYMENT : OrderStatusEnum.WAITING_BUYER_CONFIRM);
+        if (deposit) {
+            order.setPaymentStatus("WAITING_REMAINING_PAYMENT");
+        }
+        order.setUpdatedAt(now);
+        OrderEntity saved = orderRepository.save(order);
+        return toOrderDto(saved, buildLookup(List.of(saved)));
+    }
+
     private void confirmOrder(OrderEntity order) {
         if (!OrderStatusEnum.PENDING.equals(order.getStatus())
                 && !OrderStatusEnum.PENDING_SUPPLIER_CONFIRMATION.equals(order.getStatus())) {
@@ -229,6 +345,12 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
             }
         }
         order.setStatus(OrderStatusEnum.CONFIRMED);
+    }
+
+    private void requireOrderStatus(OrderEntity order, OrderStatusEnum expected) {
+        if (!expected.equals(order.getStatus())) {
+            throw new IllegalArgumentException("Order must be " + expected);
+        }
     }
 
     private void cancelOrder(OrderEntity order) {
@@ -405,6 +527,12 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         }
         ShipmentStatusEnum shipmentStatus = shipment == null ? null : normalizeShipmentStatus(shipment.getStatus());
         return switch (order.getStatus()) {
+            case PAID_WAITING_SUPPLIER_CONFIRM, DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM -> List.of("VIEW_DETAIL", "CONFIRM_ORDER");
+            case SUPPLIER_CONFIRMED -> List.of("VIEW_DETAIL", "PREPARE_ORDER");
+            case PREPARING -> List.of("VIEW_DETAIL", "READY_TO_SHIP");
+            case READY_TO_SHIP -> List.of("VIEW_DETAIL", "START_SHIPPING");
+            case WAITING_FINAL_PAYMENT, WAITING_BUYER_CONFIRM, COMPLETED, DISPUTED, REFUND_PENDING, REFUNDED -> List.of("VIEW_DETAIL");
+            case PENDING_PAYMENT, PENDING_DEPOSIT -> List.of("VIEW_DETAIL");
             case PENDING_SUPPLIER_CONFIRMATION -> List.of("VIEW_DETAIL", "CONFIRM_ORDER", "CANCEL_ORDER");
             case PENDING -> List.of("VIEW_DETAIL", "CONFIRM_ORDER", "CANCEL_ORDER");
             case CONFIRMED -> {
@@ -438,7 +566,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
 
     private void validateShipmentTransition(ShipmentStatusEnum current, ShipmentStatusEnum next) {
         boolean allowed = switch (current) {
-            case PENDING, PREPARING -> next == ShipmentStatusEnum.SHIPPED;
+            case CREATED, PENDING, PREPARING -> next == ShipmentStatusEnum.SHIPPED || next == ShipmentStatusEnum.SHIPPING;
             case SHIPPED -> next == ShipmentStatusEnum.IN_TRANSIT;
             case IN_TRANSIT -> next == ShipmentStatusEnum.WAITING_CONFIRMATION;
             default -> false;
@@ -527,6 +655,19 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
             return "Chờ xác nhận";
         }
         return switch (status) {
+            case PENDING_PAYMENT -> "Chờ thanh toán";
+            case PENDING_DEPOSIT -> "Chờ thanh toán tiền cọc";
+            case DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM -> "Đã cọc, chờ supplier xác nhận";
+            case PAID_WAITING_SUPPLIER_CONFIRM -> "Đã thanh toán, chờ supplier xác nhận";
+            case SUPPLIER_CONFIRMED -> "Supplier đã xác nhận";
+            case PREPARING -> "Đang chuẩn bị hàng";
+            case READY_TO_SHIP -> "Sẵn sàng giao hàng";
+            case WAITING_FINAL_PAYMENT -> "Chờ thanh toán phần còn lại";
+            case WAITING_BUYER_CONFIRM -> "Chờ buyer xác nhận nhận hàng";
+            case COMPLETED -> "Hoàn tất";
+            case DISPUTED -> "Đang khiếu nại";
+            case REFUND_PENDING -> "Chờ hoàn tiền";
+            case REFUNDED -> "Đã hoàn tiền";
             case PENDING_SUPPLIER_CONFIRMATION -> "Chờ nhà cung cấp xác nhận";
             case PENDING -> "Chờ xác nhận";
             case CONFIRMED -> "Đã xác nhận";
@@ -543,12 +684,13 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         ShipmentStatusEnum status = normalizeShipmentStatus(rawStatus);
         return switch (status) {
             case PENDING -> "Chờ lấy hàng";
+            case CREATED -> "Đã tạo vận đơn";
             case SHIPPED -> "Đã rời kho";
             case IN_TRANSIT -> "Đang vận chuyển";
             case WAITING_CONFIRMATION -> "Chờ buyer xác nhận";
             case DELIVERED -> "Đã giao thành công";
             case CANCELLED -> "Đã hủy giao hàng";
-            case INCIDENT, FAILED -> "Giao thất bại";
+            case INCIDENT, FAILED, FAILED_DELIVERY -> "Giao thất bại";
             case PREPARING -> "Chờ lấy hàng";
             case SHIPPING -> "Đang vận chuyển";
         };

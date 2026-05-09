@@ -9,12 +9,14 @@ import com.agribridge.backend.entity.ProductEntity;
 import com.agribridge.backend.entity.QuoteEntity;
 import com.agribridge.backend.entity.RfqEntity;
 import com.agribridge.backend.entity.enums.RfqStatusEnum;
+import com.agribridge.backend.entity.enums.RfqTypeEnum;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.QuoteRepository;
 import com.agribridge.backend.repository.RfqRepository;
 import com.agribridge.backend.service.BatchAvailabilityService;
+import com.agribridge.backend.service.CurrentUserService;
 import com.agribridge.backend.service.SupplierRfqQuoteService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -31,6 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class SupplierRfqQuoteServiceImpl implements SupplierRfqQuoteService {
 
     private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_SUBMITTED = "SUBMITTED";
+    private static final String STATUS_UPDATED = "UPDATED";
     private static final String STATUS_REJECTED = "REJECTED";
     private static final String TERMINAL_QUOTE_MESSAGE = "Không thể sửa báo giá đã được chấp nhận hoặc từ chối.";
 
@@ -40,21 +44,25 @@ public class SupplierRfqQuoteServiceImpl implements SupplierRfqQuoteService {
     private final ProductRepository productRepository;
     private final BatchRepository batchRepository;
     private final BatchAvailabilityService batchAvailabilityService;
+    private final CurrentUserService currentUserService;
 
     @Override
     @Transactional(readOnly = true)
     public SupplierQuoteContextDto getQuoteContext(Long rfqId) {
+        Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
         RfqEntity rfq = rfqRepository.findById(rfqId)
                 .orElseThrow(() -> new IllegalArgumentException("RFQ does not exist"));
+        validateSupplierCanRespond(supplierCompanyId, rfq);
         ProductEntity product = rfq.getProductId() == null
                 ? null
                 : productRepository.findById(rfq.getProductId()).orElse(null);
         String unit = rfq.getUnit() == null || rfq.getUnit().isBlank()
                 ? (product == null ? null : product.getUnit())
                 : rfq.getUnit();
-        List<SupplierQuoteContextDto.BatchContextDto> batches = rfq.getProductId() == null
+        List<Long> quoteProductIds = quoteProductIds(supplierCompanyId, rfq);
+        List<SupplierQuoteContextDto.BatchContextDto> batches = quoteProductIds.isEmpty()
                 ? List.of()
-                : batchRepository.findByProductIdOrderByCreatedAtDesc(rfq.getProductId())
+                : batchRepository.findByProductIdInOrderByCreatedAtDesc(quoteProductIds)
                         .stream()
                         .filter(batchAvailabilityService::isBuyerVisible)
                         .map(batch -> toBatchContext(batch, unit))
@@ -84,42 +92,56 @@ public class SupplierRfqQuoteServiceImpl implements SupplierRfqQuoteService {
     @Override
     @Transactional
     public void createOrUpdateQuote(Long rfqId, CreateSupplierQuoteDto request) {
-        log.info("Create/update supplier quote rfqId={} supplierCompanyId={}", rfqId, request.supplierCompanyId());
+        Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
+        if (request.supplierCompanyId() != null && !supplierCompanyId.equals(request.supplierCompanyId())) {
+            throw new IllegalArgumentException("Supplier cannot quote for another company");
+        }
+        log.info("Create/update supplier quote rfqId={} supplierCompanyId={}", rfqId, supplierCompanyId);
         QuoteEntity existingQuote = quoteRepository
-                .findTopBySupplierCompanyIdAndRfqIdOrderByCreatedAtDesc(request.supplierCompanyId(), rfqId)
+                .findTopBySupplierCompanyIdAndRfqIdOrderByCreatedAtDesc(supplierCompanyId, rfqId)
                 .orElse(null);
         ensureQuoteCanStillChange(existingQuote);
 
         RfqEntity rfq = validateRfq(rfqId);
-        validateSupplierCanRespond(request.supplierCompanyId(), rfq);
+        validateSupplierCanRespond(supplierCompanyId, rfq);
 
         QuoteEntity quote = existingQuote == null ? new QuoteEntity() : existingQuote;
 
         quote.setRfqId(rfqId);
-        quote.setSupplierCompanyId(request.supplierCompanyId());
-        quote.setBatchId(validateSelectedBatch(request.batchId(), rfq, request.quantity()));
+        quote.setSupplierCompanyId(supplierCompanyId);
+        quote.setBatchId(validateSelectedBatch(request.batchId(), rfq, supplierCompanyId, request.quantity()));
         quote.setPrice(request.price());
         quote.setQuantity(request.quantity());
         quote.setDeliveryDays(request.deliveryDays());
         quote.setNote(normalizeNote(request.note()));
-        quote.setStatus(STATUS_PENDING);
+        quote.setStatus(existingQuote == null ? STATUS_SUBMITTED : STATUS_UPDATED);
         if (quote.getCreatedAt() == null) {
             quote.setCreatedAt(LocalDateTime.now());
         }
         quoteRepository.save(quote);
+        if (RfqStatusEnum.OPEN.equals(rfq.getStatus())) {
+            rfq.setStatus(RfqStatusEnum.QUOTED);
+            rfq.setUpdatedAt(LocalDateTime.now());
+            rfqRepository.save(rfq);
+        }
     }
 
-    private Long validateSelectedBatch(Long batchId, RfqEntity rfq, BigDecimal quoteQuantity) {
+    private Long validateSelectedBatch(Long batchId, RfqEntity rfq, Long supplierCompanyId, BigDecimal quoteQuantity) {
         if (batchId == null) {
             return null;
         }
 
         BatchEntity batch = batchRepository.findById(batchId)
                 .orElseThrow(() -> new IllegalArgumentException("Selected batch does not exist"));
-        if (rfq.getProductId() == null || !rfq.getProductId().equals(batch.getProductId())) {
-            throw new IllegalArgumentException("Selected batch does not belong to this RFQ product");
+        ProductEntity batchProduct = productRepository.findById(batch.getProductId())
+                .orElseThrow(() -> new IllegalArgumentException("Selected batch product does not exist"));
+        if (!supplierCompanyId.equals(batchProduct.getSupplierCompanyId())) {
+            throw new IllegalArgumentException("Selected batch does not belong to this supplier");
         }
-        batchAvailabilityService.validateOrderable(batch, rfq.getProductId(), quoteQuantity);
+        if (!productMatchesRfq(batchProduct, rfq)) {
+            throw new IllegalArgumentException("Selected batch does not match this RFQ");
+        }
+        batchAvailabilityService.validateOrderable(batch, batch.getProductId(), quoteQuantity);
         return batchId;
     }
 
@@ -141,19 +163,23 @@ public class SupplierRfqQuoteServiceImpl implements SupplierRfqQuoteService {
     @Override
     @Transactional
     public void rejectRfq(Long rfqId, RejectSupplierRfqDto request) {
-        log.info("Reject supplier rfq rfqId={} supplierCompanyId={}", rfqId, request.supplierCompanyId());
+        Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
+        if (request.supplierCompanyId() != null && !supplierCompanyId.equals(request.supplierCompanyId())) {
+            throw new IllegalArgumentException("Supplier cannot reject for another company");
+        }
+        log.info("Reject supplier rfq rfqId={} supplierCompanyId={}", rfqId, supplierCompanyId);
         QuoteEntity existingQuote = quoteRepository
-                .findTopBySupplierCompanyIdAndRfqIdOrderByCreatedAtDesc(request.supplierCompanyId(), rfqId)
+                .findTopBySupplierCompanyIdAndRfqIdOrderByCreatedAtDesc(supplierCompanyId, rfqId)
                 .orElse(null);
         ensureQuoteCanStillChange(existingQuote);
 
         RfqEntity rfq = validateRfq(rfqId);
-        validateSupplierCanRespond(request.supplierCompanyId(), rfq);
+        validateSupplierCanRespond(supplierCompanyId, rfq);
 
         QuoteEntity quote = existingQuote == null ? new QuoteEntity() : existingQuote;
 
         quote.setRfqId(rfqId);
-        quote.setSupplierCompanyId(request.supplierCompanyId());
+        quote.setSupplierCompanyId(supplierCompanyId);
         quote.setPrice(quote.getPrice() == null ? BigDecimal.ZERO : quote.getPrice());
         quote.setQuantity(rfq.getQuantity() == null ? BigDecimal.ZERO : rfq.getQuantity());
         quote.setDeliveryDays(null);
@@ -164,7 +190,7 @@ public class SupplierRfqQuoteServiceImpl implements SupplierRfqQuoteService {
     }
 
     private void ensureQuoteCanStillChange(QuoteEntity quote) {
-        if (quote == null || quote.getStatus() == null || STATUS_PENDING.equalsIgnoreCase(quote.getStatus())) {
+        if (quote == null || quote.getStatus() == null || List.of(STATUS_PENDING, STATUS_SUBMITTED, STATUS_UPDATED, "SENT", "DRAFT").contains(quote.getStatus().toUpperCase(Locale.ROOT))) {
             return;
         }
         throw new IllegalArgumentException(TERMINAL_QUOTE_MESSAGE);
@@ -173,7 +199,7 @@ public class SupplierRfqQuoteServiceImpl implements SupplierRfqQuoteService {
     private RfqEntity validateRfq(Long rfqId) {
         RfqEntity rfq = rfqRepository.findById(rfqId)
                 .orElseThrow(() -> new IllegalArgumentException("RFQ does not exist"));
-        if (!RfqStatusEnum.OPEN.equals(rfq.getStatus())) {
+        if (!RfqStatusEnum.OPEN.equals(rfq.getStatus()) && !RfqStatusEnum.QUOTED.equals(rfq.getStatus())) {
             throw new IllegalArgumentException("RFQ is not open");
         }
         if (rfq.getExpiredAt() != null && !rfq.getExpiredAt().isAfter(LocalDateTime.now())) {
@@ -183,14 +209,31 @@ public class SupplierRfqQuoteServiceImpl implements SupplierRfqQuoteService {
     }
 
     private void validateSupplierCanRespond(Long supplierCompanyId, RfqEntity rfq) {
+        if (rfq.getBuyerCompanyId() != null && rfq.getBuyerCompanyId().equals(supplierCompanyId)) {
+            throw new IllegalArgumentException("Supplier cannot quote own RFQ");
+        }
         CompanyEntity supplier = companyRepository.findById(supplierCompanyId)
                 .orElseThrow(() -> new IllegalArgumentException("Supplier company does not exist"));
+
+        RfqTypeEnum type = rfq.getType() == null ? RfqTypeEnum.MARKETPLACE : rfq.getType();
+        if (type == RfqTypeEnum.DIRECT) {
+            if (!supplierCompanyId.equals(rfq.getSupplierCompanyId())) {
+                throw new IllegalArgumentException("Supplier is not eligible to respond to this direct RFQ");
+            }
+            return;
+        }
 
         List<ProductEntity> products = productRepository.findBySupplierCompanyId(supplierCompanyId);
         boolean matchesProduct = rfq.getProductId() != null
                 && products.stream().anyMatch(product -> rfq.getProductId().equals(product.getId()));
         boolean matchesCategory = rfq.getCategoryId() != null
                 && products.stream().anyMatch(product -> rfq.getCategoryId().equals(product.getCategoryId()));
+        String requestedProductName = normalizeKeyword(firstText(rfq.getProductName(), rfq.getTitle()));
+        boolean matchesKeyword = requestedProductName != null
+                && products.stream()
+                        .map(ProductEntity::getName)
+                        .map(this::normalizeKeyword)
+                        .anyMatch(name -> name != null && (name.contains(requestedProductName) || requestedProductName.contains(name)));
         boolean matchesProvince = normalizeKeyword(rfq.getProvince()) != null
                 && products.stream().map(ProductEntity::getOriginProvince).map(this::normalizeKeyword)
                         .anyMatch(province -> province != null && province.equals(normalizeKeyword(rfq.getProvince())));
@@ -200,9 +243,39 @@ public class SupplierRfqQuoteServiceImpl implements SupplierRfqQuoteService {
             matchesProvince = supplierProvince != null && supplierProvince.equals(normalizeKeyword(rfq.getProvince()));
         }
 
-        if (!matchesProduct && !matchesCategory && !matchesProvince) {
+        if (!matchesProduct && !matchesCategory && !matchesKeyword && !matchesProvince) {
             throw new IllegalArgumentException("Supplier is not eligible to respond to this RFQ");
         }
+    }
+
+    private List<Long> quoteProductIds(Long supplierCompanyId, RfqEntity rfq) {
+        List<ProductEntity> products = productRepository.findBySupplierCompanyId(supplierCompanyId);
+        return products.stream()
+                .filter(product -> productMatchesRfq(product, rfq))
+                .map(ProductEntity::getId)
+                .toList();
+    }
+
+    private boolean productMatchesRfq(ProductEntity product, RfqEntity rfq) {
+        if (product == null || rfq == null) {
+            return false;
+        }
+        if (rfq.getProductId() != null && rfq.getProductId().equals(product.getId())) {
+            return true;
+        }
+        if (rfq.getCategoryId() != null && rfq.getCategoryId().equals(product.getCategoryId())) {
+            return true;
+        }
+        String requestedProductName = normalizeKeyword(firstText(rfq.getProductName(), rfq.getTitle()));
+        String supplierProductName = normalizeKeyword(product.getName());
+        return requestedProductName != null
+                && supplierProductName != null
+                && (supplierProductName.contains(requestedProductName) || requestedProductName.contains(supplierProductName));
+    }
+
+    private String firstText(String first, String fallback) {
+        String normalized = normalizeNote(first);
+        return normalized == null ? normalizeNote(fallback) : normalized;
     }
 
     private String normalizeKeyword(String value) {

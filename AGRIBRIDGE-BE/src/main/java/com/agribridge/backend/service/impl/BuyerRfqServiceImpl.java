@@ -21,6 +21,7 @@ import com.agribridge.backend.entity.RfqEntity;
 import com.agribridge.backend.entity.enums.InvoiceStatusEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
 import com.agribridge.backend.entity.enums.RfqStatusEnum;
+import com.agribridge.backend.entity.enums.RfqTypeEnum;
 import com.agribridge.backend.entity.enums.VerificationStatusEnum;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.BranchRepository;
@@ -71,6 +72,8 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
     private static final String QUOTE_ACCEPTED = "ACCEPTED";
     private static final String QUOTE_REJECTED = "REJECTED";
     private static final String QUOTE_CANCELLED = "CANCELLED";
+    private static final String TYPE_DIRECT = "DIRECT";
+    private static final String TYPE_MARKETPLACE = "MARKETPLACE";
     private static final Set<String> TERMINAL_QUOTES = Set.of(QUOTE_ACCEPTED, QUOTE_REJECTED, QUOTE_CANCELLED);
     private static final DateTimeFormatter INVOICE_TS = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -136,6 +139,8 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
                         rfq.getId(),
                         rfqCode(rfq.getId()),
                         rfq.getTitle(),
+                        rfqType(rfq).name(),
+                        productName(rfq),
                         productName(rfq),
                         rfq.getQuantity(),
                         rfq.getUnit(),
@@ -160,9 +165,7 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
     @Transactional
     public BuyerRfqDetailResponse createRfq(CreateBuyerRfqRequest request) {
         Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
-        if (request.productId() == null && request.categoryId() == null) {
-            throw new IllegalArgumentException("productId or categoryId is required");
-        }
+        RfqTypeEnum type = parseType(request.type(), RfqTypeEnum.MARKETPLACE);
         if (request.expiredAt() == null || !request.expiredAt().isAfter(LocalDateTime.now())) {
             throw new IllegalArgumentException("expiredAt must be greater than now");
         }
@@ -176,14 +179,34 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
         if (categoryId != null && !categoryRepository.existsById(categoryId)) {
             throw new IllegalArgumentException("CATEGORY_NOT_FOUND");
         }
+        if (type == RfqTypeEnum.MARKETPLACE && categoryId == null && normalizeText(request.productName()) == null && normalizeText(request.title()) == null) {
+            throw new IllegalArgumentException("categoryId or productName is required");
+        }
+        Long supplierCompanyId = firstNonNull(request.supplierCompanyId(), request.supplierId());
+        if (type == RfqTypeEnum.DIRECT) {
+            if (product == null) {
+                throw new IllegalArgumentException("productId is required for direct RFQ");
+            }
+            supplierCompanyId = product.getSupplierCompanyId();
+            if (supplierCompanyId == null) {
+                throw new IllegalArgumentException("SUPPLIER_NOT_FOUND");
+            }
+        } else {
+            supplierCompanyId = null;
+        }
         BranchEntity branch = validateBranchForBuyer(request.branchId(), buyerCompanyId).orElse(null);
+        String productName = firstText(request.productName(), product == null ? request.title() : product.getName());
+        LocalDateTime now = LocalDateTime.now();
 
         RfqEntity rfq = rfqRepository.save(RfqEntity.builder()
                 .buyerCompanyId(buyerCompanyId)
+                .type(type)
+                .supplierCompanyId(supplierCompanyId)
                 .branchId(branch == null ? null : branch.getId())
                 .productId(product == null ? null : product.getId())
                 .categoryId(categoryId)
                 .title(normalizeRequired(request.title(), "title is required"))
+                .productName(productName)
                 .description(normalizeText(request.description()))
                 .quantity(request.quantity())
                 .unit(normalizeRequired(request.unit(), "unit is required"))
@@ -191,7 +214,8 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
                 .province(firstText(request.province(), branch == null ? null : branch.getProvince()))
                 .expiredAt(request.expiredAt())
                 .status(RfqStatusEnum.OPEN)
-                .createdAt(LocalDateTime.now())
+                .createdAt(now)
+                .updatedAt(now)
                 .build());
         return toDetail(rfq, 0);
     }
@@ -201,7 +225,7 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
     public BuyerRfqDetailResponse updateRfq(Long rfqId, UpdateBuyerRfqRequest request) {
         Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
         RfqEntity rfq = findBuyerRfq(buyerCompanyId, rfqId);
-        if (RfqStatusEnum.CLOSED.equals(rfq.getStatus())) {
+        if (RfqStatusEnum.CLOSED.equals(rfq.getStatus()) || RfqStatusEnum.ACCEPTED.equals(rfq.getStatus())) {
             throw new IllegalArgumentException(RFQ_ALREADY_CONVERTED);
         }
         if (RfqStatusEnum.CANCELLED.equals(rfq.getStatus())) {
@@ -241,6 +265,7 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
                     .orElseThrow(() -> new IllegalArgumentException(BRANCH_NOT_BELONG_TO_BUYER));
             rfq.setBranchId(branch.getId());
         }
+        rfq.setUpdatedAt(LocalDateTime.now());
         return toDetail(rfqRepository.save(rfq), quoteRepository.countByRfqId(rfqId));
     }
 
@@ -249,12 +274,13 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
     public void cancelRfq(Long rfqId) {
         Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
         RfqEntity rfq = findBuyerRfq(buyerCompanyId, rfqId);
-        if (RfqStatusEnum.CLOSED.equals(rfq.getStatus()) || hasOrderForRfq(rfqId)) {
+        if (RfqStatusEnum.CLOSED.equals(rfq.getStatus()) || RfqStatusEnum.ACCEPTED.equals(rfq.getStatus()) || hasOrderForRfq(rfqId)) {
             throw new IllegalArgumentException(RFQ_ALREADY_CONVERTED);
         }
         rfq.setStatus(RfqStatusEnum.CANCELLED);
+        rfq.setUpdatedAt(LocalDateTime.now());
         rfqRepository.save(rfq);
-        quoteRepository.updateStatusesByRfqId(rfqId, List.of("PENDING", "SENT"), QUOTE_CANCELLED);
+        quoteRepository.updateStatusesByRfqId(rfqId, List.of("PENDING", "SENT", "SUBMITTED", "UPDATED"), QUOTE_CANCELLED);
     }
 
     @Override
@@ -265,7 +291,7 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
             ConvertQuoteToOrderRequest request) {
         Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
         RfqEntity rfq = findBuyerRfq(buyerCompanyId, rfqId);
-        if (RfqStatusEnum.CLOSED.equals(rfq.getStatus()) || hasOrderForRfq(rfqId)) {
+        if (RfqStatusEnum.CLOSED.equals(rfq.getStatus()) || RfqStatusEnum.ACCEPTED.equals(rfq.getStatus()) || hasOrderForRfq(rfqId)) {
             throw new IllegalArgumentException(RFQ_ALREADY_CONVERTED);
         }
         if (rfq.getExpiredAt() != null && !rfq.getExpiredAt().isAfter(LocalDateTime.now())) {
@@ -351,7 +377,8 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
         quote.setStatus(QUOTE_ACCEPTED);
         quoteRepository.save(quote);
         quoteRepository.updateOtherQuotesStatus(rfqId, quoteId, QUOTE_REJECTED, TERMINAL_QUOTES);
-        rfq.setStatus(RfqStatusEnum.CLOSED);
+        rfq.setStatus(RfqStatusEnum.ACCEPTED);
+        rfq.setUpdatedAt(now);
         rfqRepository.save(rfq);
 
         return new ConvertQuoteToOrderResponse(
@@ -391,16 +418,22 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
     }
 
     private BuyerRfqListItemResponse toListItem(RfqEntity rfq, long quoteCount) {
+        CompanyEntity supplier = loadCompany(rfq.getSupplierCompanyId()).orElse(null);
+        String resolvedProductName = productName(rfq);
         return new BuyerRfqListItemResponse(
                 rfq.getId(),
                 rfqCode(rfq.getId()),
                 rfq.getTitle(),
+                rfqType(rfq).name(),
                 rfq.getStatus() == null ? null : rfq.getStatus().name(),
                 quoteCount,
                 rfq.getCreatedAt(),
                 rfq.getExpiredAt(),
-                productName(rfq),
+                resolvedProductName,
+                resolvedProductName,
                 rfq.getProductId(),
+                rfq.getSupplierCompanyId(),
+                supplier == null ? null : supplier.getName(),
                 rfq.getCategoryId(),
                 rfq.getQuantity(),
                 rfq.getUnit(),
@@ -415,17 +448,23 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
         CategoryEntity category = rfq.getCategoryId() == null
                 ? null
                 : categoryRepository.findById(rfq.getCategoryId()).orElse(null);
+        CompanyEntity supplier = loadCompany(rfq.getSupplierCompanyId()).orElse(null);
+        String resolvedProductName = productName(rfq);
         return new BuyerRfqDetailResponse(
                 rfq.getId(),
                 rfqCode(rfq.getId()),
                 rfq.getTitle(),
                 rfq.getDescription(),
+                rfqType(rfq).name(),
                 rfq.getStatus() == null ? null : rfq.getStatus().name(),
                 quoteCount,
                 rfq.getCreatedAt(),
                 rfq.getExpiredAt(),
                 rfq.getProductId(),
-                productName(rfq),
+                resolvedProductName,
+                resolvedProductName,
+                rfq.getSupplierCompanyId(),
+                supplier == null ? null : supplier.getName(),
                 rfq.getCategoryId(),
                 category == null ? null : category.getName(),
                 rfq.getQuantity(),
@@ -544,6 +583,10 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
         return branchId == null ? Optional.empty() : branchRepository.findById(branchId);
     }
 
+    private Optional<CompanyEntity> loadCompany(Long companyId) {
+        return companyId == null ? Optional.empty() : companyRepository.findById(companyId);
+    }
+
     private RfqStatusEnum parseStatus(String rawStatus) {
         String value = normalizeText(rawStatus);
         if (value == null) {
@@ -554,6 +597,22 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
         } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException("Invalid RFQ status");
         }
+    }
+
+    private RfqTypeEnum parseType(String rawType, RfqTypeEnum fallback) {
+        String value = normalizeText(rawType);
+        if (value == null) {
+            return fallback;
+        }
+        try {
+            return RfqTypeEnum.valueOf(value.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Invalid RFQ type");
+        }
+    }
+
+    private RfqTypeEnum rfqType(RfqEntity rfq) {
+        return rfq == null || rfq.getType() == null ? RfqTypeEnum.MARKETPLACE : rfq.getType();
     }
 
     private boolean isQuoteUnavailable(QuoteEntity quote) {
@@ -567,12 +626,16 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
     }
 
     private String productName(RfqEntity rfq) {
+        String stored = normalizeText(rfq.getProductName());
+        if (stored != null) {
+            return stored;
+        }
         ProductEntity product = rfq.getProduct();
         if (product != null) {
             return product.getName();
         }
         return rfq.getProductId() == null
-                ? null
+                ? rfq.getTitle()
                 : productRepository.findById(rfq.getProductId()).map(ProductEntity::getName).orElse(null);
     }
 
@@ -614,6 +677,10 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
     private String firstText(String first, String fallback) {
         String normalized = normalizeText(first);
         return normalized == null ? normalizeText(fallback) : normalized;
+    }
+
+    private Long firstNonNull(Long first, Long fallback) {
+        return first == null ? fallback : first;
     }
 
     private String normalizeRequired(String value, String message) {

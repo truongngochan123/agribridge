@@ -4,6 +4,7 @@ import type {
   CategoryOption,
   CreateProductOnlyRequest,
   CreateBatchForProductRequest,
+  CreateSupplierCategoryRequest,
   CreateProductWithFirstBatchRequest,
   MetadataListPayload,
   SupplierBatchCard,
@@ -68,15 +69,32 @@ export interface RejectSupplierRfqRequest {
   note?: string
 }
 
-export type SupplierOrderStatusCode = 'PENDING' | 'CONFIRMED' | 'SHIPPING' | 'DELIVERED' | 'CANCELLED'
+export type SupplierOrderStatusCode =
+  | 'PENDING'
+  | 'PENDING_PAYMENT'
+  | 'PENDING_DEPOSIT'
+  | 'DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM'
+  | 'PAID_WAITING_SUPPLIER_CONFIRM'
+  | 'SUPPLIER_CONFIRMED'
+  | 'PREPARING'
+  | 'READY_TO_SHIP'
+  | 'CONFIRMED'
+  | 'SHIPPING'
+  | 'DELIVERED'
+  | 'WAITING_FINAL_PAYMENT'
+  | 'WAITING_BUYER_CONFIRM'
+  | 'COMPLETED'
+  | 'CANCELLED'
 export type SupplierShipmentStatusCode =
   | 'PENDING'
+  | 'CREATED'
   | 'SHIPPED'
   | 'IN_TRANSIT'
   | 'WAITING_CONFIRMATION'
   | 'DELIVERED'
   | 'CANCELLED'
   | 'FAILED'
+  | 'FAILED_DELIVERY'
   | 'PREPARING'
   | 'SHIPPING'
 
@@ -86,6 +104,8 @@ export type SupplierOrderAction =
   | 'CANCEL_ORDER'
   | 'CREATE_SHIPMENT'
   | 'START_SHIPPING'
+  | 'PREPARE_ORDER'
+  | 'READY_TO_SHIP'
   | 'MARK_IN_TRANSIT'
   | 'MARK_ARRIVED'
   | 'REPORT_INCIDENT'
@@ -192,6 +212,21 @@ export async function fetchSupplierDashboard(forceRefresh = false): Promise<Supp
   const response = await apiClient.get<SupplierDashboardPayload>('/api/supplier/dashboard')
 
   dashboardCache = response.data
+  return response.data
+}
+
+export async function runSupplierDemoOrderAction(orderId: number, action: SupplierOrderAction): Promise<SupplierOrderRow> {
+  const endpointByAction: Partial<Record<SupplierOrderAction, string>> = {
+    CONFIRM_ORDER: 'confirm',
+    PREPARE_ORDER: 'prepare',
+    READY_TO_SHIP: 'ready-to-ship',
+    START_SHIPPING: 'start-shipping',
+    MARK_ARRIVED: 'mark-delivered',
+  }
+  const endpoint = endpointByAction[action]
+  if (!endpoint) throw new Error(`Unsupported supplier demo action: ${action}`)
+  const response = await apiClient.post<SupplierOrderRow>(`/api/supplier/orders/${orderId}/${endpoint}`)
+  clearSupplierDashboardCache()
   return response.data
 }
 
@@ -357,8 +392,15 @@ export async function fetchCertificationNames(): Promise<string[]> {
   return response.data.items
 }
 
-export async function fetchCategories(): Promise<CategoryOption[]> {
-  const response = await apiClient.get<CategoryOption[]>('/api/public/metadata/categories')
+export async function fetchCategories(userId?: number): Promise<CategoryOption[]> {
+  const response = await apiClient.get<CategoryOption[]>('/api/public/metadata/categories', {
+    params: userId ? { userId } : undefined,
+  })
+  return response.data
+}
+
+export async function createSupplierCategory(payload: CreateSupplierCategoryRequest): Promise<CategoryOption> {
+  const response = await apiClient.post<CategoryOption>('/api/supplier/categories', payload)
   return response.data
 }
 

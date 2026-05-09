@@ -53,7 +53,19 @@ public class BuyerRfqController {
     @PostMapping
     public BuyerRfqDetailResponse createRfq(
             @Valid @RequestBody CreateBuyerRfqRequest request) {
-        return buyerRfqService.createRfq(request);
+        return buyerRfqService.createRfq(asType(request, "MARKETPLACE"));
+    }
+
+    @PostMapping("/marketplace")
+    public BuyerRfqDetailResponse createMarketplaceRfq(
+            @Valid @RequestBody CreateBuyerRfqRequest request) {
+        return buyerRfqService.createRfq(asType(request, "MARKETPLACE"));
+    }
+
+    @PostMapping("/direct")
+    public BuyerRfqDetailResponse createDirectRfq(
+            @Valid @RequestBody CreateBuyerRfqRequest request) {
+        return buyerRfqService.createRfq(asType(request, "DIRECT"));
     }
 
     @PutMapping("/{rfqId}")
@@ -77,9 +89,35 @@ public class BuyerRfqController {
         return buyerRfqService.convertQuoteToOrder(rfqId, quoteId, request);
     }
 
+    @PostMapping("/{rfqId}/quotes/{quoteId}/accept")
+    public ConvertQuoteToOrderResponse acceptQuote(
+            @PathVariable Long rfqId,
+            @PathVariable Long quoteId,
+            @RequestBody(required = false) ConvertQuoteToOrderRequest request) {
+        return buyerRfqService.convertQuoteToOrder(rfqId, quoteId, request);
+    }
+
     @GetMapping("/{rfqId}/orders")
     public List<ConvertQuoteToOrderResponse> getRfqOrders(
             @PathVariable Long rfqId) {
         return buyerRfqService.getRfqOrders(rfqId);
+    }
+
+    private CreateBuyerRfqRequest asType(CreateBuyerRfqRequest request, String type) {
+        return new CreateBuyerRfqRequest(
+                request.title(),
+                type,
+                request.supplierId(),
+                request.supplierCompanyId(),
+                request.productName(),
+                request.productId(),
+                request.categoryId(),
+                request.branchId(),
+                request.quantity(),
+                request.unit(),
+                request.province(),
+                request.deliveryDate(),
+                request.expiredAt(),
+                request.description());
     }
 }

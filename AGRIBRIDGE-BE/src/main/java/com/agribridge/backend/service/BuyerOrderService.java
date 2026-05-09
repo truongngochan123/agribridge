@@ -14,6 +14,10 @@ public interface BuyerOrderService {
 
     BuyerQuickOrderResponseDto createQuickOrder(BuyerQuickOrderRequestDto request);
 
+    BuyerOrderDto demoConfirmPayment(Long orderId);
+
+    BuyerOrderDto demoPayRemaining(Long orderId);
+
     BuyerOrderDto.ComplaintDto createComplaint(Long orderId, CreateBuyerComplaintRequestDto request);
 
     void confirmReceived(Long buyerCompanyId, Long orderId);

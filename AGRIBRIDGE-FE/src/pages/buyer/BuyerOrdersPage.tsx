@@ -9,9 +9,12 @@ import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   confirmBuyerOrderReceived,
   createBuyerOrderComplaint,
+  demoConfirmBuyerOrderPayment,
+  demoPayBuyerOrderRemaining,
   fetchBuyerOrder,
   fetchBuyerOrders,
   type BuyerOrder,
+  type BuyerOrderPayment,
 } from '../../services/buyerOrderService'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
 
@@ -24,6 +27,106 @@ function formatDate(value?: string | null) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
   return parsed.toLocaleDateString('vi-VN')
+}
+
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  PENDING_PAYMENT: 'Chờ thanh toán',
+  PENDING_DEPOSIT: 'Chờ thanh toán tiền cọc',
+  DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM: 'Đã cọc, chờ supplier xác nhận',
+  PAID_WAITING_SUPPLIER_CONFIRM: 'Đã thanh toán, chờ supplier xác nhận',
+  SUPPLIER_CONFIRMED: 'Supplier đã xác nhận',
+  PREPARING: 'Đang chuẩn bị hàng',
+  READY_TO_SHIP: 'Sẵn sàng giao hàng',
+  SHIPPING: 'Đang giao hàng',
+  DELIVERED: 'Đã giao tới nơi',
+  WAITING_FINAL_PAYMENT: 'Chờ thanh toán phần còn lại',
+  WAITING_BUYER_CONFIRM: 'Chờ buyer xác nhận nhận hàng',
+  COMPLETED: 'Hoàn tất',
+  CANCELLED: 'Đã hủy',
+  DISPUTED: 'Đang khiếu nại',
+  REFUND_PENDING: 'Chờ hoàn tiền',
+  REFUNDED: 'Đã hoàn tiền',
+}
+
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  WAITING_TRANSFER: 'Chờ chuyển khoản',
+  PENDING_VERIFY: 'Chờ xác minh',
+  PARTIALLY_PAID: 'Đã thanh toán một phần',
+  WAITING_REMAINING_PAYMENT: 'Chờ thanh toán số tiền còn lại',
+  PAID: 'Đã thanh toán',
+  FAILED: 'Thất bại',
+  REFUND_PENDING: 'Chờ hoàn tiền',
+  REFUNDED: 'Đã hoàn tiền',
+}
+
+const ESCROW_STATUS_LABELS: Record<string, string> = {
+  NOT_FUNDED: 'Sàn chưa nhận tiền',
+  PARTIALLY_HELD: 'Sàn đang giữ tiền cọc',
+  HELD: 'Sàn đang giữ tiền',
+  RELEASE_PENDING: 'Chờ giải ngân',
+  RELEASED: 'Sàn đã giải ngân',
+  REFUND_PENDING: 'Chờ hoàn tiền',
+  REFUNDED: 'Đã hoàn tiền',
+  DISPUTED: 'Đang khiếu nại',
+}
+
+const SHIPMENT_STATUS_LABELS: Record<string, string> = {
+  CREATED: 'Đã tạo vận đơn',
+  SHIPPING: 'Đang vận chuyển',
+  DELIVERED: 'Đã giao hàng',
+  FAILED_DELIVERY: 'Giao thất bại',
+  CANCELLED: 'Đã hủy',
+  PENDING: 'Chờ lấy hàng',
+  PREPARING: 'Đang chuẩn bị',
+  SHIPPED: 'Đã rời kho',
+  IN_TRANSIT: 'Đang vận chuyển',
+  WAITING_CONFIRMATION: 'Chờ buyer xác nhận',
+  FAILED: 'Thất bại',
+}
+
+function statusLabel(status?: string | null) {
+  if (!status) return 'Chưa có trạng thái'
+  return `${ORDER_STATUS_LABELS[status] || status} (${status})`
+}
+
+function labeledStatus(status?: string | null, labels: Record<string, string> = {}) {
+  if (!status) return 'Chưa có'
+  return `${labels[status] || status} (${status})`
+}
+
+function findPayablePayment(order?: BuyerOrder | null): BuyerOrderPayment | null {
+  if (!order) return null
+  if (order.status === 'WAITING_FINAL_PAYMENT') {
+    return {
+      id: 0,
+      amount: order.remainingAmount ?? Math.max((order.totalAmount ?? 0) - (order.invoicePaidAmount ?? 0), 0),
+      paidAmount: 0,
+      paymentMethod: 'BANK_TRANSFER_DEMO',
+      paymentType: 'REMAINING',
+      status: 'WAITING_REMAINING_PAYMENT',
+      escrowStatus: order.escrowStatus,
+      transferContent: `AGRI-REMAINING-${order.orderId ?? order.id}`,
+    }
+  }
+  if (!order.payments?.length) return null
+  if (order.status === 'PENDING_PAYMENT' || order.status === 'PENDING_DEPOSIT') {
+    return order.payments.find((payment) => payment.status === 'WAITING_TRANSFER') ?? order.payments[0]
+  }
+  return order.payments.find((payment) => payment.status === 'WAITING_REMAINING_PAYMENT') ?? null
+}
+
+function transferContentFor(order: BuyerOrder, payment?: BuyerOrderPayment | null) {
+  if (payment?.transferContent) return payment.transferContent
+  if (order.status === 'WAITING_FINAL_PAYMENT') return `AGRI-REMAINING-${order.orderId ?? order.id}`
+  if (order.paymentOption === 'DEPOSIT_50' || order.status === 'PENDING_DEPOSIT') return `AGRI-DEPOSIT-${order.orderId ?? order.id}`
+  return `AGRI-ORDER-${order.orderId ?? order.id}`
+}
+
+function payableAmountFor(order: BuyerOrder, payment?: BuyerOrderPayment | null) {
+  if (payment?.amount != null) return payment.amount
+  if (order.status === 'WAITING_FINAL_PAYMENT') return order.remainingAmount ?? Math.max((order.totalAmount ?? 0) - (order.invoicePaidAmount ?? 0), 0)
+  if (order.status === 'PENDING_DEPOSIT') return order.depositAmount ?? (order.totalAmount ?? 0) * 0.5
+  return order.totalAmount ?? 0
 }
 
 export function BuyerOrdersPage() {
@@ -122,6 +225,32 @@ export function BuyerOrdersPage() {
     }
   }
 
+  const handleDemoConfirmPayment = async () => {
+    if (!selectedOrder?.orderId) return
+    try {
+      const updated = await demoConfirmBuyerOrderPayment(selectedOrder.orderId)
+      setOrders((current) => current.map((item) => (item.orderId === updated.orderId ? updated : item)))
+      setSelectedOrderId(updated.id)
+      showToast('Đã demo xác nhận thanh toán.', 'success')
+      await loadOrders()
+    } catch (requestError) {
+      showToast(readApiErrorMessage(requestError) || 'Không thể xác nhận thanh toán demo.', 'error')
+    }
+  }
+
+  const handleDemoPayRemaining = async () => {
+    if (!selectedOrder?.orderId) return
+    try {
+      const updated = await demoPayBuyerOrderRemaining(selectedOrder.orderId)
+      setOrders((current) => current.map((item) => (item.orderId === updated.orderId ? updated : item)))
+      setSelectedOrderId(updated.id)
+      showToast('Đã demo thanh toán phần còn lại.', 'success')
+      await loadOrders()
+    } catch (requestError) {
+      showToast(readApiErrorMessage(requestError) || 'Không thể thanh toán phần còn lại.', 'error')
+    }
+  }
+
   const handleCreateComplaint = async () => {
     if (!selectedOrder?.orderId || !complaintDraft.title.trim() || !complaintDraft.description.trim()) {
       showToast('Vui lòng nhập tiêu đề và nội dung khiếu nại.', 'error')
@@ -215,7 +344,7 @@ export function BuyerOrdersPage() {
                     </td>
                     <td className="px-3 py-2.5 text-slate-700">{row.branch}</td>
                     <td className="px-3 py-2.5 font-bold text-slate-900">{row.value}</td>
-                    <td className="px-3 py-2.5"><BuyerStatusPill status={row.status} /></td>
+                    <td className="px-3 py-2.5"><BuyerStatusPill status={statusLabel(row.status)} /></td>
                     <td className="px-3 py-2.5">
                       <button
                         className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors active:scale-95"
@@ -247,7 +376,7 @@ export function BuyerOrdersPage() {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="rounded-md bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-600">{selectedOrder.status}</span>
+                <span className="rounded-md bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-600">{statusLabel(selectedOrder.status)}</span>
                 <button className="text-slate-500" onClick={() => setOpenDetail(false)}>
                   <X className="h-4 w-4" />
                 </button>
@@ -336,6 +465,16 @@ export function BuyerOrdersPage() {
 
                   <div className="rounded-lg bg-slate-50 p-3">
                     <h4 className="mb-2 text-sm font-bold">Thông tin vận chuyển</h4>
+                    {selectedOrder.shipment ? (
+                      <div className="mb-3 grid gap-2 rounded-lg border border-slate-200 bg-white p-3 text-xs md:grid-cols-3">
+                        <p><span className="text-slate-500">Provider:</span> <span className="font-bold">{selectedOrder.shipment.provider || 'MANUAL'}</span></p>
+                        <p><span className="text-slate-500">Tracking:</span> <span className="font-bold">{selectedOrder.shipment.trackingCode || selectedOrder.trackingCode || 'Chưa có'}</span></p>
+                        <p><span className="text-slate-500">Trạng thái:</span> <span className="font-bold">{labeledStatus(selectedOrder.shipment.shipmentStatus, SHIPMENT_STATUS_LABELS)}</span></p>
+                        <p><span className="text-slate-500">Dự kiến:</span> <span className="font-bold">{formatDate(selectedOrder.shipment.expectedDeliveryDate || selectedOrder.expectedDeliveryDate)}</span></p>
+                        <p><span className="text-slate-500">Đã giao:</span> <span className="font-bold">{formatDate(selectedOrder.shipment.deliveredAt)}</span></p>
+                        <p><span className="text-slate-500">Người nhận:</span> <span className="font-bold">{selectedOrder.shipment.receiverName || selectedOrder.deliveryName || 'Chưa có'}</span></p>
+                      </div>
+                    ) : null}
                     <div className="grid gap-2 md:grid-cols-3 text-sm">
                       <p><span className="text-slate-500">Tài xế:</span> {selectedOrder.driverName || 'Chưa có'}</p>
                       <p><span className="text-slate-500">Số điện thoại:</span> {selectedOrder.driverPhone || selectedOrder.deliveryPhone || 'Chưa có'}</p>
@@ -349,9 +488,38 @@ export function BuyerOrdersPage() {
                 </div>
               ) : activeTab === 'invoice' ? (
                 <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <button className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white">Thanh toán</button>
-                  </div>
+                  {findPayablePayment(selectedOrder) ? (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-extrabold text-emerald-900">Thông tin chuyển khoản demo</p>
+                          <p className="text-xs text-emerald-700">Sàn giữ tiền escrow và chỉ giải ngân sau khi buyer xác nhận nhận hàng.</p>
+                        </div>
+                        <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-emerald-700">
+                          {labeledStatus(findPayablePayment(selectedOrder)?.status, PAYMENT_STATUS_LABELS)}
+                        </span>
+                      </div>
+                      <div className="grid gap-2 text-xs text-slate-700 md:grid-cols-2">
+                        <p><span className="text-slate-500">Ngân hàng:</span> <span className="font-bold">DEMO BANK</span></p>
+                        <p><span className="text-slate-500">Tên tài khoản:</span> <span className="font-bold">AGRIBRIDGE PLATFORM</span></p>
+                        <p><span className="text-slate-500">Số tài khoản:</span> <span className="font-bold">123456789</span></p>
+                        <p><span className="text-slate-500">Số tiền:</span> <span className="font-bold text-emerald-700">{formatCurrency(payableAmountFor(selectedOrder, findPayablePayment(selectedOrder)))}</span></p>
+                        <p className="md:col-span-2"><span className="text-slate-500">Nội dung chuyển khoản:</span> <span className="font-bold text-blue-700">{transferContentFor(selectedOrder, findPayablePayment(selectedOrder))}</span></p>
+                      </div>
+                      <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        {selectedOrder.status === 'PENDING_PAYMENT' || selectedOrder.status === 'PENDING_DEPOSIT' ? (
+                          <button className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white" onClick={() => void handleDemoConfirmPayment()}>
+                            <Receipt className="h-3.5 w-3.5" /> Demo xác nhận thanh toán
+                          </button>
+                        ) : null}
+                        {selectedOrder.status === 'WAITING_FINAL_PAYMENT' ? (
+                          <button className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white" onClick={() => void handleDemoPayRemaining()}>
+                            <Receipt className="h-3.5 w-3.5" /> Thanh toán phần còn lại
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="rounded-lg border border-slate-200 p-3">
                     <div className="mb-2 flex items-center justify-between">
                       <p className="text-lg font-extrabold">{selectedOrder.invoiceCode || 'Chưa có hóa đơn'}</p>
@@ -364,11 +532,29 @@ export function BuyerOrdersPage() {
                       <div className="rounded-md bg-slate-50 p-2"><p className="text-xs text-slate-500">Còn lại</p><p className="font-bold text-red-600">{formatCurrency((selectedOrder.totalAmount ?? 0) - (selectedOrder.invoicePaidAmount ?? 0))}</p></div>
                     </div>
                     <p className="mt-3 text-xs text-slate-600">Hạn thanh toán: <span className="font-semibold">{formatDate(selectedOrder.invoiceDueDate)}</span></p>
+                    <div className="mt-3 grid gap-2 md:grid-cols-3">
+                      <div className="rounded-md bg-slate-50 p-2 text-xs">
+                        <p className="text-slate-500">Phương thức</p>
+                        <p className="font-bold text-slate-800">{selectedOrder.paymentOption || selectedOrder.paymentMethod || 'BANK_TRANSFER_DEMO'}</p>
+                      </div>
+                      <div className="rounded-md bg-slate-50 p-2 text-xs">
+                        <p className="text-slate-500">Payment</p>
+                        <p className="font-bold text-slate-800">{labeledStatus(selectedOrder.paymentStatus, PAYMENT_STATUS_LABELS)}</p>
+                      </div>
+                      <div className="rounded-md bg-slate-50 p-2 text-xs">
+                        <p className="text-slate-500">Escrow</p>
+                        <p className="font-bold text-slate-800">{labeledStatus(selectedOrder.escrowStatus, ESCROW_STATUS_LABELS)}</p>
+                      </div>
+                    </div>
                     {selectedOrder.payments?.length ? (
                       <div className="mt-3 space-y-2">
                         {selectedOrder.payments.map((payment) => (
                           <div key={payment.id} className="rounded-md bg-slate-50 p-2 text-xs text-slate-600">
                             <span className="font-semibold">{payment.paymentType || payment.paymentMethod}</span> · {payment.status} · {formatCurrency(payment.paidAmount || payment.amount)}
+                            <p className="mt-1 text-[11px] text-slate-500">
+                              {labeledStatus(payment.status, PAYMENT_STATUS_LABELS)} · {labeledStatus(payment.escrowStatus, ESCROW_STATUS_LABELS)}
+                              {payment.transferContent ? <span className="ml-1 font-semibold text-blue-700">· {payment.transferContent}</span> : null}
+                            </p>
                           </div>
                         ))}
                       </div>
@@ -432,9 +618,21 @@ export function BuyerOrdersPage() {
               </button>
               <div className="flex gap-2">
                 <button className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700"><Printer className="h-3.5 w-3.5" /> In đơn hàng</button>
-                <button className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white" onClick={() => void handleConfirmReceived()}>
-                  <Truck className="h-3.5 w-3.5" /> Xác nhận nhận hàng
-                </button>
+                {selectedOrder.status === 'PENDING_PAYMENT' || selectedOrder.status === 'PENDING_DEPOSIT' ? (
+                  <button className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white" onClick={() => void handleDemoConfirmPayment()}>
+                    <Receipt className="h-3.5 w-3.5" /> Demo xác nhận thanh toán
+                  </button>
+                ) : null}
+                {selectedOrder.status === 'WAITING_FINAL_PAYMENT' ? (
+                  <button className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white" onClick={() => void handleDemoPayRemaining()}>
+                    <Receipt className="h-3.5 w-3.5" /> Thanh toán phần còn lại
+                  </button>
+                ) : null}
+                {selectedOrder.status === 'WAITING_BUYER_CONFIRM' ? (
+                  <button className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white" onClick={() => void handleConfirmReceived()}>
+                    <Truck className="h-3.5 w-3.5" /> Đã nhận hàng
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>

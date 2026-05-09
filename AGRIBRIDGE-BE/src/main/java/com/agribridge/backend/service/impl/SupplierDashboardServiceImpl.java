@@ -209,6 +209,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
                         .collect(Collectors.toMap(OrderEntity::getQuoteId, value -> value, (left, right) -> left));
 
         List<RfqEntity> rfqs = loadRelevantRfqs(
+                resolvedSupplierId,
                 supplierCategoryIds,
                 supplierProductIds,
                 supplierProvinces,
@@ -617,18 +618,21 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
     }
 
     private List<RfqEntity> loadRelevantRfqs(
+            Long supplierCompanyId,
             Set<Long> supplierCategoryIds,
             Set<Long> supplierProductIds,
             Set<String> supplierProvinces,
             Set<Long> quotedRfqIds) {
         boolean hasRelevantFilters = !supplierCategoryIds.isEmpty()
                 || !supplierProductIds.isEmpty()
-                || !supplierProvinces.isEmpty();
+                || !supplierProvinces.isEmpty()
+                || supplierCompanyId != null;
 
         List<RfqEntity> relevantOpenRfqs = hasRelevantFilters
                 ? rfqRepository.findRelevantOpenRfqs(
-                        RfqStatusEnum.OPEN,
+                        List.of(RfqStatusEnum.OPEN, RfqStatusEnum.QUOTED),
                         java.time.LocalDateTime.now(),
+                        supplierCompanyId,
                         !supplierCategoryIds.isEmpty(),
                         supplierCategoryIds.isEmpty() ? List.of(-1L) : supplierCategoryIds,
                         !supplierProductIds.isEmpty(),
@@ -738,7 +742,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
         return new SupplierDashboardResponseDto.RfqDto(
                 "RFQ-" + (rfq == null ? "N/A" : rfq.getId()),
                 buyer != null ? buyer.getName() : "Khách hàng",
-                product != null ? product.getName() : (rfq != null ? safeText(rfq.getTitle()) : "N/A"),
+                product != null ? product.getName() : (rfq != null ? safeText(firstText(rfq.getProductName(), rfq.getTitle())) : "N/A"),
                 category != null ? safeText(category.getName()) : "N/A",
                 quantity,
                 quote != null ? formatMoney(quote.getPrice()) : "Thỏa thuận",
@@ -838,6 +842,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             case SHIPPING -> "Đang giao";
             case DELIVERED -> "Hoàn thành";
             case CANCELLED -> "Đã hủy";
+            default -> status.name();
         };
     }
 
@@ -846,13 +851,13 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             return "Chuẩn bị";
         }
         return switch (status) {
-            case PENDING, PREPARING -> "Chuẩn bị";
+            case CREATED, PENDING, PREPARING -> "Chuẩn bị";
             case SHIPPED -> "Đã rời kho";
             case IN_TRANSIT, SHIPPING -> "Đang vận chuyển";
             case WAITING_CONFIRMATION -> "Chờ buyer xác nhận";
             case DELIVERED -> "Đã giao";
             case CANCELLED -> "Đã hủy";
-            case INCIDENT, FAILED -> "Sự cố";
+            case INCIDENT, FAILED, FAILED_DELIVERY -> "Sự cố";
         };
     }
 
@@ -861,12 +866,12 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             return 15;
         }
         return switch (status) {
-            case PENDING, PREPARING -> 20;
+            case CREATED, PENDING, PREPARING -> 20;
             case SHIPPED -> 45;
             case IN_TRANSIT, SHIPPING -> 65;
             case WAITING_CONFIRMATION -> 85;
             case DELIVERED -> 100;
-            case CANCELLED, INCIDENT, FAILED -> 45;
+            case CANCELLED, INCIDENT, FAILED, FAILED_DELIVERY -> 45;
         };
     }
 
@@ -910,6 +915,10 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             return "";
         }
         return value;
+    }
+
+    private String firstText(String first, String fallback) {
+        return first == null || first.isBlank() ? fallback : first;
     }
 
     private String formatQuantity(BigDecimal value) {
