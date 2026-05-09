@@ -1029,6 +1029,7 @@ function BatchFormSection({
           label={`Tồn kho (${suffixUnit})`}
           required
           type="number"
+          min={0}
           value={form.quantity}
           onChange={(value) => setForm((prev) => ({ ...prev, quantity: value }))}
           error={errors.quantity}
@@ -1116,6 +1117,7 @@ function InputField({
   error,
   required,
   type = 'text',
+  min,
 }: {
   label: string
   value: string
@@ -1124,6 +1126,7 @@ function InputField({
   error?: string
   required?: boolean
   type?: 'text' | 'number' | 'date'
+  min?: number
 }) {
   return (
     <label className="block">
@@ -1137,6 +1140,7 @@ function InputField({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         type={type}
+        min={min}
       />
       {error ? <p className="mt-1 text-xs font-semibold text-rose-600">{error}</p> : null}
     </label>

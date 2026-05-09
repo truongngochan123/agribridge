@@ -2839,6 +2839,7 @@
 /com/data-intuitive
 /com/datalathe
 /com/dataliquid
+/com/datalogic
 /com/datalogics
 /com/datamariners
 /com/datameshgroup
@@ -5003,6 +5004,7 @@
 /com/homolo
 /com/honerfor
 /com/hong610
+/com/hongshuapp
 /com/hoocta
 /com/hootsuite
 /com/hopper
@@ -6060,6 +6062,7 @@
 /com/juliusyolo
 /com/july-cloud
 /com/jumper-health
+/com/junction
 /com/junichi11
 /com/junkchen
 /com/junmoyu
@@ -9657,6 +9660,8 @@
 /com/rivescript
 /com/rivieracode
 /com/rivtower
+/com/rixl
+/com/rizzoweb
 /com/rjohnst
 /com/rklaehn
 /com/rlemaitre
@@ -10591,6 +10596,7 @@
 /com/solutionappliance
 /com/solutionwcmd
 /com/solveurits
+/com/solvimon
 /com/solvoj
 /com/somainer
 /com/sombrainc
@@ -11648,6 +11654,7 @@
 /com/tradingview
 /com/tradologics
 /com/tradplusad
+/com/trafficauth
 /com/trafi
 /com/trainyapp
 /com/traitify
@@ -11738,6 +11745,7 @@
 /com/trustcomponent
 /com/trustdecision
 /com/trustedchoice
+/com/trustedshops
 /com/trustev
 /com/trustingsocial
 /com/trustlook
@@ -12336,6 +12344,7 @@
 /com/walinns
 /com/walkmind
 /com/walksocket
+/com/wallarm
 /com/wallee
 /com/walletconnect
 /com/walletdoc
@@ -13651,6 +13660,7 @@
 /io/atomix
 /io/attini
 /io/aubay
+/io/audd
 /io/autocruit
 /io/autocrypt
 /io/automatiko
@@ -17939,6 +17949,7 @@
 /org/ardulink
 /org/arecap
 /org/argot-sdk
+/org/arguslog
 /org/arkecosystem
 /org/arm4
 /org/armadillojava
@@ -21073,6 +21084,7 @@
 /org/protobee
 /org/protokruft
 /org/proton-di
+/org/protowire
 /org/provarules
 /org/provatesting
 /org/proyecto-adalid
@@ -21455,6 +21467,7 @@
 /org/seaborne
 /org/seasar
 /org/secnod
+/org/securedproxy
 /org/securegraph
 /org/sedis
 /org/sedlakovi
