@@ -23,7 +23,13 @@ export function ProtectedAppRoute({ children, allowedCompanyTypes }: ProtectedAp
     const companyType = String(session.companyType ?? '').toLowerCase()
     const allowed = allowedCompanyTypes.map((item) => item.toLowerCase())
     if (!allowed.includes(companyType)) {
-      return <Navigate to={session.redirectPath || '/auth/login'} replace />
+      if (companyType === 'admin' || companyType === 'system') {
+        return <Navigate to="/admin/overview" replace />
+      }
+      if (companyType === 'buyer') {
+        return <Navigate to="/buyer/overview" replace />
+      }
+      return <Navigate to="/supplier/overview" replace />
     }
   }
 

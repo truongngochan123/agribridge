@@ -47,7 +47,7 @@ const ACTION_LABEL: Record<SupplierOrderAction, string> = {
 }
 
 function getSessionCompanyId(): number | null {
-  const companyId = Number(sessionStorage.getItem('agribridge.auth.companyId'))
+  const companyId = Number(localStorage.getItem('agribridge.auth.companyId'))
   return Number.isFinite(companyId) && companyId > 0 ? companyId : null
 }
 

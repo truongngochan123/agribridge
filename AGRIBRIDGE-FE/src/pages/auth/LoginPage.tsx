@@ -68,9 +68,24 @@ export function LoginPage() {
   const passwordValid = passwordTouched && !passwordError && password.length > 0
 
   useEffect(() => {
-    const session = getStoredAuthSession()
-    if (!session || session.status !== 'SUCCESS') return
-    navigate(session.redirectPath || '/supplier/overview', { replace: true })
+    const checkSession = () => {
+      const session = getStoredAuthSession()
+      if (!session || session.status !== 'SUCCESS') return
+
+      const companyType = String(session.companyType ?? '').toLowerCase()
+      if (companyType === 'admin' || companyType === 'system') {
+        navigate('/admin/overview', { replace: true })
+      } else if (companyType === 'buyer') {
+        navigate('/buyer/overview', { replace: true })
+      } else {
+        navigate('/supplier/overview', { replace: true })
+      }
+    }
+
+    checkSession()
+
+    window.addEventListener('storage', checkSession)
+    return () => window.removeEventListener('storage', checkSession)
   }, [navigate])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -93,17 +108,25 @@ export function LoginPage() {
       storeAuthSession(result, { email: normalizedEmail })
 
       if (result.status === 'PENDING_VERIFICATION') {
-        sessionStorage.setItem('agribridge.pending.email', normalizedEmail)
+        localStorage.setItem('agribridge.pending.email', normalizedEmail)
         navigate(`/onboarding/verification/pending?email=${encodeURIComponent(normalizedEmail)}`, { replace: true })
         return
       }
-
-      if (result.redirectPath) {
-        navigate(result.redirectPath, { replace: true })
+      
+      if (result.status !== 'SUCCESS') {
+        // Fallback for NEED_MORE_INFO or REJECTED
+        navigate(result.redirectPath || '/auth/login', { replace: true })
         return
       }
 
-      navigate('/supplier/overview', { replace: true })
+      const companyType = String(result.companyType ?? '').toLowerCase()
+      if (companyType === 'admin' || companyType === 'system') {
+        navigate('/admin/overview', { replace: true })
+      } else if (companyType === 'buyer') {
+        navigate('/buyer/overview', { replace: true })
+      } else {
+        navigate('/supplier/overview', { replace: true })
+      }
     } catch (loginError: any) {
       const message = loginError?.response?.data?.message ?? 'Đăng nhập thất bại, vui lòng thử lại.'
       setError(message)

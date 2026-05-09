@@ -33,15 +33,26 @@ export function AdminLoginPage() {
   const [passwordError, setPasswordError] = useState('')
 
   useEffect(() => {
-    const session = getStoredAuthSession()
-    if (!session || session.status !== 'SUCCESS') {
-      return
+    const checkSession = () => {
+      const session = getStoredAuthSession()
+      if (!session || session.status !== 'SUCCESS') {
+        return
+      }
+
+      const companyType = String(session.companyType ?? '').toLowerCase()
+      if (companyType === 'admin' || companyType === 'system') {
+        navigate('/admin/overview', { replace: true })
+      } else if (companyType === 'buyer') {
+        navigate('/buyer/overview', { replace: true })
+      } else {
+        navigate('/supplier/overview', { replace: true })
+      }
     }
 
-    const companyType = String(session.companyType ?? '').toLowerCase()
-    if (companyType === 'admin' || companyType === 'system') {
-      navigate('/admin/overview', { replace: true })
-    }
+    checkSession()
+
+    window.addEventListener('storage', checkSession)
+    return () => window.removeEventListener('storage', checkSession)
   }, [navigate])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {

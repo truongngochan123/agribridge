@@ -191,7 +191,7 @@ export function SupplierRegistrationContactVerificationPage() {
   const contactDraftKey = `${CONTACT_DRAFT_PREFIX}.${currentRole}`
 
   useEffect(() => {
-    const raw = sessionStorage.getItem(contactDraftKey)
+    const raw = localStorage.getItem(contactDraftKey)
     if (!raw) return
 
     try {
@@ -212,7 +212,7 @@ export function SupplierRegistrationContactVerificationPage() {
       otpSentEmail,
       otpVerifiedEmail,
     }
-    sessionStorage.setItem(contactDraftKey, JSON.stringify(draft))
+    localStorage.setItem(contactDraftKey, JSON.stringify(draft))
   }, [contactDraftKey, contactPosition, form, otpSentEmail, otpVerifiedEmail])
 
   const handleChange = <K extends keyof ContactVerificationPayload>(key: K, value: ContactVerificationPayload[K]) => {
@@ -400,7 +400,7 @@ export function SupplierRegistrationContactVerificationPage() {
     try {
       setError('')
 
-      const draftRaw = sessionStorage.getItem(DRAFT_KEY)
+      const draftRaw = localStorage.getItem(DRAFT_KEY)
       if (!draftRaw) {
         setError('Không tìm thấy thông tin bước 1. Vui lòng quay lại nhập thông tin doanh nghiệp.')
         return
@@ -456,14 +456,14 @@ export function SupplierRegistrationContactVerificationPage() {
       setSubmitting(true)
       const result = await registerAccount({ ...draft, role: currentRole }, payload)
       storeAuthSession(result, { phone: form.loginPhone.trim(), email: normalizedLoginEmail })
-      sessionStorage.setItem('agribridge.auth.name', form.fullName.trim())
+      localStorage.setItem('agribridge.auth.name', form.fullName.trim())
       setResultHint(
         `Trust: ${result.trustLevel ?? 'N/A'} | Credit limit: ${result.creditLimit ?? 0} | Có thể mua nợ: ${
           result.canUseCredit ? 'Có' : 'Không'
         }`,
       )
-      sessionStorage.removeItem(DRAFT_KEY)
-      sessionStorage.removeItem(contactDraftKey)
+      localStorage.removeItem(DRAFT_KEY)
+      localStorage.removeItem(contactDraftKey)
 
       if (result.redirectPath) {
         // Auto-approved: backend scored >= 80, supplier can use platform immediately
@@ -478,7 +478,7 @@ export function SupplierRegistrationContactVerificationPage() {
         }
 
         if (result.status === 'PENDING_VERIFICATION') {
-          sessionStorage.setItem('agribridge.pending.email', normalizedLoginEmail)
+          localStorage.setItem('agribridge.pending.email', normalizedLoginEmail)
           navigate(`/onboarding/verification/pending?role=${currentRole}&email=${encodeURIComponent(normalizedLoginEmail)}`)
           return
         }
@@ -486,7 +486,7 @@ export function SupplierRegistrationContactVerificationPage() {
         return
       }
 
-      sessionStorage.setItem('agribridge.pending.email', normalizedLoginEmail)
+      localStorage.setItem('agribridge.pending.email', normalizedLoginEmail)
       navigate(`/onboarding/verification/pending?role=${currentRole}&email=${encodeURIComponent(normalizedLoginEmail)}`)
 
     } catch (submitError: unknown) {

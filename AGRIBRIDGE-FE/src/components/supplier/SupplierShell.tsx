@@ -48,13 +48,13 @@ export function SupplierShell({ activeKey, title, subtitle, children, actions, f
 
   const handleLogout = () => {
     const keysToDelete: string[] = []
-    for (let index = 0; index < sessionStorage.length; index += 1) {
-      const key = sessionStorage.key(index)
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index)
       if (key?.startsWith('agribridge.')) {
         keysToDelete.push(key)
       }
     }
-    keysToDelete.forEach((key) => sessionStorage.removeItem(key))
+    keysToDelete.forEach((key) => localStorage.removeItem(key))
 
     clearCurrentUserProfileCache()
     clearSupplierDashboardCache()

@@ -134,9 +134,9 @@ function normalizeFilterText(value?: string | null) {
 
 function getBuyerDefaultDeliveryProvince() {
   return (
-    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.branchProvince')) ||
-    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.companyProvince')) ||
-    normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.province')) ||
+    normalizeDefaultProvince(localStorage.getItem('agribridge.auth.branchProvince')) ||
+    normalizeDefaultProvince(localStorage.getItem('agribridge.auth.companyProvince')) ||
+    normalizeDefaultProvince(localStorage.getItem('agribridge.auth.province')) ||
     ''
   )
 }
@@ -334,7 +334,7 @@ export function BuyerSourcingPage() {
   useEffect(() => {
     let ignore = false
     async function loadBuyerDefaultProvince() {
-      const branchProvince = normalizeDefaultProvince(sessionStorage.getItem('agribridge.auth.branchProvince'))
+      const branchProvince = normalizeDefaultProvince(localStorage.getItem('agribridge.auth.branchProvince'))
       const sessionProvince = getBuyerDefaultDeliveryProvince()
       if (sessionProvince) {
         setBuyerDefaultProvince(sessionProvince)
@@ -344,7 +344,7 @@ export function BuyerSourcingPage() {
         const profile = await fetchCurrentUserProfile()
         const profileProvince = normalizeDefaultProvince(profile?.province) || normalizeDefaultProvince(profile?.address)
         if (!ignore && profileProvince && !branchProvince) {
-          sessionStorage.setItem('agribridge.auth.companyProvince', profileProvince)
+          localStorage.setItem('agribridge.auth.companyProvince', profileProvince)
           setBuyerDefaultProvince(profileProvince)
         }
       } catch {
@@ -561,7 +561,7 @@ export function BuyerSourcingPage() {
   const submitRfq = async () => {
     if (!rfqProduct || !rfqForm) return
     const quantity = Number(rfqForm.quantity)
-    const buyerCompanyId = Number(sessionStorage.getItem('agribridge.auth.companyId'))
+    const buyerCompanyId = Number(localStorage.getItem('agribridge.auth.companyId'))
     if (!buyerCompanyId) {
       showToast('Thiếu thông tin công ty buyer, vui lòng đăng nhập lại.', 'error')
       return

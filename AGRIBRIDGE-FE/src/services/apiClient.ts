@@ -7,7 +7,7 @@ export const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use((config) => {
-  const raw = sessionStorage.getItem('agribridge.auth.payload')
+  const raw = localStorage.getItem('agribridge.auth.payload')
   let accessToken: string | undefined
   if (raw) {
     try {
