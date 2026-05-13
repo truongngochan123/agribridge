@@ -26,6 +26,14 @@ import {
   updatePersonalProfile,
 } from '../../services/supplierProfileService'
 import { resolveUploadedFileUrl, uploadRegistrationFile, uploadSupplierDocument } from '../../services/uploadService'
+import {
+  fetchVietnamProvinces,
+  fetchVietnamDistrictsByProvinceCode,
+  fetchVietnamWardsByDistrictCode,
+  findProvinceByName,
+  type VietnamProvinceOption,
+  type VietnamDistrictOption,
+} from '../../services/vietnamAddressService'
 
 type SupplierProfileTab = 'personal' | 'business' | 'security' | 'notifications'
 type ProfileShellType = 'supplier' | 'buyer'
@@ -55,6 +63,7 @@ export function ProfileContent({ shellType }: { shellType: ProfileShellType }) {
   const [websiteInput, setWebsiteInput] = useState('')
   const [provinceInput, setProvinceInput] = useState('')
   const [districtInput, setDistrictInput] = useState('')
+  const [wardInput, setWardInput] = useState('')
   const [addressInput, setAddressInput] = useState('')
   const [descriptionInput, setDescriptionInput] = useState('')
   const [pendingCertificateFile, setPendingCertificateFile] = useState<File | null>(null)
@@ -82,7 +91,8 @@ export function ProfileContent({ shellType }: { shellType: ProfileShellType }) {
     setEstablishedYearInput(profile.establishedYear === 'N/A' ? '' : profile.establishedYear)
     setWebsiteInput(profile.website === 'N/A' ? '' : profile.website)
     setProvinceInput(profile.province === 'N/A' ? '' : profile.province)
-    setDistrictInput(profile.district === 'N/A' ? '' : profile.district)
+    setDistrictInput(profile.district === 'N/A' ? '' : profile.district || '')
+    setWardInput(profile.ward === 'N/A' ? '' : profile.ward || '')
     setAddressInput(profile.address === 'N/A' ? '' : profile.address)
     setDescriptionInput(profile.description === 'N/A' ? '' : profile.description)
   }, [profile])
@@ -194,6 +204,7 @@ export function ProfileContent({ shellType }: { shellType: ProfileShellType }) {
         website: websiteInput || undefined,
         province: provinceInput,
         district: districtInput || undefined,
+        ward: wardInput || undefined,
         address: addressInput,
         description: descriptionInput || undefined,
       })
@@ -474,6 +485,8 @@ export function ProfileContent({ shellType }: { shellType: ProfileShellType }) {
               setProvinceInput={setProvinceInput}
               districtInput={districtInput}
               setDistrictInput={setDistrictInput}
+              wardInput={wardInput}
+              setWardInput={setWardInput}
               addressInput={addressInput}
               setAddressInput={setAddressInput}
               descriptionInput={descriptionInput}
@@ -629,6 +642,8 @@ function SupplierBusinessPanel({
   setProvinceInput,
   districtInput,
   setDistrictInput,
+  wardInput,
+  setWardInput,
   addressInput,
   setAddressInput,
   descriptionInput,
@@ -662,6 +677,8 @@ function SupplierBusinessPanel({
   setProvinceInput: (value: string) => void
   districtInput: string
   setDistrictInput: (value: string) => void
+  wardInput: string
+  setWardInput: (value: string) => void
   addressInput: string
   setAddressInput: (value: string) => void
   descriptionInput: string
@@ -682,8 +699,87 @@ function SupplierBusinessPanel({
   const website = businessEditing ? websiteInput : profile?.website ?? 'N/A'
   const province = businessEditing ? provinceInput : profile?.province ?? 'N/A'
   const district = businessEditing ? districtInput : profile?.district ?? 'N/A'
+  const ward = businessEditing ? wardInput : profile?.ward ?? 'N/A'
   const address = businessEditing ? addressInput : profile?.address ?? 'N/A'
   const description = businessEditing ? descriptionInput : profile?.description ?? 'N/A'
+
+  const [provinceOptions, setProvinceOptions] = useState<VietnamProvinceOption[]>([])
+  const [districtOptions, setDistrictOptions] = useState<VietnamDistrictOption[]>([])
+  const [wardOptions, setWardOptions] = useState<string[]>([])
+  const [loadingAddressOptions, setLoadingAddressOptions] = useState(false)
+  const [addressLoadError, setAddressLoadError] = useState('')
+
+  useEffect(() => {
+    let ignore = false
+    async function loadProvinces() {
+      setLoadingAddressOptions(true)
+      setAddressLoadError('')
+      try {
+        const provinces = await fetchVietnamProvinces()
+        if (!ignore) {
+          setProvinceOptions(provinces)
+        }
+      } catch {
+        if (!ignore) {
+          setAddressLoadError('Không thể tải danh sách tỉnh/thành từ API.')
+          setProvinceOptions([])
+        }
+      } finally {
+        if (!ignore) {
+          setLoadingAddressOptions(false)
+        }
+      }
+    }
+    void loadProvinces()
+    return () => { ignore = true }
+  }, [])
+
+  const selectedProvince = useMemo(
+    () => findProvinceByName(provinceOptions, provinceInput),
+    [provinceInput, provinceOptions],
+  )
+
+  useEffect(() => {
+    let ignore = false
+    async function loadDistricts() {
+      if (!provinceInput.trim() || !selectedProvince) {
+        setDistrictOptions([])
+        setWardOptions([])
+        return
+      }
+      try {
+        const districts = await fetchVietnamDistrictsByProvinceCode(selectedProvince.code)
+        if (!ignore) setDistrictOptions(districts)
+      } catch {
+        if (!ignore) setDistrictOptions([])
+      }
+    }
+    void loadDistricts()
+    return () => { ignore = true }
+  }, [provinceInput, selectedProvince])
+
+  const selectedDistrict = useMemo(
+    () => districtOptions.find((d) => d.name === districtInput) ?? null,
+    [districtInput, districtOptions],
+  )
+
+  useEffect(() => {
+    let ignore = false
+    async function loadWards() {
+      if (!selectedDistrict) {
+        setWardOptions([])
+        return
+      }
+      try {
+        const wards = await fetchVietnamWardsByDistrictCode(selectedDistrict.code)
+        if (!ignore) setWardOptions(wards.map((w) => w.name))
+      } catch {
+        if (!ignore) setWardOptions([])
+      }
+    }
+    void loadWards()
+    return () => { ignore = true }
+  }, [selectedDistrict])
 
   return (
     <>
@@ -705,8 +801,74 @@ function SupplierBusinessPanel({
           <Field label="Số giấy đăng ký kinh doanh" value={registrationNumber} editable={businessEditing} onChange={setRegistrationNumberInput} />
           <Field label="Năm thành lập" value={establishedYear} editable={businessEditing} onChange={setEstablishedYearInput} />
           <Field label="Website" value={website} full editable={businessEditing} onChange={setWebsiteInput} />
-          <Field label="Thành phố / Tỉnh" value={province} editable={businessEditing} onChange={setProvinceInput} />
-          <Field label="Quận / Huyện" value={district} editable={businessEditing} onChange={setDistrictInput} />
+          {businessEditing ? (
+            <>
+              <label>
+                <p className="mb-1 text-xs font-semibold text-slate-700">Thành phố / Tỉnh</p>
+                <input
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-600"
+                  list="supplier-province-options"
+                  value={provinceInput}
+                  onChange={(e) => {
+                    setProvinceInput(e.target.value)
+                    setDistrictInput('')
+                    setWardInput('')
+                  }}
+                  placeholder="Chọn tỉnh/thành"
+                />
+                <datalist id="supplier-province-options">
+                  {provinceOptions.map((item) => (
+                    <option key={item.code} value={item.name} />
+                  ))}
+                </datalist>
+                {loadingAddressOptions ? <p className="mt-1 text-xs text-slate-500">Đang tải danh sách...</p> : null}
+                {addressLoadError ? <p className="mt-1 text-xs text-rose-500">{addressLoadError}</p> : null}
+              </label>
+
+              <label>
+                <p className="mb-1 text-xs font-semibold text-slate-700">Quận / Huyện</p>
+                <input
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-600"
+                  list="supplier-district-options"
+                  value={districtInput}
+                  disabled={!provinceInput}
+                  onChange={(e) => {
+                    setDistrictInput(e.target.value)
+                    setWardInput('')
+                  }}
+                  placeholder={provinceInput ? 'Chọn quận/huyện' : 'Chọn tỉnh/thành trước'}
+                />
+                <datalist id="supplier-district-options">
+                  {districtOptions.map((item) => (
+                    <option key={item.code} value={item.name} />
+                  ))}
+                </datalist>
+              </label>
+
+              <label>
+                <p className="mb-1 text-xs font-semibold text-slate-700">Phường / Xã</p>
+                <input
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-600"
+                  list="supplier-ward-options"
+                  value={wardInput}
+                  disabled={!districtInput}
+                  onChange={(e) => setWardInput(e.target.value)}
+                  placeholder={districtInput ? 'Chọn phường/xã' : 'Chọn quận/huyện trước'}
+                />
+                <datalist id="supplier-ward-options">
+                  {wardOptions.map((wardItem) => (
+                    <option key={wardItem} value={wardItem} />
+                  ))}
+                </datalist>
+              </label>
+            </>
+          ) : (
+            <>
+              <Field label="Thành phố / Tỉnh" value={province} />
+              <Field label="Quận / Huyện" value={district} />
+              <Field label="Phường / Xã" value={ward} />
+            </>
+          )}
           <Field label="Địa chỉ chi tiết" value={address} full editable={businessEditing} onChange={setAddressInput} />
         </div>
 

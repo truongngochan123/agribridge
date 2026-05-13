@@ -11,5 +11,19 @@ public record ShippingQuoteResponse(
         Integer estimatedDaysMin,
         Integer estimatedDaysMax,
         String shippingPayer,
-        boolean quoteOnly) {
+        boolean quoteOnly,
+        String shopIdUsed,
+        Integer fromDistrictId,
+        String fromWardCode,
+        Integer toDistrictId,
+        String toWardCode,
+        Integer weight,
+        Integer length,
+        Integer width,
+        Integer height,
+        Integer serviceTypeId,
+        Integer serviceId,
+        BigDecimal insuranceValue,
+        String rawQuoteRequest,
+        String rawQuoteResponse) {
 }

@@ -88,8 +88,11 @@ export type SupplierOrderStatusCode =
 export type SupplierShipmentStatusCode =
   | 'PENDING'
   | 'CREATED'
+  | 'WAITING_PICKUP'
+  | 'PICKED_UP'
   | 'SHIPPED'
   | 'IN_TRANSIT'
+  | 'OUT_FOR_DELIVERY'
   | 'WAITING_CONFIRMATION'
   | 'DELIVERED'
   | 'CANCELLED'

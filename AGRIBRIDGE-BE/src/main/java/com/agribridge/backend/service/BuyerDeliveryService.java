@@ -15,4 +15,6 @@ public interface BuyerDeliveryService {
     BuyerDeliveryDtos.Detail confirmReceived(Long shipmentId, BuyerDeliveryDtos.ConfirmReceivedRequest request);
 
     BuyerDeliveryDtos.Incident createIncident(Long shipmentId, BuyerDeliveryDtos.IncidentRequest request);
+
+    BuyerDeliveryDtos.Incident updateIncident(Long shipmentId, Long incidentId, BuyerDeliveryDtos.UpdateIncidentRequest request);
 }

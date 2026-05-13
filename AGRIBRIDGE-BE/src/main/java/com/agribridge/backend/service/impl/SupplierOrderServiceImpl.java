@@ -10,6 +10,8 @@ import com.agribridge.backend.entity.BranchEntity;
 import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.OrderEntity;
 import com.agribridge.backend.entity.OrderItemEntity;
+import com.agribridge.backend.entity.InvoiceEntity;
+import com.agribridge.backend.entity.PaymentEntity;
 import com.agribridge.backend.entity.ProductEntity;
 import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.ShipmentEventEntity;
@@ -22,10 +24,14 @@ import com.agribridge.backend.repository.BranchRepository;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.OrderItemRepository;
 import com.agribridge.backend.repository.OrderRepository;
+import com.agribridge.backend.repository.InvoiceRepository;
+import com.agribridge.backend.repository.PaymentRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.ShipmentEventRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
 import com.agribridge.backend.service.CurrentUserService;
+import com.agribridge.backend.service.GhnShippingService;
+import com.agribridge.backend.service.ShipmentStatusTransitionService;
 import com.agribridge.backend.service.SupplierOrderService;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
@@ -43,12 +49,17 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SupplierOrderServiceImpl implements SupplierOrderService {
+
+    private static final String SENDER_ADDRESS_SOURCE_SUPPLIER = "SUPPLIER_ADDRESS";
+    private static final String SHIPPING_FEE_SOURCE_QUOTE = "SUPPLIER_TO_BUYER_QUOTE";
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
@@ -57,11 +68,15 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
     private final OrderItemRepository orderItemRepository;
     private final CompanyRepository companyRepository;
     private final BranchRepository branchRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final PaymentRepository paymentRepository;
     private final BatchRepository batchRepository;
     private final ProductRepository productRepository;
     private final ShipmentRepository shipmentRepository;
     private final ShipmentEventRepository shipmentEventRepository;
     private final CurrentUserService currentUserService;
+    private final GhnShippingService ghnShippingService;
+    private final ShipmentStatusTransitionService shipmentStatusTransitionService;
 
     @Override
     @Transactional(readOnly = true)
@@ -114,7 +129,8 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
                 events,
                 row.orderDate(),
                 lookup.itemsByOrderId().getOrDefault(order.getId(), List.of()).stream()
-                        .map(item -> toDetailItem(item, lookup.batchById().get(item.getBatchId()), lookup.productById()))
+                        .map(item -> toDetailItem(item, lookup.batchById().get(item.getBatchId()),
+                                lookup.productById()))
                         .toList());
     }
 
@@ -160,21 +176,29 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
                 .driverPhone(normalizeText(request.driverPhone()))
                 .vehicleInfo(normalizeText(request.vehicleInfo()))
                 .shippingFee(request.shippingFee() == null ? BigDecimal.ZERO : request.shippingFee())
-                .trackingCode(normalizeText(request.trackingCode()) == null ? generateTrackingCode(orderId) : normalizeText(request.trackingCode()))
+                .trackingCode(normalizeText(request.trackingCode()) == null ? generateTrackingCode(orderId)
+                        : normalizeText(request.trackingCode()))
                 .incidentNote(normalizeText(request.note()))
-                .status(ShipmentStatusEnum.PREPARING)
+                .status(ShipmentStatusEnum.WAITING_PICKUP)
+                .autoProgressEnabled(Boolean.TRUE)
+                .demoTrackingEnabled(Boolean.TRUE)
+                .lastStatusChangedAt(now)
+                .progress(20)
                 .feeConfirmed(Boolean.FALSE)
                 .createdAt(now)
+                .updatedAt(now)
                 .build();
         ShipmentEntity saved = shipmentRepository.save(shipment);
         saveShipmentEvent(saved, "Đã tạo vận đơn");
+        saveShipmentEvent(saved, "Chờ lấy hàng");
 
         return toOrderDto(order, buildLookup(List.of(order)));
     }
 
     @Override
     @Transactional
-    public SupplierOrderDto updateShipmentStatus(Long supplierCompanyId, Long orderId, UpdateSupplierShipmentStatusDto request) {
+    public SupplierOrderDto updateShipmentStatus(Long supplierCompanyId, Long orderId,
+            UpdateSupplierShipmentStatusDto request) {
         OrderEntity order = getSupplierOrder(supplierCompanyId, orderId);
         if (!OrderStatusEnum.CONFIRMED.equals(order.getStatus())) {
             throw new IllegalArgumentException("Only confirmed orders can update shipment");
@@ -203,7 +227,8 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
         OrderEntity order = getSupplierOrder(supplierCompanyId, orderId);
         if (!OrderStatusEnum.PAID_WAITING_SUPPLIER_CONFIRM.equals(order.getStatus())
-                && !OrderStatusEnum.DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM.equals(order.getStatus())) {
+                && !OrderStatusEnum.DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM.equals(order.getStatus())
+                && !OrderStatusEnum.SUPPLIER_CONFIRMED.equals(order.getStatus())) {
             throw new IllegalArgumentException("Only paid/deposit-paid orders can be confirmed");
         }
         order.setStatus(OrderStatusEnum.SUPPLIER_CONFIRMED);
@@ -217,7 +242,11 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
     public SupplierOrderDto prepareDemoOrder(Long orderId) {
         Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
         OrderEntity order = getSupplierOrder(supplierCompanyId, orderId);
-        requireOrderStatus(order, OrderStatusEnum.SUPPLIER_CONFIRMED);
+        if (!OrderStatusEnum.SUPPLIER_CONFIRMED.equals(order.getStatus())
+                && !OrderStatusEnum.PAID_WAITING_SUPPLIER_CONFIRM.equals(order.getStatus())
+                && !OrderStatusEnum.DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM.equals(order.getStatus())) {
+            throw new IllegalArgumentException("Order must be paid");
+        }
         order.setStatus(OrderStatusEnum.PREPARING);
         order.setUpdatedAt(LocalDateTime.now());
         OrderEntity saved = orderRepository.save(order);
@@ -251,11 +280,58 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
                     .expectedDeliveryDate(order.getExpectedDeliveryDate())
                     .shippingFee(safeAmount(order.getShippingFee()))
                     .feeConfirmed(Boolean.TRUE)
-                    .status(ShipmentStatusEnum.CREATED)
+                    .status(ShipmentStatusEnum.WAITING_PICKUP)
+                    .autoProgressEnabled(Boolean.TRUE)
+                    .demoTrackingEnabled(Boolean.TRUE)
+                    .lastStatusChangedAt(now)
+                    .progress(20)
                     .createdAt(now)
                     .updatedAt(now)
                     .build());
-            saveShipmentEvent(shipment, "Tạo vận đơn MANUAL demo");
+            saveShipmentEvent(shipment, "Đã tạo vận đơn MANUAL demo");
+            saveShipmentEvent(shipment, "Chờ lấy hàng");
+        }
+
+        if ("GHN".equals(shipment.getProviderCode()) && shipment.getGhnOrderCode() == null) {
+            try {
+                var ghnResponse = ghnShippingService.createGhnShippingOrder(order, shipment);
+                if (ghnResponse != null && ghnResponse.data() != null) {
+                    BigDecimal ghnTotalFee = safeAmount(ghnResponse.data().total_fee());
+                    BigDecimal quotedFee = safeAmount(order.getShippingFee());
+                    shipment.setGhnOrderCode(ghnResponse.data().order_code());
+                    shipment.setTrackingCode(ghnResponse.data().order_code());
+                    shipment.setGhnSortCode(ghnResponse.data().sort_code());
+                    shipment.setGhnTransType(ghnResponse.data().trans_type());
+                    shipment.setEstimatedDeliveryTime(ghnResponse.data().expected_delivery_time());
+                    shipment.setQuotedShippingFee(quotedFee);
+                    shipment.setGhnCreateFee(ghnTotalFee);
+                    shipment.setSenderAddressSource(SENDER_ADDRESS_SOURCE_SUPPLIER);
+                    shipment.setShippingFeeSource(SHIPPING_FEE_SOURCE_QUOTE);
+                    shipment.setShippingFee(quotedFee);
+                    shipment.setFeeConfirmed(quotedFee.compareTo(BigDecimal.ZERO) > 0);
+                    shipment.setStatus(ShipmentStatusEnum.WAITING_PICKUP);
+                    shipment.setAutoProgressEnabled(Boolean.TRUE);
+                    shipment.setDemoTrackingEnabled(Boolean.TRUE);
+                    shipment.setLastStatusChangedAt(now);
+                    shipment.setProgress(20);
+                    shipment.setUpdatedAt(now);
+                    shipment = shipmentRepository.save(shipment);
+                    // Keep supplier->buyer quoted fee even if GHN responds with a different fee
+                    // (shop default).
+                    if (ghnTotalFee.compareTo(BigDecimal.ZERO) > 0 && quotedFee.compareTo(BigDecimal.ZERO) > 0
+                            && ghnTotalFee.compareTo(quotedFee) != 0) {
+                        log.warn(
+                                "GHN create fee differs from quoted fee; keeping quoted fee. quotedFee={}, ghnFee={}",
+                                quotedFee,
+                                ghnTotalFee);
+                    }
+                    saveShipmentEvent(shipment, "Đã tạo vận đơn GHN: " + ghnResponse.data().order_code());
+                    saveShipmentEvent(shipment, "Chờ lấy hàng");
+                }
+            } catch (Exception ex) {
+                log.warn("GHN Create Order failed during demo flow, keeping shipment as is: {}", ex.getMessage());
+                saveShipmentEvent(shipment, "Không thể tạo vận đơn GHN tự động: " + ex.getMessage());
+            }
         }
         order.setStatus(OrderStatusEnum.READY_TO_SHIP);
         order.setUpdatedAt(now);
@@ -274,11 +350,14 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
             throw new IllegalArgumentException("Shipment not found");
         }
         LocalDateTime now = LocalDateTime.now();
-        shipment.setStatus(ShipmentStatusEnum.SHIPPING);
-        shipment.setShippedAt(now);
+        shipment.setStatus(ShipmentStatusEnum.WAITING_PICKUP);
+        shipment.setAutoProgressEnabled(Boolean.TRUE);
+        shipment.setDemoTrackingEnabled(Boolean.TRUE);
+        shipment.setLastStatusChangedAt(now);
+        shipment.setProgress(20);
         shipment.setUpdatedAt(now);
         shipmentRepository.save(shipment);
-        saveShipmentEvent(shipment, "Bắt đầu giao hàng");
+        saveShipmentEvent(shipment, "Chờ lấy hàng");
         order.setStatus(OrderStatusEnum.SHIPPING);
         order.setUpdatedAt(now);
         OrderEntity saved = orderRepository.save(order);
@@ -296,11 +375,10 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
             throw new IllegalArgumentException("Shipment not found");
         }
         LocalDateTime now = LocalDateTime.now();
-        shipment.setStatus(ShipmentStatusEnum.DELIVERED);
-        shipment.setDeliveredAt(now);
-        shipment.setUpdatedAt(now);
-        shipmentRepository.save(shipment);
-        saveShipmentEvent(shipment, "Đã giao hàng tới nơi");
+        shipmentStatusTransitionService.transition(
+                shipment,
+                ShipmentStatusEnum.WAITING_CONFIRMATION,
+                "Đã giao tới nơi, chờ người mua xác nhận");
         boolean deposit = "DEPOSIT_50".equals(order.getPaymentOption());
         order.setStatus(deposit ? OrderStatusEnum.WAITING_FINAL_PAYMENT : OrderStatusEnum.WAITING_BUYER_CONFIRM);
         if (deposit) {
@@ -309,6 +387,67 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         order.setUpdatedAt(now);
         OrderEntity saved = orderRepository.save(order);
         return toOrderDto(saved, buildLookup(List.of(saved)));
+    }
+
+    @Override
+    @Transactional
+    public SupplierOrderDto syncGhnDemoOrder(Long orderId) {
+        Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
+        OrderEntity order = getSupplierOrder(supplierCompanyId, orderId);
+        ShipmentEntity shipment = findActiveShipment(orderId);
+        if (shipment == null || !"GHN".equals(shipment.getProviderCode()) || shipment.getGhnOrderCode() == null) {
+            throw new IllegalArgumentException("Đơn hàng không có vận đơn GHN hợp lệ để đồng bộ");
+        }
+
+        try {
+            CompanyEntity supplier = companyRepository.findById(order.getSupplierCompanyId())
+                    .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
+            String shopIdUsed = supplier.getGhnShopId() != null ? String.valueOf(supplier.getGhnShopId()) : null;
+            if (shopIdUsed == null) {
+                throw new IllegalStateException("Nhà cung cấp chưa có cửa hàng GHN hợp lệ để đồng bộ.");
+            }
+            var detailResponse = ghnShippingService.syncGhnOrderStatus(shipment.getGhnOrderCode(), shopIdUsed);
+            if (detailResponse != null && detailResponse.data() != null) {
+                String ghnStatus = detailResponse.data().status();
+                ShipmentStatusEnum newStatus = ghnShippingService.mapGhnStatusToShipmentStatus(ghnStatus);
+                ShipmentStatusEnum currentStatus = normalizeShipmentStatus(shipment.getStatus());
+
+                if (currentStatus != newStatus) {
+                    shipment = shipmentStatusTransitionService.transition(
+                            shipment,
+                            newStatus,
+                            "Đồng bộ GHN: Trạng thái mới là " + ghnStatus);
+
+                    // Auto update order status based on shipment
+                    if (newStatus == ShipmentStatusEnum.PICKED_UP
+                            || newStatus == ShipmentStatusEnum.SHIPPED
+                            || newStatus == ShipmentStatusEnum.IN_TRANSIT
+                            || newStatus == ShipmentStatusEnum.OUT_FOR_DELIVERY
+                            || newStatus == ShipmentStatusEnum.SHIPPING) {
+                        if (order.getStatus() == OrderStatusEnum.READY_TO_SHIP
+                                || order.getStatus() == OrderStatusEnum.PREPARING) {
+                            order.setStatus(OrderStatusEnum.SHIPPING);
+                            orderRepository.save(order);
+                        }
+                    } else if (newStatus == ShipmentStatusEnum.WAITING_CONFIRMATION) {
+                        if (order.getStatus() == OrderStatusEnum.SHIPPING) {
+                            boolean deposit = "DEPOSIT_50".equals(order.getPaymentOption());
+                            order.setStatus(deposit ? OrderStatusEnum.WAITING_FINAL_PAYMENT
+                                    : OrderStatusEnum.WAITING_BUYER_CONFIRM);
+                            if (deposit) {
+                                order.setPaymentStatus("WAITING_REMAINING_PAYMENT");
+                            }
+                            orderRepository.save(order);
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to sync GHN status for order {}: {}", orderId, ex.getMessage());
+            throw new RuntimeException("Không thể đồng bộ GHN: " + ex.getMessage());
+        }
+
+        return toOrderDto(order, buildLookup(List.of(order)));
     }
 
     private void confirmOrder(OrderEntity order) {
@@ -340,7 +479,8 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
             if (!BatchStatusEnum.AVAILABLE.equals(batch.getStatus())) {
                 throw new IllegalArgumentException("Batch is not available");
             }
-            if (batch.getQuantity() == null || item.getQuantity() == null || batch.getQuantity().compareTo(item.getQuantity()) < 0) {
+            if (batch.getQuantity() == null || item.getQuantity() == null
+                    || batch.getQuantity().compareTo(item.getQuantity()) < 0) {
                 throw new IllegalArgumentException("Batch quantity is not enough");
             }
         }
@@ -359,8 +499,11 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         }
         ShipmentEntity shipment = findActiveShipment(order.getId());
         ShipmentStatusEnum status = shipment == null ? null : normalizeShipmentStatus(shipment.getStatus());
-        if (status == ShipmentStatusEnum.SHIPPED
+        if (status == ShipmentStatusEnum.WAITING_PICKUP
+                || status == ShipmentStatusEnum.PICKED_UP
+                || status == ShipmentStatusEnum.SHIPPED
                 || status == ShipmentStatusEnum.IN_TRANSIT
+                || status == ShipmentStatusEnum.OUT_FOR_DELIVERY
                 || status == ShipmentStatusEnum.WAITING_CONFIRMATION
                 || status == ShipmentStatusEnum.DELIVERED) {
             throw new IllegalArgumentException("Cannot cancel order after shipment has started");
@@ -391,13 +534,14 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         Map<Long, List<OrderItemEntity>> itemsByOrderId = items.stream()
                 .collect(Collectors.groupingBy(OrderItemEntity::getOrderId, LinkedHashMap::new, Collectors.toList()));
         Map<Long, BatchEntity> batchById = loadBatches(items.stream().map(OrderItemEntity::getBatchId).toList());
-        Map<Long, ProductEntity> productById = loadProducts(batchById.values().stream().map(BatchEntity::getProductId).toList());
+        Map<Long, ProductEntity> productById = loadProducts(
+                batchById.values().stream().map(BatchEntity::getProductId).toList());
         Map<Long, CompanyEntity> buyerById = companyRepository.findAllById(
-                        orders.stream().map(OrderEntity::getBuyerCompanyId).filter(Objects::nonNull).toList())
+                orders.stream().map(OrderEntity::getBuyerCompanyId).filter(Objects::nonNull).toList())
                 .stream()
                 .collect(Collectors.toMap(CompanyEntity::getId, value -> value, (left, right) -> left));
         Map<Long, BranchEntity> branchById = branchRepository.findByIdIn(
-                        orders.stream().map(OrderEntity::getBranchId).filter(Objects::nonNull).collect(Collectors.toSet()))
+                orders.stream().map(OrderEntity::getBranchId).filter(Objects::nonNull).collect(Collectors.toSet()))
                 .stream()
                 .collect(Collectors.toMap(BranchEntity::getId, value -> value, (left, right) -> left));
         Map<Long, ShipmentEntity> shipmentByOrderId = new LinkedHashMap<>();
@@ -444,8 +588,10 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         return new SupplierOrderDto(
                 orderCode(order),
                 order.getId(),
-                lookup.buyerById().get(order.getBuyerCompanyId()) == null ? "Khach hang" : safeText(lookup.buyerById().get(order.getBuyerCompanyId()).getName()),
-                lookup.branchById().get(order.getBranchId()) == null ? "Chi nhanh" : safeText(lookup.branchById().get(order.getBranchId()).getName()),
+                lookup.buyerById().get(order.getBuyerCompanyId()) == null ? "Khach hang"
+                        : safeText(lookup.buyerById().get(order.getBuyerCompanyId()).getName()),
+                lookup.branchById().get(order.getBranchId()) == null ? "Chi nhanh"
+                        : safeText(lookup.branchById().get(order.getBranchId()).getName()),
                 summarizeProducts(items),
                 items,
                 quantity + (items.isEmpty() ? "kg" : items.get(0).unit()),
@@ -527,22 +673,24 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         }
         ShipmentStatusEnum shipmentStatus = shipment == null ? null : normalizeShipmentStatus(shipment.getStatus());
         return switch (order.getStatus()) {
-            case PAID_WAITING_SUPPLIER_CONFIRM, DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM -> List.of("VIEW_DETAIL", "CONFIRM_ORDER");
+            case PAID_WAITING_SUPPLIER_CONFIRM, DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM ->
+                List.of("VIEW_DETAIL", "PREPARE_ORDER");
             case SUPPLIER_CONFIRMED -> List.of("VIEW_DETAIL", "PREPARE_ORDER");
             case PREPARING -> List.of("VIEW_DETAIL", "READY_TO_SHIP");
             case READY_TO_SHIP -> List.of("VIEW_DETAIL", "START_SHIPPING");
-            case WAITING_FINAL_PAYMENT, WAITING_BUYER_CONFIRM, COMPLETED, DISPUTED, REFUND_PENDING, REFUNDED -> List.of("VIEW_DETAIL");
+            case WAITING_FINAL_PAYMENT, WAITING_BUYER_CONFIRM, COMPLETED, DISPUTED, REFUND_PENDING, REFUNDED ->
+                List.of("VIEW_DETAIL");
             case PENDING_PAYMENT, PENDING_DEPOSIT -> List.of("VIEW_DETAIL");
             case PENDING_SUPPLIER_CONFIRMATION -> List.of("VIEW_DETAIL", "CONFIRM_ORDER", "CANCEL_ORDER");
             case PENDING -> List.of("VIEW_DETAIL", "CONFIRM_ORDER", "CANCEL_ORDER");
             case CONFIRMED -> {
-                if (shipment == null || shipmentStatus == ShipmentStatusEnum.CANCELLED || shipmentStatus == ShipmentStatusEnum.FAILED) {
+                if (shipment == null || shipmentStatus == ShipmentStatusEnum.CANCELLED
+                        || shipmentStatus == ShipmentStatusEnum.FAILED) {
                     yield List.of("VIEW_DETAIL", "CREATE_SHIPMENT", "CANCEL_ORDER");
                 }
                 yield switch (shipmentStatus) {
-                    case PENDING, PREPARING -> List.of("VIEW_DETAIL", "START_SHIPPING");
-                    case SHIPPED -> List.of("VIEW_DETAIL", "MARK_IN_TRANSIT");
-                    case IN_TRANSIT -> List.of("VIEW_DETAIL", "MARK_ARRIVED", "REPORT_INCIDENT");
+                    case PENDING, PREPARING, WAITING_PICKUP, PICKED_UP, SHIPPED, IN_TRANSIT, OUT_FOR_DELIVERY ->
+                        List.of("VIEW_DETAIL");
                     case WAITING_CONFIRMATION -> List.of("VIEW_DETAIL");
                     case DELIVERED -> List.of("VIEW_DETAIL", "VIEW_SHIPMENT");
                     default -> List.of("VIEW_DETAIL");
@@ -566,9 +714,10 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
 
     private void validateShipmentTransition(ShipmentStatusEnum current, ShipmentStatusEnum next) {
         boolean allowed = switch (current) {
-            case CREATED, PENDING, PREPARING -> next == ShipmentStatusEnum.SHIPPED || next == ShipmentStatusEnum.SHIPPING;
-            case SHIPPED -> next == ShipmentStatusEnum.IN_TRANSIT;
-            case IN_TRANSIT -> next == ShipmentStatusEnum.WAITING_CONFIRMATION;
+            case CREATED, PENDING, PREPARING, WAITING_PICKUP -> next == ShipmentStatusEnum.PICKED_UP;
+            case PICKED_UP, SHIPPED -> next == ShipmentStatusEnum.IN_TRANSIT;
+            case IN_TRANSIT -> next == ShipmentStatusEnum.OUT_FOR_DELIVERY;
+            case OUT_FOR_DELIVERY -> next == ShipmentStatusEnum.WAITING_CONFIRMATION;
             default -> false;
         };
         if (!allowed) {
@@ -613,6 +762,8 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
 
     private String shipmentEventDescription(ShipmentStatusEnum status) {
         return switch (status) {
+            case PICKED_UP -> "Đã lấy hàng tại kho";
+            case OUT_FOR_DELIVERY -> "Đang giao tới người nhận";
             case SHIPPED -> "Hàng đã rời kho nhà cung cấp";
             case IN_TRANSIT -> "Đơn hàng đang được vận chuyển";
             case WAITING_CONFIRMATION -> "Hàng đã giao tới nơi, chờ buyer xác nhận";
@@ -629,7 +780,8 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
             return item.product() + " · " + item.batchCode() + " · Grade " + item.grade() + " · Size " + item.size();
         }
         return items.stream()
-                .sorted(Comparator.comparing(SupplierOrderDto.OrderItemSummaryDto::id, Comparator.nullsLast(Comparator.naturalOrder())))
+                .sorted(Comparator.comparing(SupplierOrderDto.OrderItemSummaryDto::id,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(item -> item.product() + " · " + item.batchCode() + " · " + item.quantity())
                 .collect(Collectors.joining("; "));
     }
@@ -651,6 +803,11 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
     }
 
     private String mapOrderStatus(OrderStatusEnum status) {
+        if (status == OrderStatusEnum.PAID_WAITING_SUPPLIER_CONFIRM
+                || status == OrderStatusEnum.DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM
+                || status == OrderStatusEnum.SUPPLIER_CONFIRMED) {
+            return "Đã thanh toán";
+        }
         if (status == null) {
             return "Chờ xác nhận";
         }
@@ -683,6 +840,9 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         }
         ShipmentStatusEnum status = normalizeShipmentStatus(rawStatus);
         return switch (status) {
+            case WAITING_PICKUP -> "Chờ lấy hàng";
+            case PICKED_UP -> "Đã lấy hàng tại kho";
+            case OUT_FOR_DELIVERY -> "Đang giao tới người nhận";
             case PENDING -> "Chờ lấy hàng";
             case CREATED -> "Đã tạo vận đơn";
             case SHIPPED -> "Đã rời kho";
@@ -697,6 +857,10 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
     }
 
     private String statusCode(OrderStatusEnum status) {
+        if (status == OrderStatusEnum.PAID_WAITING_SUPPLIER_CONFIRM
+                || status == OrderStatusEnum.DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM) {
+            return OrderStatusEnum.SUPPLIER_CONFIRMED.name();
+        }
         return status == null ? OrderStatusEnum.PENDING.name() : status.name();
     }
 
@@ -713,6 +877,51 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
 
     private BigDecimal safeAmount(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private void syncOrderFinancialsWithGhnFee(OrderEntity order, BigDecimal shippingFee, LocalDateTime now) {
+        BigDecimal subtotal = safeAmount(order.getSubtotal());
+        BigDecimal grandTotal = subtotal.add(safeAmount(shippingFee));
+        order.setShippingFee(safeAmount(shippingFee));
+        order.setTotalAmount(grandTotal);
+        if ("DEPOSIT_50".equals(order.getPaymentOption())) {
+            BigDecimal deposit = grandTotal.multiply(new BigDecimal("0.50"));
+            BigDecimal balance = grandTotal.subtract(deposit);
+            order.setDepositAmount(deposit);
+            order.setBalanceAmount(balance);
+            order.setRemainingAmount(balance);
+        }
+        order.setUpdatedAt(now);
+        orderRepository.save(order);
+
+        InvoiceEntity invoice = invoiceRepository.findTopByOrderIdOrderByCreatedAtDesc(order.getId()).orElse(null);
+        if (invoice != null) {
+            invoice.setShippingFee(safeAmount(shippingFee));
+            invoice.setTotalAmount(grandTotal);
+            invoice.setAdjustedAmount(grandTotal);
+            if ("DEPOSIT_50".equals(order.getPaymentOption())) {
+                invoice.setDepositAmount(order.getDepositAmount());
+                invoice.setBalanceAmount(order.getBalanceAmount());
+            }
+            invoiceRepository.save(invoice);
+        }
+
+        List<PaymentEntity> payments = paymentRepository.findByOrderIdOrderByPaymentDateDesc(order.getId());
+        for (PaymentEntity payment : payments) {
+            if (!"WAITING_TRANSFER".equals(payment.getStatus())) {
+                continue;
+            }
+            if ("REMAINING".equals(payment.getPaymentType())) {
+                continue;
+            }
+            if ("DEPOSIT".equals(payment.getPaymentType())) {
+                payment.setAmount(order.getDepositAmount());
+            } else {
+                payment.setAmount(grandTotal);
+            }
+            payment.setUpdatedAt(now);
+            paymentRepository.save(payment);
+        }
     }
 
     private String safeText(String value) {

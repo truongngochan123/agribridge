@@ -9,15 +9,16 @@ import {
   Truck,
   Wallet,
 } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { supplierMenuItems } from '../../data/supplierMenu'
 import { useCurrentUserProfile } from '../../hooks/useCurrentUserProfile'
-import { notificationUnreadCount } from '../../data/notifications'
 import { clearCurrentUserProfileCache } from '../../services/currentUserService'
 import { clearSupplierDashboardCache } from '../../services/supplierService'
+import { clearAuthSession } from '../../services/authSession'
 import { NotificationDrawer } from '../site/NotificationDrawer'
 import type { SupplierMenuKey } from '../../types/supplierDashboard'
+import { fetchNotifications, resolveNotificationRoute, type AppNotification } from '../../services/notificationService'
 
 type SupplierShellProps = {
   activeKey: SupplierMenuKey
@@ -41,25 +42,63 @@ const iconByKey = {
 export function SupplierShell({ activeKey, title, subtitle, children, actions, filterBar }: SupplierShellProps) {
   const navigate = useNavigate()
   const [openNotifications, setOpenNotifications] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [slideNotification, setSlideNotification] = useState<AppNotification | null>(null)
+  const prevLatestIdRef = useRef<number | null>(null)
   const { profile } = useCurrentUserProfile()
   const displayName = profile?.shortName ?? profile?.fullName ?? 'Người dùng'
   const roleLabel = profile?.roleLabel ?? 'Nhà cung cấp'
   const initials = profile?.initials ?? 'U'
 
   const handleLogout = () => {
-    const keysToDelete: string[] = []
-    for (let index = 0; index < localStorage.length; index += 1) {
-      const key = localStorage.key(index)
+    clearAuthSession()
+
+    const sessionKeysToDelete: string[] = []
+    for (let index = 0; index < sessionStorage.length; index += 1) {
+      const key = sessionStorage.key(index)
       if (key?.startsWith('agribridge.')) {
-        keysToDelete.push(key)
+        sessionKeysToDelete.push(key)
       }
     }
-    keysToDelete.forEach((key) => localStorage.removeItem(key))
+    sessionKeysToDelete.forEach((key) => sessionStorage.removeItem(key))
 
     clearCurrentUserProfileCache()
     clearSupplierDashboardCache()
     navigate('/auth/login', { replace: true })
   }
+
+  useEffect(() => {
+    let cancelled = false
+    let timerId: number | undefined
+
+    const loadNotifications = async () => {
+      try {
+        const data = await fetchNotifications()
+        if (cancelled) return
+        setUnreadCount(data.unreadCount || 0)
+        const latestUnread = (data.items || []).find((item) => !item.isRead)
+        if (latestUnread) {
+          if (prevLatestIdRef.current !== null && prevLatestIdRef.current !== latestUnread.id) {
+            setSlideNotification(latestUnread)
+            window.setTimeout(() => setSlideNotification(null), 5000)
+          }
+          prevLatestIdRef.current = latestUnread.id
+        }
+      } catch {
+        if (!cancelled) setUnreadCount(0)
+      }
+    }
+
+    void loadNotifications()
+    timerId = window.setInterval(() => {
+      void loadNotifications()
+    }, 15000)
+
+    return () => {
+      cancelled = true
+      if (timerId) window.clearInterval(timerId)
+    }
+  }, [])
 
   return (
     <div className="h-screen overflow-hidden bg-emerald-50/30 text-emerald-950">
@@ -130,7 +169,7 @@ export function SupplierShell({ activeKey, title, subtitle, children, actions, f
                 >
                   <Bell className="h-4 w-4" />
                   <span className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                    {notificationUnreadCount}
+                    {unreadCount}
                   </span>
                 </button>
 
@@ -158,7 +197,21 @@ export function SupplierShell({ activeKey, title, subtitle, children, actions, f
           <div className="flex-1 overflow-y-auto p-4">{children}</div>
         </main>
       </div>
-      <NotificationDrawer open={openNotifications} onClose={() => setOpenNotifications(false)} />
+      {slideNotification ? (
+        <button
+          className="fixed right-4 top-4 z-[85] w-[min(420px,calc(100%-2rem))] rounded-xl border border-emerald-200 bg-white p-3 text-left shadow-lg"
+          onClick={() => navigate(resolveNotificationRoute(slideNotification))}
+        >
+          <p className="text-sm font-bold text-slate-900">{slideNotification.title}</p>
+          <p className="mt-1 text-sm text-slate-600">{slideNotification.body}</p>
+        </button>
+      ) : null}
+      <NotificationDrawer
+        open={openNotifications}
+        onClose={() => setOpenNotifications(false)}
+        onUnreadCountChange={setUnreadCount}
+        onNotificationClick={(route) => navigate(route)}
+      />
     </div>
   )
 }

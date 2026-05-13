@@ -42,7 +42,7 @@ public class ShipmentEventEntity {
     @Column(name = "location")
     private String location;
 
-    @Column(name = "description")
+    @Column(name = "description", columnDefinition = "NVARCHAR(MAX)")
     private String description;
 
     @Column(name = "event_time", nullable = false)

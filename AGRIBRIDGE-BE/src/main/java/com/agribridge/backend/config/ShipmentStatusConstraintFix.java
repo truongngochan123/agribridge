@@ -15,18 +15,46 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class ShipmentStatusConstraintFix {
 
-    private static final String NEW_CONSTRAINT_NAME = "CK_shipments_status_v2";
+    private static final String NEW_CONSTRAINT_NAME = "CK_shipments_status_v3";
 
     private final JdbcTemplate jdbcTemplate;
 
     @PostConstruct
     public void fixShipmentStatusConstraint() {
         try {
+            ensureDemoProgressColumns();
             dropOldConstraints();
             ensureNewConstraintExists();
         } catch (Exception ex) {
             log.error("ShipmentStatusConstraintFix: failed to fix constraint - {}", ex.getMessage(), ex);
         }
+    }
+
+    private void ensureDemoProgressColumns() {
+        ensureColumn("auto_progress_enabled", "BIT NOT NULL CONSTRAINT DF_shipments_auto_progress_enabled_runtime DEFAULT 0");
+        ensureColumn("demo_tracking_enabled", "BIT NOT NULL CONSTRAINT DF_shipments_demo_tracking_enabled_runtime DEFAULT 0");
+        ensureColumn("last_status_changed_at", "DATETIME2 NULL");
+        ensureColumn("progress", "INT NULL");
+    }
+
+    private void ensureColumn(String columnName, String definition) {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM sys.columns c
+                        JOIN sys.tables t ON c.object_id = t.object_id
+                        JOIN sys.schemas s ON t.schema_id = s.schema_id
+                        WHERE s.name = 'dbo'
+                          AND t.name = 'shipments'
+                          AND c.name = ?
+                        """,
+                Integer.class,
+                columnName);
+        if (count != null && count > 0) {
+            return;
+        }
+        jdbcTemplate.execute("ALTER TABLE dbo.shipments ADD " + columnName + " " + definition);
+        log.info("ShipmentStatusConstraintFix: added missing column shipments.{}", columnName);
     }
 
     private void dropOldConstraints() {
@@ -64,12 +92,15 @@ public class ShipmentStatusConstraintFix {
 
         jdbcTemplate.execute("""
                 ALTER TABLE dbo.shipments
-                ADD CONSTRAINT CK_shipments_status_v2
+                ADD CONSTRAINT CK_shipments_status_v3
                 CHECK (status IN (
                     'CREATED',
                     'PENDING',
+                    'WAITING_PICKUP',
+                    'PICKED_UP',
                     'SHIPPED',
                     'IN_TRANSIT',
+                    'OUT_FOR_DELIVERY',
                     'WAITING_CONFIRMATION',
                     'CANCELLED',
                     'PREPARING',

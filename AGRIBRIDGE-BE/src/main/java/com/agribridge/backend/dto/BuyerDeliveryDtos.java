@@ -35,7 +35,15 @@ public final class BuyerDeliveryDtos {
             BigDecimal currentLng,
             String status,
             String statusLabel,
-            int progress
+            int progress,
+            String receiverName,
+            String receiverPhone,
+            String deliveryAddress,
+            String buyerName,
+            String buyerPhone,
+            String branchContactName,
+            String branchPhone,
+            String branchAddress
     ) {
     }
 
@@ -58,7 +66,8 @@ public final class BuyerDeliveryDtos {
             BigDecimal quantity,
             String unit,
             BigDecimal price,
-            BigDecimal subtotal
+            BigDecimal subtotal,
+            String batchUrl
     ) {
     }
 
@@ -80,7 +89,12 @@ public final class BuyerDeliveryDtos {
             String status,
             LocalDateTime createdAt,
             LocalDateTime resolvedAt,
-            String resolutionNote
+            String resolutionNote,
+            Integer missingQuantity,
+            Integer damagedQuantity,
+            String updateNote,
+            List<String> evidenceUrls,
+            LocalDateTime updatedAt
     ) {
     }
 
@@ -107,7 +121,18 @@ public final class BuyerDeliveryDtos {
     public record IncidentRequest(
             String incidentType,
             String description,
-            String imageUrl
+            String imageUrl,
+            Integer missingQuantity,
+            Integer damagedQuantity
+    ) {
+    }
+
+    public record UpdateIncidentRequest(
+            String note,
+            Integer missingQuantity,
+            Integer damagedQuantity,
+            String imageUrl,
+            List<String> evidenceUrls
     ) {
     }
 }

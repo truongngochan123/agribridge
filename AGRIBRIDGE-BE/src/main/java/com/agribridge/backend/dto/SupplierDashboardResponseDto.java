@@ -90,7 +90,16 @@ public record SupplierDashboardResponseDto(
             String serviceName,
             String estimatedDeliveryTime,
             String createdAt,
-            Long rawOrderId) {
+            Long rawOrderId,
+            List<ShipmentEventDto> shipmentEvents) {
+    }
+
+    public record ShipmentEventDto(
+            Long id,
+            String status,
+            String description,
+            String location,
+            String eventTime) {
     }
 
     public record DebtCustomerDto(

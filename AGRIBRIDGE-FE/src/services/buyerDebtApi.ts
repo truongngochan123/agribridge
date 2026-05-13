@@ -33,12 +33,19 @@ export type BuyerDebtInvoice = {
   invoiceNumber: string
   orderId: number
   orderRef: string
+  productName?: string | null
+  quantity?: number | null
+  unit?: string | null
   createdAt: string
+  confirmedReceivedAt?: string | null
   dueDate?: string | null
+  dueLabel?: string | null
   totalAmount: number
   adjustedAmount: number
   paidAmount: number
   remainingAmount: number
+  paymentPlanType?: 'DEPOSIT_50' | 'CREDIT_TERM' | 'PREPAID' | string | null
+  paymentTermDays?: number | null
   status?: string | null
   statusLabel: string
   overdueDays: number
@@ -63,6 +70,25 @@ export type BuyerDebtAdjustment = {
   createdAt: string
 }
 
+export type BuyerDebtReminder = {
+  reminderId: number
+  invoiceId?: number | null
+  invoiceNumber?: string | null
+  orderId?: number | null
+  orderCode?: string | null
+  productName?: string | null
+  quantity?: number | null
+  unit?: string | null
+  dueLabel?: string | null
+  amount: number
+  message?: string | null
+  channel?: string | null
+  status?: string | null
+  senderName?: string | null
+  sentAt?: string | null
+  createdAt?: string | null
+}
+
 export type BuyerDebtOverview = {
   kpis: BuyerDebtKpi[]
   suppliers: BuyerDebtSupplier[]
@@ -73,6 +99,7 @@ export type BuyerDebtSupplierDetail = {
   invoices: BuyerDebtInvoice[]
   payments: BuyerDebtPayment[]
   adjustments: BuyerDebtAdjustment[]
+  reminders: BuyerDebtReminder[]
 }
 
 export type BuyerDebtPaymentPayload = {

@@ -11,5 +11,6 @@ public interface CreditLimitRepository extends JpaRepository<CreditLimitEntity, 
     Optional<CreditLimitEntity> findBySupplierCompanyIdAndBuyerCompanyId(Long supplierCompanyId, Long buyerCompanyId);
 
     List<CreditLimitEntity> findByBuyerCompanyIdAndSupplierCompanyIdIn(Long buyerCompanyId, Collection<Long> supplierCompanyIds);
-}
 
+    List<CreditLimitEntity> findBySupplierCompanyIdAndBuyerCompanyIdIn(Long supplierCompanyId, Collection<Long> buyerCompanyIds);
+}

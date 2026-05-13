@@ -28,4 +28,6 @@ public interface SupplierOrderService {
     SupplierOrderDto startShippingDemoOrder(Long orderId);
 
     SupplierOrderDto markDeliveredDemoOrder(Long orderId);
+
+    SupplierOrderDto syncGhnDemoOrder(Long orderId);
 }

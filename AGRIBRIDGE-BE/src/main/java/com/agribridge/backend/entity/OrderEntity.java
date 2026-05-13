@@ -116,6 +116,9 @@ public class OrderEntity {
     @Column(name = "delivery_province")
     private String deliveryProvince;
 
+    @Column(name = "delivery_district")
+    private String deliveryDistrict;
+
     @Column(name = "delivery_ward")
     private String deliveryWard;
 

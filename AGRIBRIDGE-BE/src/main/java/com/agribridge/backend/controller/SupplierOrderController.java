@@ -83,4 +83,9 @@ public class SupplierOrderController {
     public SupplierOrderDto markDelivered(@PathVariable Long orderId) {
         return supplierOrderService.markDeliveredDemoOrder(orderId);
     }
+
+    @PostMapping("/{orderId}/sync-ghn")
+    public SupplierOrderDto syncGhn(@PathVariable Long orderId) {
+        return supplierOrderService.syncGhnDemoOrder(orderId);
+    }
 }

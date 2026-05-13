@@ -61,6 +61,9 @@ public class ShipmentEntity {
     @Column(name = "receiver_province")
     private String receiverProvince;
 
+    @Column(name = "receiver_district")
+    private String receiverDistrict;
+
     @Column(name = "receiver_ward")
     private String receiverWard;
 
@@ -78,6 +81,18 @@ public class ShipmentEntity {
 
     @Column(name = "tracking_code")
     private String trackingCode;
+
+    @Column(name = "ghn_order_code")
+    private String ghnOrderCode;
+
+    @Column(name = "ghn_sort_code")
+    private String ghnSortCode;
+
+    @Column(name = "ghn_trans_type")
+    private String ghnTransType;
+
+    @Column(name = "ghn_raw_response", columnDefinition = "NVARCHAR(MAX)")
+    private String ghnRawResponse;
 
     @Column(name = "shipping_method")
     private String shippingMethod;
@@ -129,10 +144,76 @@ public class ShipmentEntity {
     @Column(name = "shipping_fee")
     private BigDecimal shippingFee;
 
+    @Column(name = "weight")
+    private Integer weight;
+
+    @Column(name = "length")
+    private Integer length;
+
+    @Column(name = "width")
+    private Integer width;
+
+    @Column(name = "height")
+    private Integer height;
+
+    @Column(name = "shop_id_used")
+    private String shopIdUsed;
+
+    @Column(name = "from_district_id")
+    private Integer fromDistrictId;
+
+    @Column(name = "from_ward_code")
+    private String fromWardCode;
+
+    @Column(name = "to_district_id")
+    private Integer toDistrictId;
+
+    @Column(name = "to_ward_code")
+    private String toWardCode;
+
+    @Column(name = "service_type_id")
+    private Integer serviceTypeId;
+
+    @Column(name = "service_id")
+    private Integer serviceId;
+
+    @Column(name = "insurance_value")
+    private BigDecimal insuranceValue;
+
+    @Column(name = "raw_quote_request", columnDefinition = "NVARCHAR(MAX)")
+    private String rawQuoteRequest;
+
+    @Column(name = "raw_quote_response", columnDefinition = "NVARCHAR(MAX)")
+    private String rawQuoteResponse;
+
+    @Column(name = "quoted_shipping_fee")
+    private BigDecimal quotedShippingFee;
+
+    @Column(name = "ghn_create_fee")
+    private BigDecimal ghnCreateFee;
+
+    @Column(name = "sender_address_source")
+    private String senderAddressSource;
+
+    @Column(name = "shipping_fee_source")
+    private String shippingFeeSource;
+
+    @Column(name = "auto_progress_enabled", nullable = false)
+    private Boolean autoProgressEnabled;
+
+    @Column(name = "demo_tracking_enabled", nullable = false)
+    private Boolean demoTrackingEnabled;
+
+    @Column(name = "last_status_changed_at")
+    private LocalDateTime lastStatusChangedAt;
+
+    @Column(name = "progress")
+    private Integer progress;
+
     @Column(name = "fee_confirmed", nullable = false)
     private Boolean feeConfirmed;
 
-    @Column(name = "incident_note")
+    @Column(name = "incident_note", columnDefinition = "NVARCHAR(MAX)")
     private String incidentNote;
 
     @Column(name = "created_at", nullable = false)

@@ -8,6 +8,7 @@ export type BuyerQuickOrderTarget = {
   supplierName?: string | null
   supplierId?: number | null
   supplierCompanyId?: number | null
+  supplierProvince?: string | null
   originRegion?: string | null
   unit?: string | null
   price?: number | null
@@ -76,6 +77,20 @@ export type BuyerQuickOrderPayload = {
   estimatedDeliveryTime?: string | null
   shippingPayer?: 'BUYER' | 'SUPPLIER' | 'NEGOTIATED'
   shippingStatus: 'PENDING_QUOTE' | 'QUOTED'
+  shippingShopIdUsed?: string | null
+  shippingFromDistrictId?: number | null
+  shippingFromWardCode?: string | null
+  shippingToDistrictId?: number | null
+  shippingToWardCode?: string | null
+  shippingWeight?: number | null
+  shippingLength?: number | null
+  shippingWidth?: number | null
+  shippingHeight?: number | null
+  shippingServiceTypeId?: number | null
+  shippingServiceId?: number | null
+  shippingInsuranceValue?: number | null
+  shippingRawQuoteRequest?: string | null
+  shippingRawQuoteResponse?: string | null
   orderStatus: 'PENDING'
   note?: string | null
 }

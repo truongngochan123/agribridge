@@ -26,3 +26,20 @@ apiClient.interceptors.request.use((config) => {
 
   return config
 })
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      // Token hết hạn hoặc không hợp lệ — xóa session và redirect về login
+      const keysToDelete: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key?.startsWith('agribridge.')) keysToDelete.push(key)
+      }
+      keysToDelete.forEach((key) => localStorage.removeItem(key))
+      window.location.href = '/auth/login'
+    }
+    return Promise.reject(error)
+  },
+)

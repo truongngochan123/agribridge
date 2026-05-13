@@ -12,7 +12,6 @@ import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.ShipmentEventEntity;
 import com.agribridge.backend.entity.ShipmentIncidentEntity;
 import com.agribridge.backend.entity.UserEntity;
-import com.agribridge.backend.entity.enums.OrderStatusEnum;
 import com.agribridge.backend.entity.enums.ShipmentStatusEnum;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.BranchRepository;
@@ -25,6 +24,7 @@ import com.agribridge.backend.repository.ShipmentEventRepository;
 import com.agribridge.backend.repository.ShipmentIncidentRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
 import com.agribridge.backend.service.BuyerDeliveryService;
+import com.agribridge.backend.service.BuyerOrderService;
 import com.agribridge.backend.service.CurrentUserService;
 import com.agribridge.backend.service.MarketPriceAggregationService;
 import java.math.BigDecimal;
@@ -59,6 +59,7 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
     private final CompanyRepository companyRepository;
     private final ComplaintRepository complaintRepository;
     private final MarketPriceAggregationService marketPriceAggregationService;
+    private final BuyerOrderService buyerOrderService;
 
     @Override
     @Transactional(readOnly = true)
@@ -105,7 +106,7 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
         if (shipment.getConfirmedReceivedAt() != null) {
             throw new IllegalArgumentException("SHIPMENT_ALREADY_CONFIRMED");
         }
-        if (ShipmentStatusEnum.CANCELLED.equals(shipment.getStatus()) || ShipmentStatusEnum.FAILED.equals(shipment.getStatus())) {
+        if (!ShipmentStatusEnum.WAITING_CONFIRMATION.equals(shipment.getStatus())) {
             throw new IllegalArgumentException("SHIPMENT_CANNOT_BE_CONFIRMED");
         }
         if (request == null || !Boolean.TRUE.equals(request.confirmed())) {
@@ -116,29 +117,15 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
             throw new IllegalArgumentException("condition is required");
         }
         if (!"OK".equalsIgnoreCase(condition)) {
-            createIncidentInternal(shipment, user.getId(), condition, firstText(request.note(), "Buyer reported delivery issue"), request.evidenceImage());
+            createIncidentInternal(shipment, user.getId(), condition, firstText(request.note(), "Buyer reported delivery issue"), request.evidenceImage(), null, null);
             return toDetail(shipmentRepository.findById(shipmentId).orElseThrow());
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        shipment.setConfirmedReceivedAt(now);
-        shipment.setConfirmedReceivedByUserId(user.getId());
-        shipment.setDeliveredAt(shipment.getDeliveredAt() == null ? now : shipment.getDeliveredAt());
-        shipment.setStatus(ShipmentStatusEnum.DELIVERED);
-        shipmentRepository.save(shipment);
-
         OrderEntity order = orderRepository.findById(shipment.getOrderId())
                 .orElseThrow(() -> new IllegalArgumentException("ORDER_NOT_FOUND"));
-        order.setStatus(OrderStatusEnum.DELIVERED);
-        orderRepository.save(order);
+        buyerOrderService.confirmReceived(order.getId());
+        shipment = shipmentRepository.findById(shipment.getId()).orElseThrow();
         marketPriceAggregationService.updateFromOrder(order.getId());
-
-        shipmentEventRepository.save(ShipmentEventEntity.builder()
-                .shipmentId(shipment.getId())
-                .status(ShipmentStatusEnum.DELIVERED.name())
-                .description(firstText(request.note(), "Buyer confirmed received shipment"))
-                .eventTime(now)
-                .build());
         return toDetail(shipment);
     }
 
@@ -147,25 +134,54 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
     public BuyerDeliveryDtos.Incident createIncident(Long shipmentId, BuyerDeliveryDtos.IncidentRequest request) {
         ShipmentEntity shipment = requireBuyerShipment(shipmentId);
         Long userId = currentUserService.requireCurrentUser().getId();
+
+        // Validate: MISSING/DAMAGED/WRONG_PRODUCT chỉ được báo khi hàng đã tới
+        if (request != null && request.incidentType() != null) {
+            String type = request.incidentType().toUpperCase(Locale.ROOT);
+            boolean isDeliveryOnlyType = java.util.Set.of("MISSING_ITEMS", "DAMAGED", "WRONG_PRODUCT").contains(type);
+            boolean isReceived = shipment.getStatus() == ShipmentStatusEnum.WAITING_CONFIRMATION
+                    || shipment.getStatus() == ShipmentStatusEnum.DELIVERED;
+            if (isDeliveryOnlyType && !isReceived) {
+                throw new IllegalArgumentException("INCIDENT_TYPE_NOT_ALLOWED_FOR_STATUS");
+            }
+        }
+
         return toIncident(createIncidentInternal(
                 shipment,
                 userId,
                 request == null ? null : request.incidentType(),
                 request == null ? null : request.description(),
-                request == null ? null : request.imageUrl()));
+                request == null ? null : request.imageUrl(),
+                request == null ? null : request.missingQuantity(),
+                request == null ? null : request.damagedQuantity()));
     }
 
-    private ShipmentIncidentEntity createIncidentInternal(ShipmentEntity shipment, Long userId, String type, String description, String imageUrl) {
+    private ShipmentIncidentEntity createIncidentInternal(ShipmentEntity shipment, Long userId, String type, String description, String imageUrl, Integer missingQty, Integer damagedQty) {
         String incidentType = firstText(type, "DELIVERY_ISSUE").toUpperCase(Locale.ROOT);
         String incidentDescription = required(description, "description is required");
         LocalDateTime now = LocalDateTime.now();
         shipment.setStatus(ShipmentStatusEnum.INCIDENT);
         shipment.setIncidentNote(incidentDescription);
         shipmentRepository.save(shipment);
+        String shortEventDesc = "Người mua báo sự cố: ";
+        if ("MISSING_ITEMS".equals(incidentType)) {
+            shortEventDesc += "Thiếu hàng" + (missingQty != null ? (" " + missingQty) : "");
+        } else if ("DAMAGED".equals(incidentType)) {
+            shortEventDesc += "Hàng lỗi/hư hỏng" + (damagedQty != null ? (" " + damagedQty) : "");
+        } else if ("WRONG_PRODUCT".equals(incidentType)) {
+            shortEventDesc += "Sai sản phẩm";
+        } else if ("DELAY".equals(incidentType)) {
+            shortEventDesc += "Giao trễ";
+        } else if ("CONTACT_ISSUE".equals(incidentType)) {
+            shortEventDesc += "Không liên hệ được tài xế/đơn vị giao hàng";
+        } else {
+            shortEventDesc += "Khác";
+        }
+
         shipmentEventRepository.save(ShipmentEventEntity.builder()
                 .shipmentId(shipment.getId())
                 .status(ShipmentStatusEnum.INCIDENT.name())
-                .description("Buyer reported incident: " + incidentDescription)
+                .description(shortEventDesc)
                 .eventTime(now)
                 .build());
         return shipmentIncidentRepository.save(ShipmentIncidentEntity.builder()
@@ -284,7 +300,15 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
                 shipment.getCurrentLng(),
                 shipment.getStatus().name(),
                 statusLabel(shipment.getStatus()),
-                progress(shipment.getStatus()));
+                shipment.getProgress() == null ? progress(shipment.getStatus()) : shipment.getProgress(),
+                shipment.getReceiverName(),
+                shipment.getReceiverPhone(),
+                buildFullAddress(shipment, order, branch),
+                order == null ? null : order.getDeliveryName(),
+                order == null ? null : order.getDeliveryPhone(),
+                branch == null ? null : branch.getManagerName(),
+                branch == null ? null : branch.getPhone(),
+                branch == null ? null : branch.getAddress());
     }
 
     private BuyerDeliveryDtos.ProductItem toProductItem(OrderItemEntity item, ProductEntity product, BatchEntity batch) {
@@ -292,13 +316,14 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
                 item.getProductId(),
                 product == null ? "N/A" : product.getName(),
                 item.getBatchId(),
-                batch == null ? "LOT-" + item.getBatchId() : firstText(batch.getQrCode(), "LOT-" + batch.getId()),
+                batch == null ? "LOT-" + item.getBatchId() : "LOT-" + batch.getId(),
                 batch == null ? null : batch.getGrade(),
                 batch == null ? null : batch.getSize(),
                 item.getQuantity(),
                 firstText(item.getUnit(), product == null ? null : product.getUnit()),
                 item.getPrice(),
-                item.getSubtotal());
+                item.getSubtotal(),
+                batch == null ? null : batch.getQrCode());
     }
 
     private BuyerDeliveryDtos.TimelineEvent toTimeline(ShipmentEventEntity event) {
@@ -313,6 +338,16 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
     }
 
     private BuyerDeliveryDtos.Incident toIncident(ShipmentIncidentEntity incident) {
+        List<String> evidenceList = parseEvidenceUrls(incident.getEvidenceUrls());
+        // Also include original imageUrl if present and not already in list
+        if (incident.getImageUrl() != null && !incident.getImageUrl().isBlank()) {
+            String origUrl = incident.getImageUrl().trim();
+            if (!evidenceList.contains(origUrl)) {
+                java.util.ArrayList<String> combined = new java.util.ArrayList<>(evidenceList);
+                combined.add(0, origUrl);
+                evidenceList = java.util.Collections.unmodifiableList(combined);
+            }
+        }
         return new BuyerDeliveryDtos.Incident(
                 incident.getId(),
                 incident.getIncidentType(),
@@ -321,7 +356,12 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
                 incident.getStatus(),
                 incident.getCreatedAt(),
                 incident.getResolvedAt(),
-                incident.getResolutionNote());
+                incident.getResolutionNote(),
+                incident.getMissingQuantity(),
+                incident.getDamagedQuantity(),
+                incident.getUpdateNote(),
+                evidenceList,
+                incident.getUpdatedAt());
     }
 
     private BuyerDeliveryDtos.Complaint toComplaint(ComplaintEntity complaint) {
@@ -334,6 +374,76 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
                 complaint.getSeverity(),
                 complaint.getCreatedAt(),
                 complaint.getResolvedAt());
+    }
+
+    @Override
+    @Transactional
+    public BuyerDeliveryDtos.Incident updateIncident(Long shipmentId, Long incidentId, BuyerDeliveryDtos.UpdateIncidentRequest request) {
+        requireBuyerShipment(shipmentId);
+        ShipmentIncidentEntity incident = shipmentIncidentRepository.findById(incidentId)
+                .orElseThrow(() -> new IllegalArgumentException("INCIDENT_NOT_FOUND"));
+        if (!incident.getShipmentId().equals(shipmentId)) {
+            throw new IllegalArgumentException("INCIDENT_NOT_FOUND");
+        }
+        if (!"OPEN".equals(incident.getStatus()) && !"PROCESSING".equals(incident.getStatus())) {
+            throw new IllegalArgumentException("INCIDENT_NOT_EDITABLE");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        // Update note: append to existing if present
+        if (request != null && clean(request.note()) != null) {
+            String existing = clean(incident.getUpdateNote());
+            String newNote = clean(request.note());
+            incident.setUpdateNote(existing == null ? newNote : (existing + "\n---\n" + newNote));
+        }
+
+        // Update quantities if provided
+        if (request != null && request.missingQuantity() != null) {
+            if (request.missingQuantity() <= 0) {
+                throw new IllegalArgumentException("missingQuantity must be > 0");
+            }
+            incident.setMissingQuantity(request.missingQuantity());
+        }
+        if (request != null && request.damagedQuantity() != null) {
+            if (request.damagedQuantity() <= 0) {
+                throw new IllegalArgumentException("damagedQuantity must be > 0");
+            }
+            incident.setDamagedQuantity(request.damagedQuantity());
+        }
+
+        // Merge new evidence URLs (imageUrl single + evidenceUrls list)
+        List<String> existing = new java.util.ArrayList<>(parseEvidenceUrls(incident.getEvidenceUrls()));
+        if (request != null && clean(request.imageUrl()) != null) {
+            String url = clean(request.imageUrl());
+            if (!existing.contains(url)) existing.add(url);
+        }
+        if (request != null && request.evidenceUrls() != null) {
+            for (String url : request.evidenceUrls()) {
+                if (clean(url) != null && !existing.contains(clean(url))) {
+                    existing.add(clean(url));
+                }
+            }
+        }
+        incident.setEvidenceUrls(existing.isEmpty() ? null : String.join(",", existing));
+        incident.setUpdatedAt(now);
+        shipmentIncidentRepository.save(incident);
+
+        // Timeline event
+        shipmentEventRepository.save(ShipmentEventEntity.builder()
+                .shipmentId(shipmentId)
+                .status("INCIDENT")
+                .description("Người mua cập nhật bằng chứng sự cố")
+                .eventTime(now)
+                .build());
+
+        return toIncident(incident);
+    }
+
+    private List<String> parseEvidenceUrls(String raw) {
+        if (raw == null || raw.isBlank()) return new java.util.ArrayList<>();
+        return new java.util.ArrayList<>(java.util.Arrays.stream(raw.split(","))
+                .map(String::trim).filter(s -> !s.isEmpty()).toList());
     }
 
     private ShipmentStatusEnum parseStatus(String raw) {
@@ -349,14 +459,17 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
     }
 
     private int progress(ShipmentStatusEnum status) {
+        if (status == null) {
+            return 15;
+        }
         return switch (status) {
-            case CREATED, PENDING -> 10;
-            case PREPARING -> 25;
-            case SHIPPED, SHIPPING -> 55;
-            case IN_TRANSIT -> 75;
+            case CREATED, PENDING, PREPARING, WAITING_PICKUP -> 20;
+            case PICKED_UP, SHIPPED -> 40;
+            case IN_TRANSIT, SHIPPING -> 65;
+            case OUT_FOR_DELIVERY -> 80;
             case WAITING_CONFIRMATION -> 90;
             case DELIVERED -> 100;
-            case INCIDENT, FAILED, FAILED_DELIVERY, CANCELLED -> 100;
+            case CANCELLED, INCIDENT, FAILED, FAILED_DELIVERY -> 45;
         };
     }
 
@@ -369,6 +482,9 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
             return "N/A";
         }
         return switch (status.toUpperCase(Locale.ROOT)) {
+            case "WAITING_PICKUP" -> "Chờ lấy hàng";
+            case "PICKED_UP" -> "Đã lấy hàng tại kho";
+            case "OUT_FOR_DELIVERY" -> "Đang giao tới người nhận";
             case "PENDING" -> "Chờ xử lý";
             case "PREPARING" -> "Chuẩn bị";
             case "SHIPPED", "SHIPPING" -> "Đã xuất kho";
@@ -397,6 +513,32 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
 
     private String clean(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String buildFullAddress(ShipmentEntity shipment, OrderEntity order, BranchEntity branch) {
+        String addr = shipment.getReceiverAddress();
+        String ward = shipment.getReceiverWard();
+        String prov = shipment.getReceiverProvince();
+        
+        if (clean(addr) == null && clean(ward) == null && clean(prov) == null) {
+            if (order != null) {
+                addr = order.getDeliveryAddress();
+                ward = order.getDeliveryWard();
+                prov = order.getDeliveryProvince();
+            }
+        }
+        
+        java.util.List<String> parts = new java.util.ArrayList<>();
+        if (clean(addr) != null) parts.add(clean(addr));
+        if (clean(ward) != null) parts.add(clean(ward));
+        if (clean(prov) != null) parts.add(clean(prov));
+        
+        if (parts.isEmpty() && branch != null) {
+            if (clean(branch.getDeliveryAddress()) != null) return clean(branch.getDeliveryAddress());
+            return clean(branch.getAddress());
+        }
+        
+        return parts.isEmpty() ? null : String.join(", ", parts);
     }
 
     private String formatNumber(BigDecimal value) {

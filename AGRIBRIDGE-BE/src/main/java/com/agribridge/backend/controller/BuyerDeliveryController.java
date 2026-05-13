@@ -7,6 +7,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -53,5 +54,13 @@ public class BuyerDeliveryController {
             @PathVariable Long shipmentId,
             @RequestBody BuyerDeliveryDtos.IncidentRequest request) {
         return buyerDeliveryService.createIncident(shipmentId, request);
+    }
+
+    @PatchMapping("/{shipmentId}/incidents/{incidentId}")
+    public BuyerDeliveryDtos.Incident updateIncident(
+            @PathVariable Long shipmentId,
+            @PathVariable Long incidentId,
+            @RequestBody BuyerDeliveryDtos.UpdateIncidentRequest request) {
+        return buyerDeliveryService.updateIncident(shipmentId, incidentId, request);
     }
 }

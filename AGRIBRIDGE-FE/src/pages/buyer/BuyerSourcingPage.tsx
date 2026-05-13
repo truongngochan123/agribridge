@@ -1,10 +1,12 @@
 import { Award, Bookmark, ExternalLink, Eye, Flame, Layers, MapPin, PackageSearch, QrCode, Search, ShoppingBag, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { BuyerQuickOrderModal } from '../../components/buyer/BuyerQuickOrderModal'
+import { BuyerOrderPaymentModal } from '../../components/buyer/BuyerOrderPaymentModal'
 import { BuyerSelectBatchModal } from '../../components/buyer/BuyerSelectBatchModal'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
-import type { BuyerQuickOrderPayload, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
+import type { BuyerPaymentMethod, BuyerQuickOrderPayload, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
+import { useBuyerOrderPayment } from '../../hooks/useBuyerOrderPayment'
 import { useToast } from '../../hooks/useToast'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { createQuickOrder } from '../../services/buyerOrderService'
@@ -54,6 +56,20 @@ type BuyerSourcingProductDetail = BuyerSourcingProduct & {
   batches?: BuyerBatchPreview[]
   batchList?: BuyerBatchPreview[]
   availableBatches?: BuyerBatchPreview[]
+}
+
+type QuickOrderPaymentModalData = {
+  orderId: number
+  orderCode: string
+  productName: string
+  quantity: number
+  unit?: string | null
+  subtotal?: number | null
+  shippingFee?: number | null
+  totalAmount?: number | null
+  transferContent?: string | null
+  paymentMethod: BuyerPaymentMethod
+  creditTermDays?: number | null
 }
 
 const priceFilters: Array<{ value: PriceFilter; label: string }> = [
@@ -272,7 +288,9 @@ function openDocumentUrl(url?: string | null) {
 
 export function BuyerSourcingPage() {
   usePageTitle('Tìm kiếm nguồn hàng')
+  const navigate = useNavigate()
   const { showToast } = useToast()
+  const { confirmPayment, confirming } = useBuyerOrderPayment()
   const [products, setProducts] = useState<BuyerSourcingProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -293,6 +311,7 @@ export function BuyerSourcingPage() {
   const [submittingRfq, setSubmittingRfq] = useState(false)
   const [quickOrderTarget, setQuickOrderTarget] = useState<BuyerQuickOrderTarget | null>(null)
   const [quickOrderSubmitting, setQuickOrderSubmitting] = useState(false)
+  const [paymentModalData, setPaymentModalData] = useState<QuickOrderPaymentModalData | null>(null)
   const [selectBatchState, setSelectBatchState] = useState<{
     product: BuyerSourcingProduct
     batches: BuyerBatchPreview[]
@@ -535,10 +554,26 @@ export function BuyerSourcingPage() {
 
   const handleQuickOrderSubmit = async (payload: BuyerQuickOrderPayload) => {
     setQuickOrderSubmitting(true)
+    const currentTarget = quickOrderTarget
     try {
       const result = await createQuickOrder(payload)
-      showToast(result.message || 'Tạo đơn hàng thành công', 'success')
+      showToast('Tạo đơn hàng thành công. Vui lòng hoàn tất thanh toán.', 'success')
       setQuickOrderTarget(null)
+      if (currentTarget) {
+        setPaymentModalData({
+          orderId: result.orderId,
+          orderCode: result.orderCode,
+          productName: currentTarget.productName,
+          quantity: payload.quantity,
+          unit: payload.unit,
+          subtotal: payload.subtotal,
+          shippingFee: payload.shippingFee,
+          totalAmount: result.payableAmount ?? result.grandTotal ?? (payload.subtotal ?? 0) + (payload.shippingFee ?? 0),
+          transferContent: result.transferContent ?? null,
+          paymentMethod: payload.paymentMethod,
+          creditTermDays: payload.creditTermDays ?? null,
+        })
+      }
       const rows = await fetchBuyerSourcingProducts()
       setProducts(rows)
       setSavedIds(new Set(rows.filter((item) => item.isSaved).map((item) => item.productId)))
@@ -546,6 +581,15 @@ export function BuyerSourcingPage() {
       showToast(readApiErrorMessage(requestError) || 'Không thể tạo đơn hàng.', 'error')
     } finally {
       setQuickOrderSubmitting(false)
+    }
+  }
+
+  const handleConfirmPayment = async () => {
+    if (!paymentModalData) return
+    const updated = await confirmPayment({ orderId: paymentModalData.orderId })
+    if (updated) {
+      setPaymentModalData(null)
+      navigate(`/buyer/orders?orderId=${paymentModalData.orderId}`)
     }
   }
 
@@ -828,6 +872,25 @@ export function BuyerSourcingPage() {
           onSubmit={(payload) => {
             void handleQuickOrderSubmit(payload)
           }}
+        />
+      ) : null}
+
+      {paymentModalData ? (
+        <BuyerOrderPaymentModal
+          open={Boolean(paymentModalData)}
+          orderCode={paymentModalData.orderCode}
+          productName={paymentModalData.productName}
+          quantity={paymentModalData.quantity}
+          unit={paymentModalData.unit}
+          subtotal={paymentModalData.subtotal}
+          shippingFee={paymentModalData.shippingFee}
+          totalAmount={paymentModalData.totalAmount}
+          paymentMethod={paymentModalData.paymentMethod}
+          creditTermDays={paymentModalData.creditTermDays}
+          transferContent={paymentModalData.transferContent}
+          confirming={confirming}
+          onClose={() => setPaymentModalData(null)}
+          onConfirmPaid={() => void handleConfirmPayment()}
         />
       ) : null}
 

@@ -78,7 +78,34 @@ public class CompanyEntity {
     private String province;
 
     @Column
+    private String district;
+
+    @Column
     private String ward;
+
+    @Column(name = "ghn_shop_id")
+    private Long ghnShopId;
+
+    @Column(name = "ghn_shop_name")
+    private String ghnShopName;
+
+    @Column(name = "ghn_shop_phone")
+    private String ghnShopPhone;
+
+    @Column(name = "ghn_shop_address")
+    private String ghnShopAddress;
+
+    @Column(name = "ghn_shop_district_id")
+    private Integer ghnShopDistrictId;
+
+    @Column(name = "ghn_shop_ward_code")
+    private String ghnShopWardCode;
+
+    @Column(name = "ghn_shop_status")
+    private String ghnShopStatus;
+
+    @Column(name = "ghn_shop_created_at")
+    private LocalDateTime ghnShopCreatedAt;
 
     @Column
     private String description;

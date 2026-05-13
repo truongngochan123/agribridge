@@ -4,5 +4,6 @@ public enum AdjustmentTypeEnum {
     SHORT_DELIVERY,
     DAMAGED_GOODS,
     DISCOUNT,
+    SURCHARGE,
     OTHER
 }

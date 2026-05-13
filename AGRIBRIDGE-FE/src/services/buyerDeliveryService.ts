@@ -2,10 +2,13 @@ import { apiClient } from './apiClient'
 
 export type DeliveryStatus =
   | 'PENDING'
+  | 'WAITING_PICKUP'
+  | 'PICKED_UP'
   | 'PREPARING'
   | 'SHIPPED'
   | 'SHIPPING'
   | 'IN_TRANSIT'
+  | 'OUT_FOR_DELIVERY'
   | 'WAITING_CONFIRMATION'
   | 'DELIVERED'
   | 'INCIDENT'
@@ -38,6 +41,14 @@ export type BuyerDeliveryItem = {
   status: DeliveryStatus
   statusLabel: string
   progress: number
+  receiverName?: string | null
+  receiverPhone?: string | null
+  deliveryAddress?: string | null
+  buyerName?: string | null
+  buyerPhone?: string | null
+  branchContactName?: string | null
+  branchPhone?: string | null
+  branchAddress?: string | null
 }
 
 export type DeliveryTimelineEvent = {
@@ -62,6 +73,7 @@ export type BuyerDeliveryDetail = {
     unit?: string | null
     price?: number | null
     subtotal?: number | null
+    batchUrl?: string | null
   }>
   timeline: DeliveryTimelineEvent[]
   incidents: Array<{
@@ -73,6 +85,11 @@ export type BuyerDeliveryDetail = {
     createdAt: string
     resolvedAt?: string | null
     resolutionNote?: string | null
+    missingQuantity?: number | null
+    damagedQuantity?: number | null
+    updateNote?: string | null
+    evidenceUrls?: string[] | null
+    updatedAt?: string | null
   }>
   complaints: Array<{
     id: number
@@ -119,8 +136,30 @@ export async function confirmBuyerDeliveryReceived(
 
 export async function createBuyerDeliveryIncident(
   shipmentId: number,
-  payload: { incidentType: string; description: string; imageUrl?: string },
+  payload: {
+    incidentType: string
+    description: string
+    imageUrl?: string
+    evidenceUrls?: string[]
+    missingQuantity?: number
+    damagedQuantity?: number
+  },
 ) {
   const response = await apiClient.post(`/api/buyer/deliveries/${shipmentId}/incidents`, payload)
+  return response.data?.data ?? response.data
+}
+
+export async function updateBuyerDeliveryIncident(
+  shipmentId: number,
+  incidentId: number,
+  payload: {
+    note?: string
+    missingQuantity?: number
+    damagedQuantity?: number
+    imageUrl?: string
+    evidenceUrls?: string[]
+  },
+) {
+  const response = await apiClient.patch(`/api/buyer/deliveries/${shipmentId}/incidents/${incidentId}`, payload)
   return response.data?.data ?? response.data
 }

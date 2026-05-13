@@ -3,6 +3,7 @@ package com.agribridge.backend.entity.enums;
 public enum NotificationTypeEnum {
     DEBT_REMINDER,
     DEBT_OVERDUE,
+    DEBT_PAYMENT_CONFIRMED,
     PRICE_ALERT,
     ORDER_UPDATE,
     RFQ_RESPONSE,

@@ -17,6 +17,8 @@ public interface CompanyService {
 
     CompanyEntity updateLegalProfile(Long id, UpdateCompanyLegalProfileDto request);
 
+    CompanyEntity syncGhnShop(Long id);
+
     CompanyProfileAssetsResponseDto getProfileAssets(Long companyId);
 
     CompanyProfileAssetsResponseDto uploadLogo(Long companyId, UpsertCompanyImageDto request);

@@ -14,6 +14,7 @@ import com.agribridge.backend.entity.ProductImageEntity;
 import com.agribridge.backend.entity.QuoteEntity;
 import com.agribridge.backend.entity.RfqEntity;
 import com.agribridge.backend.entity.ShipmentEntity;
+import com.agribridge.backend.entity.ShipmentEventEntity;
 import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
 import com.agribridge.backend.entity.enums.RfqStatusEnum;
@@ -31,6 +32,7 @@ import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.QuoteRepository;
 import com.agribridge.backend.repository.RfqRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
+import com.agribridge.backend.repository.ShipmentEventRepository;
 import com.agribridge.backend.service.CurrentUserService;
 import com.agribridge.backend.service.SupplierDashboardService;
 import java.math.BigDecimal;
@@ -72,6 +74,7 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
     private final OrderItemRepository orderItemRepository;
     private final BranchRepository branchRepository;
     private final ShipmentRepository shipmentRepository;
+    private final ShipmentEventRepository shipmentEventRepository;
     private final InvoiceRepository invoiceRepository;
     private final PaymentRepository paymentRepository;
     private final QuoteRepository quoteRepository;
@@ -514,7 +517,22 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
                 safeText(shipment.getServiceName()),
                 safeText(shipment.getEstimatedDeliveryTime()),
                 createdAtStr,
-                order == null ? null : order.getId());
+                order == null ? null : order.getId(),
+                shipmentEventRepository.findByShipmentIdOrderByEventTimeAsc(shipment.getId()).stream()
+                        .map(this::toShipmentEventDto)
+                        .toList());
+    }
+
+    private SupplierDashboardResponseDto.ShipmentEventDto toShipmentEventDto(ShipmentEventEntity event) {
+        String eventTime = event.getEventTime() == null
+                ? "N/A"
+                : event.getEventTime().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+        return new SupplierDashboardResponseDto.ShipmentEventDto(
+                event.getId(),
+                event.getStatus(),
+                event.getDescription(),
+                event.getLocation(),
+                eventTime);
     }
 
     private String buildFullAddress(ShipmentEntity shipment) {
@@ -851,6 +869,9 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             return "Chuẩn bị";
         }
         return switch (status) {
+            case WAITING_PICKUP -> "Chờ lấy hàng";
+            case PICKED_UP -> "Đã lấy hàng tại kho";
+            case OUT_FOR_DELIVERY -> "Đang giao tới người nhận";
             case CREATED, PENDING, PREPARING -> "Chuẩn bị";
             case SHIPPED -> "Đã rời kho";
             case IN_TRANSIT, SHIPPING -> "Đang vận chuyển";
@@ -866,10 +887,13 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             return 15;
         }
         return switch (status) {
+            case WAITING_PICKUP -> 20;
+            case PICKED_UP -> 40;
+            case OUT_FOR_DELIVERY -> 80;
             case CREATED, PENDING, PREPARING -> 20;
             case SHIPPED -> 45;
             case IN_TRANSIT, SHIPPING -> 65;
-            case WAITING_CONFIRMATION -> 85;
+            case WAITING_CONFIRMATION -> 90;
             case DELIVERED -> 100;
             case CANCELLED, INCIDENT, FAILED, FAILED_DELIVERY -> 45;
         };

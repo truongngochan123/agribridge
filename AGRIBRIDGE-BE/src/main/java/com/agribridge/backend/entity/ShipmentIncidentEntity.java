@@ -46,7 +46,7 @@ public class ShipmentIncidentEntity {
     @Column(name = "incident_type", nullable = false)
     private String incidentType;
 
-    @Column(nullable = false)
+    @Column(name = "description", nullable = false, columnDefinition = "NVARCHAR(MAX)")
     private String description;
 
     @Column(name = "image_url")
@@ -63,4 +63,20 @@ public class ShipmentIncidentEntity {
 
     @Column(name = "resolution_note")
     private String resolutionNote;
+
+    @Column(name = "missing_quantity")
+    private Integer missingQuantity;
+
+    @Column(name = "damaged_quantity")
+    private Integer damagedQuantity;
+
+    @Column(name = "update_note", columnDefinition = "NVARCHAR(MAX)")
+    private String updateNote;
+
+    /** JSON array of evidence image URLs (comma-separated for simplicity) */
+    @Column(name = "evidence_urls", columnDefinition = "NVARCHAR(MAX)")
+    private String evidenceUrls;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 }

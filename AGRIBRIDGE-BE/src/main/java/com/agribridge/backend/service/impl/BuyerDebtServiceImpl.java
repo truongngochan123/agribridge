@@ -1,22 +1,34 @@
-package com.agribridge.backend.service.impl;
+﻿package com.agribridge.backend.service.impl;
 
 import com.agribridge.backend.dto.BuyerDebtDtos;
 import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.CreditLimitEntity;
 import com.agribridge.backend.entity.DebtAdjustmentEntity;
+import com.agribridge.backend.entity.DebtReminderEntity;
 import com.agribridge.backend.entity.InvoiceEntity;
+import com.agribridge.backend.entity.InvoiceItemEntity;
+import com.agribridge.backend.entity.NotificationEntity;
 import com.agribridge.backend.entity.OrderEntity;
 import com.agribridge.backend.entity.PaymentEntity;
+import com.agribridge.backend.entity.PaymentAllocationEntity;
 import com.agribridge.backend.entity.UserEntity;
+import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.enums.InvoiceStatusEnum;
+import com.agribridge.backend.entity.enums.NotificationTypeEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
+import com.agribridge.backend.entity.enums.UserRoleEnum;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.CreditLimitRepository;
 import com.agribridge.backend.repository.DebtAdjustmentRepository;
+import com.agribridge.backend.repository.DebtReminderRepository;
 import com.agribridge.backend.repository.InvoiceRepository;
+import com.agribridge.backend.repository.InvoiceItemRepository;
+import com.agribridge.backend.repository.NotificationRepository;
 import com.agribridge.backend.repository.OrderRepository;
+import com.agribridge.backend.repository.PaymentAllocationRepository;
 import com.agribridge.backend.repository.PaymentRepository;
 import com.agribridge.backend.repository.UserRepository;
+import com.agribridge.backend.repository.ShipmentRepository;
 import com.agribridge.backend.service.BuyerDebtService;
 import com.agribridge.backend.service.CurrentUserService;
 import java.math.BigDecimal;
@@ -36,11 +48,13 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BuyerDebtServiceImpl implements BuyerDebtService {
 
     private static final List<OrderStatusEnum> EXCLUDED_ORDER_STATUSES = List.of(OrderStatusEnum.CANCELLED);
@@ -48,11 +62,16 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
     private final CurrentUserService currentUserService;
     private final OrderRepository orderRepository;
     private final InvoiceRepository invoiceRepository;
+    private final InvoiceItemRepository invoiceItemRepository;
     private final PaymentRepository paymentRepository;
+    private final PaymentAllocationRepository paymentAllocationRepository;
     private final DebtAdjustmentRepository debtAdjustmentRepository;
+    private final DebtReminderRepository debtReminderRepository;
     private final CreditLimitRepository creditLimitRepository;
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
+    private final ShipmentRepository shipmentRepository;
+    private final NotificationRepository notificationRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -79,17 +98,37 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
                 .sorted(Comparator.comparing(InvoiceEntity::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
         List<Long> invoiceIds = invoices.stream().map(InvoiceEntity::getId).toList();
-        List<BuyerDebtDtos.InvoiceItem> invoiceItems = invoices.stream().map(invoice -> toInvoiceItem(invoice, context.paidByInvoice().get(invoice.getId()))).toList();
+        List<BuyerDebtDtos.InvoiceItem> invoiceItems = invoices.stream().map(invoice -> toInvoiceItem(invoice, context)).toList();
         List<BuyerDebtDtos.PaymentItem> payments = context.payments().stream()
                 .filter(payment -> invoiceIds.contains(payment.getInvoiceId()))
                 .sorted(Comparator.comparing(PaymentEntity::getPaymentDate, Comparator.nullsLast(Comparator.reverseOrder())))
-                .map(payment -> toPaymentItem(payment, context.usersById().get(payment.getConfirmedByUserId())))
+                .map(payment -> {
+                    Long confirmedByUserId = payment.getConfirmedByUserId();
+                    UserEntity confirmedBy = confirmedByUserId == null ? null : context.usersById().get(confirmedByUserId);
+                    return toPaymentItem(payment, confirmedBy);
+                })
                 .toList();
         List<BuyerDebtDtos.AdjustmentItem> adjustments = context.adjustments().stream()
                 .filter(adjustment -> invoiceIds.contains(adjustment.getInvoiceId()))
                 .map(this::toAdjustmentItem)
                 .toList();
-        return new BuyerDebtDtos.SupplierDetail(summary, invoiceItems, payments, adjustments);
+        List<DebtReminderEntity> supplierReminders = context.reminders().stream()
+                .filter(reminder -> reminder.getInvoiceId() == null || invoiceIds.contains(reminder.getInvoiceId()))
+                .toList();
+        Map<Long, Boolean> reminderReadState = supplierReminders.isEmpty()
+                ? Map.of()
+                : notificationRepository.findByCompanyIdAndTypeAndRefTableAndRefIdIn(
+                                context.buyerCompanyId(),
+                                NotificationTypeEnum.DEBT_REMINDER,
+                                "debt_reminders",
+                                supplierReminders.stream().map(DebtReminderEntity::getId).toList())
+                        .stream()
+                        .collect(Collectors.toMap(NotificationEntity::getRefId, item -> Boolean.TRUE.equals(item.getIsRead()), (a, b) -> a || b));
+        List<BuyerDebtDtos.ReminderItem> reminders = context.reminders().stream()
+                .filter(reminder -> reminder.getInvoiceId() == null || invoiceIds.contains(reminder.getInvoiceId()))
+                .map(reminder -> toReminderItem(reminder, reminderReadState.get(reminder.getId())))
+                .toList();
+        return new BuyerDebtDtos.SupplierDetail(summary, invoiceItems, payments, adjustments, reminders);
     }
 
     @Override
@@ -97,24 +136,28 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
     public BuyerDebtDtos.PaymentResponse createPayment(BuyerDebtDtos.PaymentRequest request) {
         UserEntity user = currentUserService.requireCurrentUser();
         Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
-        if (request == null || request.invoiceId() == null) throw new IllegalArgumentException("invoiceId is required");
-        if (request.amount() == null || request.amount().compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException("amount must be greater than 0");
+        if (request == null || request.invoiceId() == null) throw new IllegalArgumentException("Không tìm thấy hóa đơn.");
+        if (request.amount() == null || request.amount().compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException("Số tiền thanh toán không hợp lệ.");
         if (request.paymentMethod() == null || request.paymentMethod().isBlank()) throw new IllegalArgumentException("paymentMethod is required");
         LocalDateTime paymentDate = request.paymentDate() == null ? LocalDateTime.now() : request.paymentDate();
         if (paymentDate.isAfter(LocalDateTime.now().plusDays(1))) throw new IllegalArgumentException("paymentDate is too far in the future");
 
-        InvoiceEntity invoice = invoiceRepository.findById(request.invoiceId()).orElseThrow(() -> new IllegalArgumentException("INVOICE_NOT_FOUND"));
+        InvoiceEntity invoice = invoiceRepository.findById(request.invoiceId()).orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hóa đơn."));
         OrderEntity order = orderRepository.findById(invoice.getOrderId()).orElseThrow(() -> new IllegalArgumentException("ORDER_NOT_FOUND"));
         if (!Objects.equals(order.getBuyerCompanyId(), buyerCompanyId)) throw new IllegalArgumentException("INVOICE_NOT_BELONG_TO_BUYER");
         if (OrderStatusEnum.CANCELLED.equals(order.getStatus())) throw new IllegalArgumentException("ORDER_CANCELLED");
-        if (InvoiceStatusEnum.PAID.equals(invoice.getStatus())) throw new IllegalArgumentException("INVOICE_ALREADY_PAID");
+        if (InvoiceStatusEnum.PAID.equals(invoice.getStatus())) throw new IllegalArgumentException("Hóa đơn đã được thanh toán.");
 
         BigDecimal paid = paidAmount(paymentRepository.findByInvoiceIdOrderByPaymentDateDesc(invoice.getId()));
         BigDecimal remaining = invoiceAmount(invoice).subtract(paid);
-        if (request.amount().compareTo(remaining) > 0) throw new IllegalArgumentException("amount exceeds remainingAmount");
+        if (request.amount().compareTo(remaining) > 0) throw new IllegalArgumentException("Số tiền thanh toán vượt quá số còn lại.");
+        if (remaining.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException("Hóa đơn đã được thanh toán.");
+        LocalDateTime now = LocalDateTime.now();
 
         PaymentEntity payment = PaymentEntity.builder()
                 .invoiceId(invoice.getId())
+                .orderId(order.getId())
+                .buyerCompanyId(buyerCompanyId)
                 .amount(request.amount())
                 .paidAmount(request.amount())
                 .paymentMethod(request.paymentMethod().trim())
@@ -122,15 +165,27 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
                 .status("PAID")
                 .escrowStatus("CONFIRMED")
                 .dueDate(invoice.getDueDate())
+                .transferContent("AGRI-DEBT-" + invoice.getInvoiceNumber())
+                .paidAt(paymentDate)
+                .verifiedAt(now)
                 .paymentDate(paymentDate)
+                .createdAt(now)
+                .updatedAt(now)
                 .confirmedByUserId(user.getId())
                 .note(clean(request.note()))
                 .build();
         PaymentEntity savedPayment = paymentRepository.save(payment);
+        paymentAllocationRepository.save(PaymentAllocationEntity.builder()
+                .paymentId(savedPayment.getId())
+                .invoiceId(invoice.getId())
+                .amount(request.amount())
+                .createdAt(LocalDateTime.now())
+                .build());
         BigDecimal paidAfter = paid.add(request.amount());
         BigDecimal remainingAfter = invoiceAmount(invoice).subtract(paidAfter);
         invoice.setStatus(resolveInvoiceStatus(invoice, paidAfter, remainingAfter));
         invoiceRepository.save(invoice);
+        createSupplierPaymentNotification(invoice, order, request.amount(), paymentDate);
         return new BuyerDebtDtos.PaymentResponse(toInvoiceItem(invoice, paidAfter), toPaymentItem(savedPayment, user));
     }
 
@@ -144,7 +199,11 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
         if (!Objects.equals(order.getBuyerCompanyId(), buyerCompanyId)) throw new IllegalArgumentException("INVOICE_NOT_BELONG_TO_BUYER");
         List<PaymentEntity> payments = paymentRepository.findByInvoiceIdOrderByPaymentDateDesc(invoiceId);
         Map<Long, UserEntity> users = userMap(payments.stream().map(PaymentEntity::getConfirmedByUserId).filter(Objects::nonNull).toList());
-        return payments.stream().map(payment -> toPaymentItem(payment, users.get(payment.getConfirmedByUserId()))).toList();
+        return payments.stream().map(payment -> {
+            Long confirmedByUserId = payment.getConfirmedByUserId();
+            UserEntity confirmedBy = confirmedByUserId == null ? null : users.get(confirmedByUserId);
+            return toPaymentItem(payment, confirmedBy);
+        }).toList();
     }
 
     @Override
@@ -167,7 +226,7 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
                 .forEach(invoice -> {
                     OrderEntity order = context.ordersById().get(invoice.getOrderId());
                     CompanyEntity supplier = order == null ? null : context.suppliersById().get(order.getSupplierCompanyId());
-                    BuyerDebtDtos.InvoiceItem item = toInvoiceItem(invoice, context.paidByInvoice().get(invoice.getId()));
+                    BuyerDebtDtos.InvoiceItem item = toInvoiceItem(invoice, context);
                     csv.append(csv(supplier == null ? "N/A" : supplier.getName())).append(',')
                             .append(csv(item.invoiceNumber())).append(',')
                             .append(csv(item.orderRef())).append(',')
@@ -189,19 +248,39 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
         List<Long> orderIds = orders.stream().map(OrderEntity::getId).toList();
         List<InvoiceEntity> invoices = orderIds.isEmpty() ? List.of() : invoiceRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds);
         List<Long> invoiceIds = invoices.stream().map(InvoiceEntity::getId).toList();
+        List<InvoiceItemEntity> invoiceItems = invoiceIds.isEmpty() ? List.of() : invoiceItemRepository.findByInvoiceIdIn(invoiceIds);
+        Map<Long, InvoiceItemEntity> invoiceMainItemByInvoiceId = invoiceItems.stream()
+                .collect(Collectors.toMap(InvoiceItemEntity::getInvoiceId, Function.identity(), (a, b) -> a));
+        List<ShipmentEntity> shipments = orderIds.isEmpty() ? List.of() : shipmentRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds);
+        Map<Long, LocalDateTime> confirmedReceivedAtByOrderId = shipments.stream()
+                .filter(item -> item.getConfirmedReceivedAt() != null)
+                .collect(Collectors.toMap(ShipmentEntity::getOrderId, ShipmentEntity::getConfirmedReceivedAt, (a, b) -> a.isAfter(b) ? a : b));
+        Map<Long, LocalDateTime> expectedDeliveryAtByOrderId = shipments.stream()
+                .map(item -> {
+                    LocalDateTime expected = item.getEstimatedDeliveryAt() != null ? item.getEstimatedDeliveryAt() : item.getExpectedDeliveryDate();
+                    return expected == null ? null : Map.entry(item.getOrderId(), expected);
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a.isAfter(b) ? a : b));
         List<PaymentEntity> payments = invoiceIds.isEmpty() ? List.of() : paymentRepository.findByInvoiceIdInOrderByPaymentDateDesc(invoiceIds);
+        List<Long> paymentIds = payments.stream().map(PaymentEntity::getId).toList();
+        List<PaymentAllocationEntity> allocations = paymentIds.isEmpty() ? List.of() : paymentAllocationRepository.findByPaymentIdIn(paymentIds);
+        List<DebtReminderEntity> reminders = invoiceIds.isEmpty() ? List.of() : debtReminderRepository.findByInvoiceIdInOrderByCreatedAtDesc(invoiceIds);
         List<DebtAdjustmentEntity> adjustments = invoiceIds.isEmpty() ? List.of() : debtAdjustmentRepository.findByInvoiceIdInOrderByCreatedAtDesc(invoiceIds);
         Map<Long, OrderEntity> ordersById = orders.stream().collect(Collectors.toMap(OrderEntity::getId, Function.identity()));
-        Map<Long, BigDecimal> paidByInvoice = payments.stream().collect(Collectors.groupingBy(PaymentEntity::getInvoiceId, Collectors.mapping(this::paymentAmount, Collectors.reducing(BigDecimal.ZERO, BigDecimal::add))));
+        Map<Long, PaymentEntity> paymentsById = payments.stream().collect(Collectors.toMap(PaymentEntity::getId, Function.identity(), (a, b) -> a));
+        Map<Long, BigDecimal> paidByInvoice = buildPaidByInvoice(payments, allocations, paymentsById);
         List<Long> supplierIds = orders.stream().map(OrderEntity::getSupplierCompanyId).filter(Objects::nonNull).distinct().toList();
         Map<Long, CompanyEntity> suppliersById = supplierIds.isEmpty() ? Map.of() : companyRepository.findAllById(supplierIds).stream().collect(Collectors.toMap(CompanyEntity::getId, Function.identity()));
         Map<Long, CreditLimitEntity> creditBySupplier = supplierIds.isEmpty() ? Map.of() : creditLimitRepository.findByBuyerCompanyIdAndSupplierCompanyIdIn(buyerCompanyId, supplierIds).stream().collect(Collectors.toMap(CreditLimitEntity::getSupplierCompanyId, Function.identity()));
         Map<Long, UserEntity> usersById = userMap(payments.stream().map(PaymentEntity::getConfirmedByUserId).filter(Objects::nonNull).toList());
-        return new DebtContext(buyerCompanyId, orders, invoices, payments, adjustments, ordersById, paidByInvoice, suppliersById, creditBySupplier, usersById);
+        return new DebtContext(buyerCompanyId, orders, invoices, payments, adjustments, reminders, ordersById, paidByInvoice, suppliersById, creditBySupplier, usersById, invoiceMainItemByInvoiceId, confirmedReceivedAtByOrderId, expectedDeliveryAtByOrderId);
     }
 
     private List<BuyerDebtDtos.Kpi> buildKpis(DebtContext context) {
-        List<InvoiceCalc> invoices = context.invoices().stream().map(invoice -> calc(invoice, context.paidByInvoice().get(invoice.getId()))).toList();
+        List<InvoiceCalc> invoices = context.invoices().stream()
+                .map(invoice -> calc(invoice, context.paidByInvoice().get(invoice.getId()), context.confirmedReceivedAtByOrderId().get(invoice.getOrderId())))
+                .toList();
         BigDecimal totalDebt = invoices.stream().map(InvoiceCalc::remaining).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal overdueDebt = invoices.stream().filter(InvoiceCalc::overdue).map(InvoiceCalc::remaining).reduce(BigDecimal.ZERO, BigDecimal::add);
         LocalDate today = LocalDate.now();
@@ -238,7 +317,9 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
                     return order != null && Objects.equals(order.getSupplierCompanyId(), supplierId);
                 })
                 .toList();
-        List<InvoiceCalc> calcs = invoices.stream().map(invoice -> calc(invoice, context.paidByInvoice().get(invoice.getId()))).toList();
+        List<InvoiceCalc> calcs = invoices.stream()
+                .map(invoice -> calc(invoice, context.paidByInvoice().get(invoice.getId()), context.confirmedReceivedAtByOrderId().get(invoice.getOrderId())))
+                .toList();
         BigDecimal total = calcs.stream().map(InvoiceCalc::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal paid = calcs.stream().map(InvoiceCalc::paid).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal remaining = calcs.stream().map(InvoiceCalc::remaining).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -273,19 +354,41 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
                 statusLabel(status));
     }
 
+    private BuyerDebtDtos.InvoiceItem toInvoiceItem(InvoiceEntity invoice, DebtContext context) {
+        return toInvoiceItem(invoice, context.paidByInvoice().get(invoice.getId()), context.invoiceMainItemByInvoiceId().get(invoice.getId()), context.confirmedReceivedAtByOrderId().get(invoice.getOrderId()));
+    }
+
     private BuyerDebtDtos.InvoiceItem toInvoiceItem(InvoiceEntity invoice, BigDecimal paidValue) {
-        InvoiceCalc calc = calc(invoice, paidValue);
+        InvoiceItemEntity mainItem = invoiceItemRepository.findByInvoiceIdIn(List.of(invoice.getId())).stream().findFirst().orElse(null);
+        LocalDateTime confirmedReceivedAt = shipmentRepository.findTopByOrderIdOrderByCreatedAtDesc(invoice.getOrderId()).map(ShipmentEntity::getConfirmedReceivedAt).orElse(null);
+        return toInvoiceItem(invoice, paidValue, mainItem, confirmedReceivedAt);
+    }
+
+    private BuyerDebtDtos.InvoiceItem toInvoiceItem(InvoiceEntity invoice, BigDecimal paidValue, InvoiceItemEntity mainItem, LocalDateTime confirmedReceivedAt) {
+        InvoiceCalc calc = calc(invoice, paidValue, confirmedReceivedAt);
+        String paymentPlan = paymentPlanType(invoice);
+        LocalDateTime expectedDueAt = shipmentRepository.findTopByOrderIdOrderByCreatedAtDesc(invoice.getOrderId())
+                .map(item -> item.getEstimatedDeliveryAt() != null ? item.getEstimatedDeliveryAt() : item.getExpectedDeliveryDate())
+                .orElse(null);
         return new BuyerDebtDtos.InvoiceItem(
                 invoice.getId(),
                 invoice.getInvoiceNumber(),
                 invoice.getOrderId(),
                 orderCode(invoice.getOrderId()),
+                mainItem == null ? null : firstText(mainItem.getDescription(), null),
+                mainItem == null ? null : mainItem.getQuantity(),
+                mainItem == null ? null : mainItem.getUnit(),
                 invoice.getCreatedAt(),
+                confirmedReceivedAt,
                 invoice.getDueDate(),
+                expectedDueAt == null ? null : expectedDueAt.toLocalDate(),
+                dueLabel(paymentPlan, invoice.getDueDate(), confirmedReceivedAt, expectedDueAt),
                 invoice.getTotalAmount(),
                 calc.amount(),
                 calc.paid(),
                 calc.remaining(),
+                paymentPlan,
+                paymentTermDays(invoice),
                 invoice.getStatus() == null ? null : invoice.getStatus().name(),
                 invoiceStatusLabel(invoice, calc),
                 calc.overdueDays());
@@ -312,15 +415,48 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
                 adjustment.getCreatedAt());
     }
 
-    private InvoiceCalc calc(InvoiceEntity invoice, BigDecimal paidValue) {
+    private BuyerDebtDtos.ReminderItem toReminderItem(DebtReminderEntity reminder, Boolean isRead) {
+        Long orderId = reminder.getOrderId();
+        InvoiceEntity invoice = reminder.getInvoiceId() == null ? null : invoiceRepository.findById(reminder.getInvoiceId()).orElse(null);
+        if (orderId == null && invoice != null) orderId = invoice.getOrderId();
+        String invoiceNumber = invoice == null ? null : invoice.getInvoiceNumber();
+        InvoiceItemEntity mainItem = reminder.getInvoiceId() == null ? null : invoiceItemRepository.findByInvoiceIdIn(List.of(reminder.getInvoiceId())).stream().findFirst().orElse(null);
+        LocalDateTime confirmedReceivedAt = orderId == null ? null : shipmentRepository.findTopByOrderIdOrderByCreatedAtDesc(orderId).map(ShipmentEntity::getConfirmedReceivedAt).orElse(null);
+        String dueLabel = dueLabel(invoice == null ? "" : paymentPlanType(invoice), invoice == null ? null : invoice.getDueDate(), confirmedReceivedAt, null);
+        UserEntity sender = reminder.getCreatedByUserId() == null ? null : userRepository.findById(reminder.getCreatedByUserId()).orElse(null);
+        String status = reminder.getStatus() == null ? null : reminder.getStatus().name();
+        if (Boolean.TRUE.equals(isRead) && "SENT".equals(status)) status = "READ";
+        return new BuyerDebtDtos.ReminderItem(
+                reminder.getId(),
+                reminder.getInvoiceId(),
+                invoiceNumber,
+                orderId,
+                orderId == null ? null : orderCode(orderId),
+                mainItem == null ? null : firstText(mainItem.getDescription(), null),
+                mainItem == null ? null : mainItem.getQuantity(),
+                mainItem == null ? null : mainItem.getUnit(),
+                dueLabel,
+                reminder.getAmount(),
+                reminder.getMessage(),
+                reminder.getChannel(),
+                status,
+                sender == null ? null : firstText(sender.getFullName(), firstText(sender.getEmail(), sender.getPhone())),
+                reminder.getSentAt(),
+                reminder.getCreatedAt());
+    }
+
+    private InvoiceCalc calc(InvoiceEntity invoice, BigDecimal paidValue, LocalDateTime confirmedReceivedAt) {
         BigDecimal amount = invoiceAmount(invoice);
         BigDecimal paid = nullToZero(paidValue);
         BigDecimal remaining = amount.subtract(paid);
         if (remaining.compareTo(BigDecimal.ZERO) < 0) remaining = BigDecimal.ZERO;
         LocalDate today = LocalDate.now();
-        boolean overdue = remaining.compareTo(BigDecimal.ZERO) > 0 && invoice.getDueDate() != null && invoice.getDueDate().isBefore(today);
-        boolean dueSoon = remaining.compareTo(BigDecimal.ZERO) > 0 && invoice.getDueDate() != null && !invoice.getDueDate().isBefore(today) && !invoice.getDueDate().isAfter(today.plusDays(7));
-        long overdueDays = overdue ? ChronoUnit.DAYS.between(invoice.getDueDate(), today) : 0;
+        String plan = paymentPlanType(invoice);
+        LocalDate effectiveDueDate = invoice.getDueDate();
+        if ("DEPOSIT_50".equals(plan) && confirmedReceivedAt != null) effectiveDueDate = confirmedReceivedAt.toLocalDate();
+        boolean overdue = remaining.compareTo(BigDecimal.ZERO) > 0 && effectiveDueDate != null && effectiveDueDate.isBefore(today);
+        boolean dueSoon = remaining.compareTo(BigDecimal.ZERO) > 0 && effectiveDueDate != null && !effectiveDueDate.isBefore(today) && !effectiveDueDate.isAfter(today.plusDays(7));
+        long overdueDays = overdue ? ChronoUnit.DAYS.between(effectiveDueDate, today) : 0;
         return new InvoiceCalc(amount, paid, remaining, overdue, dueSoon, overdueDays);
     }
 
@@ -334,7 +470,11 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
     }
 
     private BigDecimal paymentAmount(PaymentEntity payment) {
-        return nullToZero(payment.getAmount());
+        if (payment == null || payment.getStatus() == null || !"PAID".equalsIgnoreCase(payment.getStatus())) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal paidAmount = nullToZero(payment.getPaidAmount());
+        return paidAmount.compareTo(BigDecimal.ZERO) > 0 ? paidAmount : nullToZero(payment.getAmount());
     }
 
     private InvoiceStatusEnum resolveInvoiceStatus(InvoiceEntity invoice, BigDecimal paid, BigDecimal remaining) {
@@ -342,6 +482,40 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
         if (invoice.getDueDate() != null && invoice.getDueDate().isBefore(LocalDate.now())) return InvoiceStatusEnum.OVERDUE;
         if (paid.compareTo(BigDecimal.ZERO) > 0) return InvoiceStatusEnum.PARTIAL;
         return InvoiceStatusEnum.UNPAID;
+    }
+
+    private void createSupplierPaymentNotification(InvoiceEntity invoice, OrderEntity order, BigDecimal amount, LocalDateTime paymentTime) {
+        CompanyEntity buyer = companyRepository.findById(order.getBuyerCompanyId()).orElse(null);
+        CompanyEntity supplier = companyRepository.findById(order.getSupplierCompanyId()).orElse(null);
+        String buyerName = buyer == null ? "Buyer" : buyer.getName();
+        String invoiceCode = invoice.getInvoiceNumber();
+        String orderCode = orderCode(order.getId());
+        String message = "Đơn hàng " + orderCode + " - " + buyerName + " đã thanh toán " + formatMoney(amount) + " vào lúc " + paymentTime + ".";
+        String metadata = "{"
+                + "\"invoiceId\":" + invoice.getId()
+                + ",\"invoiceCode\":\"" + json(invoiceCode) + "\""
+                + ",\"orderId\":" + order.getId()
+                + ",\"orderCode\":\"" + json(orderCode) + "\""
+                + ",\"buyerCompanyId\":" + order.getBuyerCompanyId()
+                + ",\"buyerName\":\"" + json(buyerName) + "\""
+                + ",\"supplierCompanyId\":" + order.getSupplierCompanyId()
+                + ",\"amount\":" + amount
+                + ",\"paymentTime\":\"" + paymentTime + "\""
+                + ",\"type\":\"DEBT_PAYMENT_CONFIRMED\""
+                + "}";
+        userRepository.findFirstByCompanyIdAndRole(order.getSupplierCompanyId(), UserRoleEnum.OWNER)
+                .ifPresent(owner -> notificationRepository.save(NotificationEntity.builder()
+                        .userId(owner.getId())
+                        .companyId(order.getSupplierCompanyId())
+                        .type(NotificationTypeEnum.DEBT_PAYMENT_CONFIRMED)
+                        .title("Buyer đã thanh toán công nợ")
+                        .body(message)
+                        .metadata(metadata)
+                        .refTable("invoices")
+                        .refId(invoice.getId())
+                        .isRead(Boolean.FALSE)
+                        .createdAt(LocalDateTime.now())
+                        .build()));
     }
 
     private String status(boolean blocked, BigDecimal overdue, BigDecimal usage, BigDecimal dueSoon) {
@@ -393,6 +567,56 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
         return id == null ? "ORD-N/A" : "ORD-" + id;
     }
 
+    private String paymentPlanType(InvoiceEntity invoice) {
+        String method = firstText(invoice.getPaymentMethod(), "");
+        if ("DEPOSIT_50".equalsIgnoreCase(method)) return "DEPOSIT_50";
+        if ("CREDIT".equalsIgnoreCase(method) || "DEBT".equalsIgnoreCase(method)) return "CREDIT_TERM";
+        return "PREPAID";
+    }
+
+    private String dueLabel(String paymentPlan, LocalDate dueDate, LocalDateTime confirmedReceivedAt, LocalDateTime expectedDueAt) {
+        if ("DEPOSIT_50".equalsIgnoreCase(paymentPlan)) {
+            if (confirmedReceivedAt == null) {
+                if (expectedDueAt != null) {
+                    return "Khi nhận hàng (dự kiến: " + expectedDueAt.toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ")";
+                }
+                return "Khi nhận hàng";
+            }
+            return confirmedReceivedAt.toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        }
+        if ("PREPAID".equalsIgnoreCase(paymentPlan)) return "Ngay khi đặt hàng";
+        if (dueDate == null) return "Chưa xác định";
+        return dueDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+    }
+private Integer paymentTermDays(InvoiceEntity invoice) {
+        if (invoice.getDueDate() == null || invoice.getCreatedAt() == null) return null;
+        return (int) ChronoUnit.DAYS.between(invoice.getCreatedAt().toLocalDate(), invoice.getDueDate());
+    }
+
+    private Map<Long, BigDecimal> buildPaidByInvoice(List<PaymentEntity> payments, List<PaymentAllocationEntity> allocations, Map<Long, PaymentEntity> paymentsById) {
+        Map<Long, BigDecimal> paidByInvoice = new java.util.HashMap<>();
+        Map<Long, BigDecimal> allocatedByPaymentId = allocations.stream()
+                .collect(Collectors.groupingBy(PaymentAllocationEntity::getPaymentId, Collectors.mapping(PaymentAllocationEntity::getAmount, Collectors.reducing(BigDecimal.ZERO, BigDecimal::add))));
+
+        allocations.stream()
+                .filter(allocation -> {
+                    PaymentEntity payment = paymentsById.get(allocation.getPaymentId());
+                    return payment != null && payment.getStatus() != null && "PAID".equalsIgnoreCase(payment.getStatus());
+                })
+                .forEach(allocation -> paidByInvoice.merge(allocation.getInvoiceId(), nullToZero(allocation.getAmount()), BigDecimal::add));
+
+        payments.stream()
+                .filter(payment -> payment.getStatus() != null && "PAID".equalsIgnoreCase(payment.getStatus()))
+                .filter(payment -> payment.getInvoiceId() != null)
+                .filter(payment -> nullToZero(allocatedByPaymentId.get(payment.getId())).compareTo(BigDecimal.ZERO) <= 0)
+                .forEach(payment -> paidByInvoice.merge(payment.getInvoiceId(), paymentAmount(payment), BigDecimal::add));
+        return paidByInvoice;
+    }
+
+    private String json(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
     private String csv(String value) {
         String escaped = value == null ? "" : value.replace("\"", "\"\"");
         return "\"" + escaped + "\"";
@@ -404,14 +628,20 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
             List<InvoiceEntity> invoices,
             List<PaymentEntity> payments,
             List<DebtAdjustmentEntity> adjustments,
+            List<DebtReminderEntity> reminders,
             Map<Long, OrderEntity> ordersById,
             Map<Long, BigDecimal> paidByInvoice,
             Map<Long, CompanyEntity> suppliersById,
             Map<Long, CreditLimitEntity> creditBySupplier,
-            Map<Long, UserEntity> usersById
+            Map<Long, UserEntity> usersById,
+            Map<Long, InvoiceItemEntity> invoiceMainItemByInvoiceId,
+            Map<Long, LocalDateTime> confirmedReceivedAtByOrderId,
+            Map<Long, LocalDateTime> expectedDeliveryAtByOrderId
     ) {
     }
 
     private record InvoiceCalc(BigDecimal amount, BigDecimal paid, BigDecimal remaining, boolean overdue, boolean dueSoon, long overdueDays) {
     }
 }
+
+
