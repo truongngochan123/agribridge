@@ -20,5 +20,12 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
             String refTable,
             java.util.Collection<Long> refIds
     );
+
+    List<NotificationEntity> findByCompanyIdAndTypeAndRefTableAndRefId(
+            Long companyId,
+            NotificationTypeEnum type,
+            String refTable,
+            Long refId
+    );
 }
 

@@ -29,6 +29,7 @@ DEALLOCATE notification_type_constraints;
 ALTER TABLE dbo.notifications WITH CHECK ADD CONSTRAINT CK_notifications_type_v2
     CHECK ([type] IN (
         'DEBT_REMINDER',
+        'PAYMENT_DUE',
         'DEBT_OVERDUE',
         'DEBT_PAYMENT_CONFIRMED',
         'PRICE_ALERT',

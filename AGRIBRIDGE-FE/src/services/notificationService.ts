@@ -59,10 +59,12 @@ export function resolveNotificationRoute(item: AppNotification): string {
     }
     return `/supplier/debt?buyerId=${buyerId}&invoiceId=${invoiceId}`
   }
-  if (item.type === 'DEBT_REMINDER') {
+  if (item.type === 'DEBT_REMINDER' || item.type === 'PAYMENT_DUE' || item.type === 'DEBT_OVERDUE') {
     const invoiceId = asPositiveInt(metadata.invoiceId)
     const supplierId = asPositiveInt(metadata.supplierCompanyId)
     const buyerId = asPositiveInt(metadata.buyerCompanyId)
+    if (item.type === 'PAYMENT_DUE') return `/buyer/debt?supplierId=${supplierId}&invoiceId=${invoiceId}&pay=1`
+    if (item.type === 'DEBT_OVERDUE') return `/supplier/debt?buyerId=${buyerId}&invoiceId=${invoiceId}`
     if (role === 'supplier') return `/supplier/debt?buyerId=${buyerId}&invoiceId=${invoiceId}`
     return `/buyer/debt?supplierId=${supplierId}&invoiceId=${invoiceId}`
   }

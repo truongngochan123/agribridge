@@ -37,6 +37,26 @@ function formatDate(value?: string | null) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN')
 }
 
+function paymentMethodLabel(method?: string | null) {
+  const normalized = String(method || '').toUpperCase()
+  if (!normalized) return emptyText
+  if (normalized.includes('BANK_TRANSFER') || normalized.includes('TRANSFER')) return 'Chuyển khoản'
+  if (normalized === 'CASH') return 'Tiền mặt'
+  if (normalized === 'CREDIT') return 'Công nợ'
+  if (normalized === 'OTHER') return 'Khác'
+  return method || emptyText
+}
+
+function cleanVietnameseText(value?: string | null) {
+  if (!value) return ''
+  if (!/[\u00C3\u00C4]|\u00E1\u00BB/.test(value)) return value
+  try {
+    return decodeURIComponent(escape(value))
+  } catch {
+    return value
+  }
+}
+
 function paymentPlanLabel(plan?: string | null, termDays?: number | null, creditLimit?: number | null) {
   if (plan === 'DEPOSIT_50') return 'Cọc 50%'
   if (plan === 'CREDIT_TERM') return termDays ? `Công nợ ${termDays} ngày` : 'Công nợ'
@@ -65,6 +85,20 @@ function isOutstandingDebtInvoice(invoice: SupplierDebtInvoice) {
   const outstandingAmount = invoiceOutstandingAmount(invoice)
   if (outstandingAmount <= 0) return false
   return ['UNPAID', 'PARTIAL', 'PARTIALLY_PAID', 'DUE_NOW', 'OVERDUE'].includes(status)
+}
+
+function canSendReminder(invoice: SupplierDebtInvoice) {
+  if (invoice.canSendReminder != null) return Boolean(invoice.canSendReminder)
+  const status = (invoice.status || '').toUpperCase()
+  return invoiceOutstandingAmount(invoice) > 0 && Boolean(invoice.confirmedReceivedAt) && status === 'OVERDUE'
+}
+
+function reminderBlockedLabel(invoice?: SupplierDebtInvoice | null) {
+  if (!invoice) return 'Không có khoản cần nhắc'
+  if (invoice.reminderBlockedReason) return invoice.reminderBlockedReason
+  if (!invoice.confirmedReceivedAt) return 'Chờ nhận hàng'
+  if ((invoice.status || '').toUpperCase() !== 'OVERDUE') return 'Chưa đến kỳ thanh toán'
+  return 'Không đủ điều kiện nhắc nợ'
 }
 
 function debtTypeLabelFromInvoices(invoices: SupplierDebtInvoice[], remainingAmount?: number) {
@@ -224,10 +258,10 @@ export function SupplierDebtPage() {
       const matchesText = !text || item.buyerName.toLowerCase().includes(text)
       const matchesStatus = status === 'all'
         ? Number(item.remainingAmount || 0) > 0
-        : (status === 'REMINDER' ? Number(item.overdueAmount || 0) > 0 || Number(item.dueSoonAmount || 0) > 0 : item.status === status)
+        : (status === 'REMINDER' ? (buyerDetailMap[item.buyerId]?.invoices || []).some(canSendReminder) : item.status === status)
       return matchesText && matchesStatus
     })
-  }, [keyword, overview.buyers, status])
+  }, [buyerDetailMap, keyword, overview.buyers, status])
 
   useEffect(() => {
     const missingIds = buyers.map((item) => item.buyerId).filter((id) => !buyerDetailMap[id])
@@ -249,8 +283,8 @@ export function SupplierDebtPage() {
   }, [buyers, buyerDetailMap])
 
   const customerNeedReminderCount = useMemo(
-    () => buyers.filter((item) => Number(item.overdueAmount || 0) > 0 || Number(item.dueSoonAmount || 0) > 0).length,
-    [buyers],
+    () => buyers.filter((item) => (buyerDetailMap[item.buyerId]?.invoices || []).some(canSendReminder)).length,
+    [buyerDetailMap, buyers],
   )
 
   const tabs = [
@@ -363,7 +397,7 @@ export function SupplierDebtPage() {
                         <div className="flex flex-wrap gap-1.5">
                           <ActionButton icon={<FileText />} text="Chi tiết" onClick={() => void openDetail(item.buyerId)} />
                           {item.remainingAmount > 0 ? <ActionButton icon={<CreditCard />} text="Ghi nhận thủ công" onClick={() => setModal({ type: 'payment', buyer: item })} /> : null}
-                          {item.remainingAmount > 0 ? <ActionButton icon={<Bell />} text="Nhắc nợ" onClick={() => setModal({ type: 'reminder', buyer: item })} /> : null}
+                          {(detailByBuyer?.invoices || []).some(canSendReminder) ? <ActionButton icon={<Bell />} text="Nhắc nợ" onClick={() => setModal({ type: 'reminder', buyer: item })} /> : null}
                           <ActionButton icon={<Settings />} text="Thiết lập hạn mức" onClick={() => setModal({ type: 'limit', buyer: item })} />
                         </div>
                       </td>
@@ -430,28 +464,22 @@ function DetailDrawer({
   focusInvoiceId?: number | null
 }) {
   const outstandingInvoices = detail.invoices.filter(isOutstandingDebtInvoice)
-  const paidInvoices = detail.invoices.filter((invoice) => (invoice.status || '').toUpperCase() === 'PAID')
   const invoiceMap = new Map(detail.invoices.map((item) => [item.invoiceId, item]))
   const outstandingAmount = outstandingInvoices.reduce((sum, invoice) => sum + invoiceOutstandingAmount(invoice), 0)
   const overdueAmount = outstandingInvoices
     .filter((invoice) => (invoice.status || '').toUpperCase() === 'OVERDUE')
     .reduce((sum, invoice) => sum + invoiceOutstandingAmount(invoice), 0)
-  const paymentHistoryItems: string[][] = [
-    ...paidInvoices.map((invoice) => [
-      `${formatMoney(invoice.paidAmount || invoice.totalAmount)} - Đã thanh toán`,
-      `Đơn ${invoice.orderCode || invoice.orderRef || emptyText} · ${productLabel(invoice)} · Hóa đơn ${displayInvoiceCode(invoice)} · ${formatDate(invoice.dueDate || invoice.createdAt)} · Đã thanh toán`,
-    ]),
-    ...detail.payments.map((item) => {
-      const invoice = item.invoiceId ? invoiceMap.get(item.invoiceId) : undefined
-      return [
-        `${formatMoney(item.amount)} - Đã thanh toán`,
-        `Đơn ${invoice?.orderCode || invoice?.orderRef || emptyText} · ${invoice ? productLabel(invoice) : emptyText} · Hóa đơn ${invoice ? displayInvoiceCode(invoice) : item.invoiceId || emptyText} · ${item.paymentMethod || emptyText} · ${formatDate(item.paymentDate)} · Đã thanh toán${item.note ? ` · ${item.note}` : ''}`,
-      ]
-    }),
-  ]
+  const paymentHistoryItems: string[][] = detail.payments.map((item) => {
+    const invoice = item.invoiceId ? invoiceMap.get(item.invoiceId) : undefined
+    const note = cleanVietnameseText(item.note)
+    return [
+      `${formatMoney(item.amount)} - Đã thanh toán`,
+      `Đơn ${invoice?.orderCode || invoice?.orderRef || emptyText} · Hóa đơn ${invoice ? displayInvoiceCode(invoice) : item.invoiceId ? `INV-${item.invoiceId}` : emptyText} · ${formatDate(item.paymentDate)} · ${paymentMethodLabel(item.paymentMethod)}${note ? ` · ${note}` : ''}`,
+    ]
+  })
   const tabs = [
     ['invoices', 'Hóa đơn'],
-    ['payments', 'Lịch sử thanh toán'],
+    ['payments', 'Thanh toán công nợ'],
     ['adjustments', 'Điều chỉnh'],
     ['reminders', 'Nhắc nợ'],
     ['limit', 'Hạn mức'],
@@ -528,7 +556,7 @@ function InvoiceTab({ invoices, onPayment, onReminder, onAdjustment, focusInvoic
               <td className="px-3 py-2 text-emerald-700">{formatMoney(invoice.paidAmount)}</td>
               <td className="px-3 py-2 font-bold">{formatMoney(invoiceOutstandingAmount(invoice))}</td>
               <td className="px-3 py-2">{invoiceStatusLabel(invoice)}</td>
-              <td className="px-3 py-2"><div className="flex gap-1.5">{invoiceOutstandingAmount(invoice) > 0 ? <button className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-bold text-white disabled:opacity-50"  onClick={() => onPayment(invoice)}>Ghi nhận thu</button> : null}{invoiceOutstandingAmount(invoice) > 0 ? <button className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700" onClick={() => onReminder(invoice)}>Nhắc</button> : null}{!['PAID', 'CANCELLED', 'VOIDED'].includes((invoice.status || '').toUpperCase()) ? <button className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700" onClick={() => onAdjustment(invoice)}>Điều chỉnh</button> : null}</div></td>
+              <td className="px-3 py-2"><div className="flex gap-1.5">{invoiceOutstandingAmount(invoice) > 0 ? <button className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-bold text-white disabled:opacity-50"  onClick={() => onPayment(invoice)}>Ghi nhận thu</button> : null}{invoiceOutstandingAmount(invoice) > 0 ? <button className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => onReminder(invoice)} disabled={!canSendReminder(invoice)} title={!canSendReminder(invoice) ? reminderBlockedLabel(invoice) : undefined}>Nhắc</button> : null}{!['PAID', 'CANCELLED', 'VOIDED'].includes((invoice.status || '').toUpperCase()) ? <button className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700" onClick={() => onAdjustment(invoice)}>Điều chỉnh</button> : null}</div></td>
             </tr>
           ))}
         </tbody>
@@ -540,7 +568,7 @@ function InvoiceTab({ invoices, onPayment, onReminder, onAdjustment, focusInvoic
 function DebtActionModal({ modal, detail, saving, setSaving, onClose, onDone }: { modal: NonNullable<ModalState>; detail: SupplierDebtBuyerDetail | null; saving: boolean; setSaving: (value: boolean) => void; onClose: () => void; onDone: (buyerId: number, detail?: SupplierDebtBuyerDetail) => Promise<void> }) {
   const { showToast } = useToast()
   const [buyerInvoices, setBuyerInvoices] = useState<SupplierDebtInvoice[]>(detail?.summary.buyerId === modal.buyer.buyerId ? detail.invoices : [])
-  const invoices = buyerInvoices.filter(isOutstandingDebtInvoice)
+  const invoices = buyerInvoices.filter(modal.type === 'reminder' ? canSendReminder : isOutstandingDebtInvoice)
   const firstInvoice = 'invoice' in modal ? modal.invoice ?? invoices[0] : invoices[0]
   const [invoiceId, setInvoiceId] = useState(firstInvoice ? String(firstInvoice.invoiceId) : '')
   const selectedInvoice = invoices.find((item) => String(item.invoiceId) === invoiceId) ?? firstInvoice
@@ -555,7 +583,7 @@ function DebtActionModal({ modal, detail, saving, setSaving, onClose, onDone }: 
   const [sendSystemNotification, setSendSystemNotification] = useState(true)
   const [markOnBuyerDebtPage, setMarkOnBuyerDebtPage] = useState(true)
   const selectedOutstandingAmount = selectedInvoice ? invoiceOutstandingAmount(selectedInvoice) : 0
-  const isReminderAmountInvalid = modal.type === 'reminder' && selectedOutstandingAmount <= 0
+  const isReminderAmountInvalid = modal.type === 'reminder' && (!selectedInvoice || selectedOutstandingAmount <= 0 || !canSendReminder(selectedInvoice))
 
   useEffect(() => {
     let cancelled = false
@@ -612,7 +640,7 @@ function DebtActionModal({ modal, detail, saving, setSaving, onClose, onDone }: 
         await onDone(modal.buyer.buyerId, next)
       } else {
         if (!selectedInvoice) throw new Error('Vui lòng chọn hóa đơn cần nhắc nợ.')
-        if (isReminderAmountInvalid) throw new Error('Khoản này không còn số tiền cần nhắc.')
+        if (isReminderAmountInvalid) throw new Error(reminderBlockedLabel(selectedInvoice))
         const next = await createSupplierDebtReminder({
           buyerId: modal.buyer.buyerId,
           invoiceId: selectedInvoice.invoiceId,

@@ -74,7 +74,9 @@ public class ShipmentStatusTransitionService {
         ShipmentEntity saved = shipmentRepository.save(shipment);
         saveEvent(saved, note == null || note.isBlank() ? "Người mua xác nhận đã nhận hàng" : note, now);
         orderRepository.findById(saved.getOrderId()).ifPresent(order -> {
-            order.setStatus(OrderStatusEnum.COMPLETED);
+            if (order.getStatus() != OrderStatusEnum.CANCELLED && order.getStatus() != OrderStatusEnum.COMPLETED) {
+                order.setStatus(OrderStatusEnum.DELIVERED);
+            }
             order.setUpdatedAt(now);
             orderRepository.save(order);
         });
@@ -114,7 +116,10 @@ public class ShipmentStatusTransitionService {
             return;
         }
         if (status == ShipmentStatusEnum.WAITING_CONFIRMATION && order.getStatus() != OrderStatusEnum.CANCELLED) {
-            order.setStatus(OrderStatusEnum.WAITING_BUYER_CONFIRM);
+            order.setStatus("DEPOSIT_50".equals(order.getPaymentOption()) && order.getRemainingAmount() != null
+                    && order.getRemainingAmount().signum() > 0
+                    ? OrderStatusEnum.WAITING_FINAL_PAYMENT
+                    : OrderStatusEnum.WAITING_BUYER_CONFIRM);
             order.setUpdatedAt(now);
             orderRepository.save(order);
         }

@@ -52,7 +52,27 @@ public final class BuyerDeliveryDtos {
             List<ProductItem> products,
             List<TimelineEvent> timeline,
             List<Incident> incidents,
-            List<Complaint> complaints
+            List<Complaint> complaints,
+            PaymentDueInfo paymentDue
+    ) {
+    }
+
+    public record PaymentDueInfo(
+            Long invoiceId,
+            String invoiceCode,
+            String displayInvoiceCode,
+            Long orderId,
+            String orderCode,
+            String supplierName,
+            String productName,
+            BigDecimal quantity,
+            String unit,
+            BigDecimal totalAmount,
+            BigDecimal paidAmount,
+            BigDecimal remainingAmount,
+            LocalDate dueDate,
+            String transferContent,
+            String paymentMethod
     ) {
     }
 

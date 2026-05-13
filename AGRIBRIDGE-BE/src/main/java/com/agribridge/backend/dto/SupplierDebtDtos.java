@@ -73,7 +73,10 @@ public final class SupplierDebtDtos {
             Integer paymentTermDays,
             String status,
             String statusLabel,
-            Long overdueDays
+            Long overdueDays,
+            Boolean buyerConfirmedReceived,
+            Boolean canSendReminder,
+            String reminderBlockedReason
     ) {
     }
 

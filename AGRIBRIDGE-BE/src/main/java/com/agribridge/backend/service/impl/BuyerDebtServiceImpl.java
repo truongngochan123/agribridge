@@ -185,6 +185,17 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
         BigDecimal remainingAfter = invoiceAmount(invoice).subtract(paidAfter);
         invoice.setStatus(resolveInvoiceStatus(invoice, paidAfter, remainingAfter));
         invoiceRepository.save(invoice);
+        if (remainingAfter.compareTo(BigDecimal.ZERO) <= 0) {
+            notificationRepository.findByCompanyIdAndTypeAndRefTableAndRefId(
+                            buyerCompanyId,
+                            NotificationTypeEnum.PAYMENT_DUE,
+                            "invoices",
+                            invoice.getId())
+                    .forEach(notification -> {
+                        notification.setIsRead(Boolean.TRUE);
+                        notificationRepository.save(notification);
+                    });
+        }
         createSupplierPaymentNotification(invoice, order, request.amount(), paymentDate);
         return new BuyerDebtDtos.PaymentResponse(toInvoiceItem(invoice, paidAfter), toPaymentItem(savedPayment, user));
     }
@@ -453,7 +464,13 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
         LocalDate today = LocalDate.now();
         String plan = paymentPlanType(invoice);
         LocalDate effectiveDueDate = invoice.getDueDate();
-        if ("DEPOSIT_50".equals(plan) && confirmedReceivedAt != null) effectiveDueDate = confirmedReceivedAt.toLocalDate();
+        if ("DEPOSIT_50".equals(plan)) {
+            if (confirmedReceivedAt == null) {
+                effectiveDueDate = null;
+            } else if (effectiveDueDate == null) {
+                effectiveDueDate = confirmedReceivedAt.toLocalDate();
+            }
+        }
         boolean overdue = remaining.compareTo(BigDecimal.ZERO) > 0 && effectiveDueDate != null && effectiveDueDate.isBefore(today);
         boolean dueSoon = remaining.compareTo(BigDecimal.ZERO) > 0 && effectiveDueDate != null && !effectiveDueDate.isBefore(today) && !effectiveDueDate.isAfter(today.plusDays(7));
         long overdueDays = overdue ? ChronoUnit.DAYS.between(effectiveDueDate, today) : 0;
@@ -470,7 +487,7 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
     }
 
     private BigDecimal paymentAmount(PaymentEntity payment) {
-        if (payment == null || payment.getStatus() == null || !"PAID".equalsIgnoreCase(payment.getStatus())) {
+        if (payment == null || payment.getStatus() == null || !List.of("PAID", "PARTIALLY_PAID", "COMPLETED", "CONFIRMED", "SUCCESS").contains(payment.getStatus().trim().toUpperCase(Locale.ROOT))) {
             return BigDecimal.ZERO;
         }
         BigDecimal paidAmount = nullToZero(payment.getPaidAmount());
@@ -601,12 +618,12 @@ private Integer paymentTermDays(InvoiceEntity invoice) {
         allocations.stream()
                 .filter(allocation -> {
                     PaymentEntity payment = paymentsById.get(allocation.getPaymentId());
-                    return payment != null && payment.getStatus() != null && "PAID".equalsIgnoreCase(payment.getStatus());
+                    return payment != null && payment.getStatus() != null && List.of("PAID", "PARTIALLY_PAID", "COMPLETED", "CONFIRMED", "SUCCESS").contains(payment.getStatus().trim().toUpperCase(Locale.ROOT));
                 })
                 .forEach(allocation -> paidByInvoice.merge(allocation.getInvoiceId(), nullToZero(allocation.getAmount()), BigDecimal::add));
 
         payments.stream()
-                .filter(payment -> payment.getStatus() != null && "PAID".equalsIgnoreCase(payment.getStatus()))
+                .filter(payment -> payment.getStatus() != null && List.of("PAID", "PARTIALLY_PAID", "COMPLETED", "CONFIRMED", "SUCCESS").contains(payment.getStatus().trim().toUpperCase(Locale.ROOT)))
                 .filter(payment -> payment.getInvoiceId() != null)
                 .filter(payment -> nullToZero(allocatedByPaymentId.get(payment.getId())).compareTo(BigDecimal.ZERO) <= 0)
                 .forEach(payment -> paidByInvoice.merge(payment.getInvoiceId(), paymentAmount(payment), BigDecimal::add));

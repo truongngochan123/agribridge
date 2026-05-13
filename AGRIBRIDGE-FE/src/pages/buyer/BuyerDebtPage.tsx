@@ -156,13 +156,20 @@ export function BuyerDebtPage() {
   useEffect(() => {
     const supplierId = Number(searchParams.get('supplierId') || '')
     const invoiceId = Number(searchParams.get('invoiceId') || '')
+    const shouldPay = searchParams.get('pay') === '1'
     if (!Number.isFinite(supplierId) || supplierId <= 0) return
     setFocusInvoiceId(Number.isFinite(invoiceId) && invoiceId > 0 ? invoiceId : null)
-    void openDetail(supplierId, 'invoices')
+    void (async () => {
+      const data = await openDetail(supplierId, 'invoices')
+      if (!shouldPay || !data) return
+      const invoice = data.invoices.find((item) => item.invoiceId === invoiceId)
+      if (invoice && canPayInvoice(invoice)) setPayment({ supplier: data.summary, invoice })
+    })()
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       next.delete('supplierId')
       next.delete('invoiceId')
+      next.delete('pay')
       return next
     }, { replace: true })
   }, [searchParams, setSearchParams])

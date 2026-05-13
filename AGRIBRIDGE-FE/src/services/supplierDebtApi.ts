@@ -57,6 +57,9 @@ export type SupplierDebtInvoice = {
   status?: string | null
   statusLabel: string
   overdueDays: number
+  buyerConfirmedReceived?: boolean | null
+  canSendReminder?: boolean | null
+  reminderBlockedReason?: string | null
 }
 
 export type SupplierDebtPayment = {

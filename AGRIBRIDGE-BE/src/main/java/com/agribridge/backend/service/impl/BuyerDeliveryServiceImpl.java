@@ -5,8 +5,11 @@ import com.agribridge.backend.entity.BatchEntity;
 import com.agribridge.backend.entity.BranchEntity;
 import com.agribridge.backend.entity.ComplaintEntity;
 import com.agribridge.backend.entity.CompanyEntity;
+import com.agribridge.backend.entity.InvoiceEntity;
 import com.agribridge.backend.entity.OrderEntity;
 import com.agribridge.backend.entity.OrderItemEntity;
+import com.agribridge.backend.entity.PaymentAllocationEntity;
+import com.agribridge.backend.entity.PaymentEntity;
 import com.agribridge.backend.entity.ProductEntity;
 import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.ShipmentEventEntity;
@@ -17,8 +20,11 @@ import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.BranchRepository;
 import com.agribridge.backend.repository.ComplaintRepository;
 import com.agribridge.backend.repository.CompanyRepository;
+import com.agribridge.backend.repository.InvoiceRepository;
 import com.agribridge.backend.repository.OrderItemRepository;
 import com.agribridge.backend.repository.OrderRepository;
+import com.agribridge.backend.repository.PaymentAllocationRepository;
+import com.agribridge.backend.repository.PaymentRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.ShipmentEventRepository;
 import com.agribridge.backend.repository.ShipmentIncidentRepository;
@@ -57,6 +63,9 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
     private final BatchRepository batchRepository;
     private final BranchRepository branchRepository;
     private final CompanyRepository companyRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final PaymentRepository paymentRepository;
+    private final PaymentAllocationRepository paymentAllocationRepository;
     private final ComplaintRepository complaintRepository;
     private final MarketPriceAggregationService marketPriceAggregationService;
     private final BuyerOrderService buyerOrderService;
@@ -258,7 +267,79 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
                 orderItems.stream().map(item -> toProductItem(item, products.get(item.getProductId()), batches.get(item.getBatchId()))).toList(),
                 shipmentEventRepository.findByShipmentIdOrderByEventTimeAsc(shipment.getId()).stream().map(this::toTimeline).toList(),
                 shipmentIncidentRepository.findByShipmentIdOrderByCreatedAtDesc(shipment.getId()).stream().map(this::toIncident).toList(),
-                complaintRepository.findByOrderIdOrderByCreatedAtDesc(order.getId()).stream().map(this::toComplaint).toList());
+                complaintRepository.findByOrderIdOrderByCreatedAtDesc(order.getId()).stream().map(this::toComplaint).toList(),
+                paymentDueInfo(order, orderItems, products, shipment));
+    }
+
+    private BuyerDeliveryDtos.PaymentDueInfo paymentDueInfo(
+            OrderEntity order,
+            List<OrderItemEntity> orderItems,
+            Map<Long, ProductEntity> products,
+            ShipmentEntity shipment) {
+        if (order == null || shipment == null || shipment.getConfirmedReceivedAt() == null) {
+            return null;
+        }
+        InvoiceEntity invoice = invoiceRepository.findByOrderIdInOrderByCreatedAtDesc(List.of(order.getId())).stream()
+                .findFirst()
+                .orElse(null);
+        if (invoice == null || invoice.getStatus() == null || "PAID".equals(invoice.getStatus().name())) {
+            return null;
+        }
+        BigDecimal total = nullToZero(invoice.getAdjustedAmount()).compareTo(BigDecimal.ZERO) > 0
+                ? invoice.getAdjustedAmount()
+                : invoice.getTotalAmount();
+        BigDecimal paid = paidAmount(invoice.getId());
+        BigDecimal remaining = nullToZero(total).subtract(paid).max(BigDecimal.ZERO);
+        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        OrderItemEntity firstItem = orderItems.isEmpty() ? null : orderItems.get(0);
+        ProductEntity product = firstItem == null ? null : products.get(firstItem.getProductId());
+        String invoiceCode = invoice.getInvoiceNumber();
+        return new BuyerDeliveryDtos.PaymentDueInfo(
+                invoice.getId(),
+                invoiceCode,
+                "INV-" + order.getId(),
+                order.getId(),
+                "ORD-" + order.getId(),
+                companyRepository.findById(order.getSupplierCompanyId()).map(CompanyEntity::getName).orElse(null),
+                product == null ? null : product.getName(),
+                firstItem == null ? null : firstItem.getQuantity(),
+                firstItem == null ? null : firstText(firstItem.getUnit(), product == null ? null : product.getUnit()),
+                total,
+                paid,
+                remaining,
+                invoice.getDueDate() == null ? shipment.getConfirmedReceivedAt().toLocalDate() : invoice.getDueDate(),
+                "AGRI-DEBT-" + invoiceCode,
+                firstText(invoice.getPaymentMethod(), "DEPOSIT_50"));
+    }
+
+    private BigDecimal paidAmount(Long invoiceId) {
+        List<PaymentEntity> payments = paymentRepository.findByInvoiceIdOrderByPaymentDateDesc(invoiceId);
+        List<Long> paymentIds = payments.stream().map(PaymentEntity::getId).toList();
+        List<PaymentAllocationEntity> allocations = paymentIds.isEmpty() ? List.of() : paymentAllocationRepository.findByPaymentIdIn(paymentIds);
+        BigDecimal allocated = allocations.stream()
+                .filter(allocation -> payments.stream().anyMatch(payment -> payment.getId().equals(allocation.getPaymentId()) && isPaidPayment(payment)))
+                .map(PaymentAllocationEntity::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (allocated.compareTo(BigDecimal.ZERO) > 0) {
+            return allocated;
+        }
+        return payments.stream()
+                .filter(this::isPaidPayment)
+                .map(payment -> nullToZero(payment.getPaidAmount()).compareTo(BigDecimal.ZERO) > 0 ? payment.getPaidAmount() : payment.getAmount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private boolean isPaidPayment(PaymentEntity payment) {
+        if (payment == null || payment.getStatus() == null) {
+            return false;
+        }
+        return List.of("PAID", "PARTIALLY_PAID", "COMPLETED", "CONFIRMED", "SUCCESS").contains(payment.getStatus().trim().toUpperCase(Locale.ROOT));
+    }
+
+    private BigDecimal nullToZero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     private BuyerDeliveryDtos.ListItem toListItem(

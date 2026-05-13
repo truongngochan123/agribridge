@@ -67,6 +67,7 @@ public class NotificationTypeConstraintFix {
                 ADD CONSTRAINT CK_notifications_type_v2
                 CHECK ([type] IN (
                     'DEBT_REMINDER',
+                    'PAYMENT_DUE',
                     'DEBT_OVERDUE',
                     'DEBT_PAYMENT_CONFIRMED',
                     'PRICE_ALERT',

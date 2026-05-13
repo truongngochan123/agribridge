@@ -42,6 +42,8 @@ import com.agribridge.backend.service.CurrentUserService;
 import com.agribridge.backend.service.SupplierDebtService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -96,6 +98,7 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
         List<Long> invoiceIds = invoices.stream().map(InvoiceEntity::getId).toList();
         List<SupplierDebtDtos.PaymentItem> payments = context.payments().stream()
                 .filter(payment -> invoiceIds.contains(payment.getInvoiceId()))
+                .filter(payment -> isDebtPaymentHistory(payment, context))
                 .sorted(Comparator.comparing(PaymentEntity::getPaymentDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(payment -> {
                     Long confirmedByUserId = payment.getConfirmedByUserId();
@@ -240,15 +243,19 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
         if (request == null || request.buyerId() == null) throw new IllegalArgumentException("buyerId is required");
         if (request.invoiceId() == null) throw new IllegalArgumentException("invoiceId is required");
         InvoiceEntity invoice = requireSupplierInvoice(supplierCompanyId, request.invoiceId());
+        OrderEntity order = orderRepository.findById(invoice.getOrderId()).orElse(null);
         BigDecimal remaining = invoiceAmount(invoice).subtract(paidAmount(invoice.getId())).max(BigDecimal.ZERO);
         if (remaining.compareTo(BigDecimal.ZERO) <= 0 || InvoiceStatusEnum.PAID.equals(invoice.getStatus())) {
             throw new IllegalArgumentException("Hóa đơn đã thanh toán, không thể nhắc nợ.");
+        }
+        String reminderBlockedReason = reminderBlockedReason(invoice, order, remaining, shipmentRepository.findTopByOrderIdOrderByCreatedAtDesc(invoice.getOrderId()).orElse(null));
+        if (reminderBlockedReason != null) {
+            throw new IllegalArgumentException(reminderBlockedReason);
         }
         BigDecimal amount = request.amount() == null && invoice != null
                 ? remaining
                 : nullToZero(request.amount());
         LocalDateTime now = LocalDateTime.now();
-        OrderEntity order = orderRepository.findById(invoice.getOrderId()).orElse(null);
         CompanyEntity supplierCompany = companyRepository.findById(supplierCompanyId).orElse(null);
         String supplierName = supplierCompany == null ? "Nhà cung cấp" : firstText(supplierCompany.getName(), "Nhà cung cấp");
         String invoiceCode = firstText(invoice.getInvoiceNumber(), "N/A");
@@ -346,6 +353,12 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
                         (a, b) -> a));
         invoices.forEach(invoice -> invoiceMainItemByInvoiceId.putIfAbsent(invoice.getId(), orderLineByOrderId.get(invoice.getOrderId())));
         List<ShipmentEntity> shipments = orderIds.isEmpty() ? List.of() : shipmentRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds);
+        Map<Long, ShipmentEntity> shipmentByOrderId = shipments.stream()
+                .collect(Collectors.toMap(ShipmentEntity::getOrderId, Function.identity(), (a, b) -> {
+                    if (a.getCreatedAt() == null) return b;
+                    if (b.getCreatedAt() == null) return a;
+                    return a.getCreatedAt().isAfter(b.getCreatedAt()) ? a : b;
+                }));
         Map<Long, LocalDateTime> confirmedReceivedAtByOrderId = shipments.stream()
                 .filter(item -> item.getConfirmedReceivedAt() != null)
                 .collect(Collectors.toMap(ShipmentEntity::getOrderId, ShipmentEntity::getConfirmedReceivedAt, (a, b) -> a.isAfter(b) ? a : b));
@@ -378,7 +391,7 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
                 .toList();
         Map<Long, UserEntity> usersById = userRepository.findAllById(userIds).stream().collect(Collectors.toMap(UserEntity::getId, Function.identity()));
         Map<Long, OrderEntity> ordersById = orders.stream().collect(Collectors.toMap(OrderEntity::getId, Function.identity()));
-        return new DebtContext(supplierCompanyId, orders, invoices, payments, adjustments, reminders, paidByInvoice, buyersById, creditByBuyer, usersById, ordersById, invoiceMainItemByInvoiceId, confirmedReceivedAtByOrderId, expectedDeliveryAtByOrderId);
+        return new DebtContext(supplierCompanyId, orders, invoices, payments, adjustments, reminders, paidByInvoice, buyersById, creditByBuyer, usersById, ordersById, invoiceMainItemByInvoiceId, confirmedReceivedAtByOrderId, expectedDeliveryAtByOrderId, shipmentByOrderId);
     }
 
     private List<SupplierDebtDtos.Kpi> buildKpis(DebtContext context) {
@@ -390,6 +403,7 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
         BigDecimal dueSoon = calcs.stream().filter(InvoiceCalc::dueSoon).map(InvoiceCalc::remaining).reduce(BigDecimal.ZERO, BigDecimal::add);
         LocalDate today = LocalDate.now();
         BigDecimal paidThisMonth = context.payments().stream()
+                .filter(payment -> isDebtPaymentHistory(payment, context))
                 .filter(payment -> payment.getPaymentDate() != null && payment.getPaymentDate().getYear() == today.getYear() && payment.getPaymentDate().getMonth() == today.getMonth())
                 .map(this::paymentAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -469,7 +483,10 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
         InvoiceLine mainItem = context.invoiceMainItemByInvoiceId().get(invoice.getId());
         LocalDateTime confirmedReceivedAt = context.confirmedReceivedAtByOrderId().get(invoice.getOrderId());
         LocalDateTime expectedDueAt = context.expectedDeliveryAtByOrderId().get(invoice.getOrderId());
+        OrderEntity order = context.ordersById().get(invoice.getOrderId());
+        ShipmentEntity shipment = context.shipmentByOrderId().get(invoice.getOrderId());
         String paymentPlan = paymentPlanType(invoice);
+        String reminderBlockedReason = reminderBlockedReason(invoice, order, calc.remaining(), shipment);
         return new SupplierDebtDtos.InvoiceItem(
                 invoice.getId(),
                 invoice.getInvoiceNumber(),
@@ -497,11 +514,14 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
                 paymentTermDays(invoice),
                 invoiceStatus(calc),
                 invoiceStatusLabel(calc),
-                calc.overdueDays());
+                calc.overdueDays(),
+                confirmedReceivedAt != null,
+                reminderBlockedReason == null,
+                reminderBlockedReason);
     }
 
     private SupplierDebtDtos.PaymentItem toPaymentItem(PaymentEntity payment, UserEntity user) {
-        return new SupplierDebtDtos.PaymentItem(payment.getId(), payment.getInvoiceId(), paymentAmount(payment), payment.getPaymentDate(), payment.getPaymentMethod(), payment.getNote(), user == null ? null : firstText(user.getFullName(), user.getEmail()));
+        return new SupplierDebtDtos.PaymentItem(payment.getId(), payment.getInvoiceId(), paymentAmount(payment), payment.getPaymentDate(), payment.getPaymentMethod(), fixVietnameseMojibake(payment.getNote()), user == null ? null : firstText(user.getFullName(), user.getEmail()));
     }
 
     private SupplierDebtDtos.AdjustmentItem toAdjustmentItem(DebtAdjustmentEntity item) {
@@ -549,7 +569,13 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
         LocalDate today = LocalDate.now();
         String plan = paymentPlanType(invoice);
         LocalDate effectiveDueDate = invoice.getDueDate();
-        if ("DEPOSIT_50".equals(plan) && confirmedReceivedAt != null) effectiveDueDate = confirmedReceivedAt.toLocalDate();
+        if ("DEPOSIT_50".equals(plan)) {
+            if (confirmedReceivedAt == null) {
+                effectiveDueDate = null;
+            } else if (effectiveDueDate == null) {
+                effectiveDueDate = confirmedReceivedAt.toLocalDate();
+            }
+        }
         boolean overdue = remaining.compareTo(BigDecimal.ZERO) > 0 && effectiveDueDate != null && effectiveDueDate.isBefore(today);
         boolean dueSoon = remaining.compareTo(BigDecimal.ZERO) > 0 && effectiveDueDate != null && !effectiveDueDate.isBefore(today) && !effectiveDueDate.isAfter(today.plusDays(7));
         return new InvoiceCalc(amount, paid, remaining, overdue, dueSoon, overdue ? ChronoUnit.DAYS.between(effectiveDueDate, today) : 0, plan);
@@ -596,9 +622,31 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
         if (calc.remaining().compareTo(BigDecimal.ZERO) <= 0) return "Đã thanh toán";
         if (calc.overdue()) return "Quá hạn";
         if (calc.dueSoon()) return "Đến hạn thanh toán";
-        if ("DEPOSIT_50".equals(calc.paymentPlanType()) && calc.paid().compareTo(BigDecimal.ZERO) > 0) return "Đã cọc 50%";
+        if ("DEPOSIT_50".equals(calc.paymentPlanType()) && calc.paid().compareTo(BigDecimal.ZERO) > 0) return "Chờ nhận hàng";
         if (calc.paid().compareTo(BigDecimal.ZERO) > 0) return "Thanh toán một phần";
         return "Chưa thanh toán";
+    }
+
+    private String reminderBlockedReason(InvoiceEntity invoice, OrderEntity order, BigDecimal remaining, ShipmentEntity shipment) {
+        if (order == null) return "Không tìm thấy đơn hàng.";
+        if (OrderStatusEnum.CANCELLED.equals(order.getStatus())) return "Đơn hàng đã hủy, không thể nhắc nợ.";
+        if (remaining == null || remaining.compareTo(BigDecimal.ZERO) <= 0 || InvoiceStatusEnum.PAID.equals(invoice.getStatus())) {
+            return "Hóa đơn đã thanh toán, không thể nhắc nợ.";
+        }
+        if (InvoiceStatusEnum.CANCELLED.equals(invoice.getStatus()) || InvoiceStatusEnum.VOIDED.equals(invoice.getStatus())) {
+            return "Hóa đơn không còn hiệu lực.";
+        }
+        if (shipment == null || shipment.getConfirmedReceivedAt() == null) {
+            return "Chưa đến kỳ thanh toán: Buyer chưa xác nhận nhận hàng.";
+        }
+        if (shipment.getStatus() == null || !"DELIVERED".equals(shipment.getStatus().name())) {
+            return "Chưa đến kỳ thanh toán: đơn chưa giao thành công.";
+        }
+        LocalDate dueDate = invoice.getDueDate() == null ? shipment.getConfirmedReceivedAt().toLocalDate() : invoice.getDueDate();
+        if (!dueDate.isBefore(LocalDate.now())) {
+            return "Chưa quá hạn thanh toán.";
+        }
+        return null;
     }
 
     private CreditLimitStatusEnum parseCreditStatus(String value) {
@@ -654,6 +702,56 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
         if ("DEPOSIT_50".equalsIgnoreCase(method)) return "DEPOSIT_50";
         if ("CREDIT".equalsIgnoreCase(method) || "DEBT".equalsIgnoreCase(method)) return "CREDIT_TERM";
         return "PREPAID";
+    }
+
+    private boolean isDebtPaymentHistory(PaymentEntity payment, DebtContext context) {
+        if (!isPaidPaymentStatus(payment) || payment.getInvoiceId() == null) return false;
+        InvoiceEntity invoice = context.invoices().stream()
+                .filter(item -> Objects.equals(item.getId(), payment.getInvoiceId()))
+                .findFirst()
+                .orElse(null);
+        if (invoice == null || InvoiceStatusEnum.CANCELLED.equals(invoice.getStatus()) || InvoiceStatusEnum.VOIDED.equals(invoice.getStatus())) return false;
+        OrderEntity order = context.ordersById().get(invoice.getOrderId());
+        if (order == null || OrderStatusEnum.CANCELLED.equals(order.getStatus())) return false;
+        if (isFullPlatformPaymentOption(firstText(order.getPaymentOption(), invoice.getPaymentMethod()))) return false;
+        if (containsFullPlatformPaymentText(payment.getNote()) || containsFullPlatformPaymentText(payment.getTransferContent())) return false;
+
+        String paymentType = normalizeCode(payment.getPaymentType());
+        if (List.of("FULL", "ESCROW", "FULL_PAYMENT", "PLATFORM_FULL_PAYMENT", "PAY_100_PERCENT").contains(paymentType)) return false;
+        if (List.of("REMAINING", "PAY_REMAINING_BALANCE", "DEBT_PAYMENT", "PARTIAL_DEBT_PAYMENT", "BUYER_DEBT_PAYMENT", "SUPPLIER_DEBT_PAYMENT").contains(paymentType)) return true;
+        if ("DEPOSIT".equals(paymentType)) return false;
+
+        String plan = paymentPlanType(invoice);
+        return "CREDIT_TERM".equals(plan);
+    }
+
+    private boolean isFullPlatformPaymentOption(String value) {
+        String normalized = normalizeCode(value);
+        return List.of("FULL_PAYMENT", "PAY_100_PERCENT", "PLATFORM_FULL_PAYMENT", "ESCROW_TRANSFER", "ESCROW").contains(normalized);
+    }
+
+    private boolean containsFullPlatformPaymentText(String value) {
+        String text = firstText(fixVietnameseMojibake(value), "").toLowerCase(Locale.ROOT);
+        String normalized = normalizeCode(text);
+        return normalized.contains("100") && (text.contains("qua sàn") || normalized.contains("QUA_SAN") || normalized.contains("PLATFORM") || normalized.contains("FULL"));
+    }
+
+    private String normalizeCode(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+    }
+
+    private String fixVietnameseMojibake(String value) {
+        if (value == null || value.isBlank()) return value;
+        if (!looksLikeVietnameseMojibake(value)) return value;
+        try {
+            return new String(value.getBytes(Charset.forName("windows-1252")), StandardCharsets.UTF_8);
+        } catch (RuntimeException ignored) {
+            return value;
+        }
+    }
+
+    private boolean looksLikeVietnameseMojibake(String value) {
+        return value != null && (value.contains("\u00C3") || value.contains("\u00C4") || value.contains("\u00E1\u00BB"));
     }
 
     private Integer paymentTermDays(InvoiceEntity invoice) {
@@ -746,7 +844,8 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
             Map<Long, OrderEntity> ordersById,
             Map<Long, InvoiceLine> invoiceMainItemByInvoiceId,
             Map<Long, LocalDateTime> confirmedReceivedAtByOrderId,
-            Map<Long, LocalDateTime> expectedDeliveryAtByOrderId
+            Map<Long, LocalDateTime> expectedDeliveryAtByOrderId,
+            Map<Long, ShipmentEntity> shipmentByOrderId
     ) {
     }
 

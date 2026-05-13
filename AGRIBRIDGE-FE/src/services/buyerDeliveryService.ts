@@ -100,6 +100,23 @@ export type BuyerDeliveryDetail = {
     createdAt: string
     resolvedAt?: string | null
   }>
+  paymentDue?: {
+    invoiceId: number
+    invoiceCode?: string | null
+    displayInvoiceCode?: string | null
+    orderId: number
+    orderCode?: string | null
+    supplierName?: string | null
+    productName?: string | null
+    quantity?: number | null
+    unit?: string | null
+    totalAmount?: number | null
+    paidAmount?: number | null
+    remainingAmount: number
+    dueDate?: string | null
+    transferContent?: string | null
+    paymentMethod?: 'DEPOSIT_50' | 'CREDIT' | 'ESCROW_TRANSFER' | string | null
+  } | null
 }
 
 export type DeliveryFilters = {

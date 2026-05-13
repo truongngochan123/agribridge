@@ -2,6 +2,7 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Clock, MapPin, Package, PhoneCall, Truck, X, CheckCircle, CheckCircle2, UploadCloud } from 'lucide-react'
 import { SearchInput } from '../../components/buyer/BuyerCommon'
+import { BuyerPaymentInstructionModal } from '../../components/buyer/BuyerPaymentInstructionModal'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import { useToast } from '../../hooks/useToast'
 import {
@@ -17,6 +18,7 @@ import {
   type DeliveryTimelineEvent,
 } from '../../services/buyerDeliveryService'
 import { fetchBuyerBranches, type BuyerBranchSummary } from '../../services/buyerBranchService'
+import { createBuyerDebtPayment } from '../../services/buyerDebtApi'
 import { uploadRegistrationFile } from '../../services/uploadService'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
 
@@ -228,6 +230,8 @@ export function BuyerDeliveryPage() {
   const [mapShipment, setMapShipment] = useState<BuyerDeliveryItem | null>(null)
   const [incidentShipment, setIncidentShipment] = useState<BuyerDeliveryItem | null>(null)
   const [confirmShipment, setConfirmShipment] = useState<BuyerDeliveryItem | null>(null)
+  const [paymentDue, setPaymentDue] = useState<BuyerDeliveryDetail['paymentDue'] | null>(null)
+  const [submittingPaymentDue, setSubmittingPaymentDue] = useState(false)
   const [updateIncidentTarget, setUpdateIncidentTarget] = useState<{
     shipment: BuyerDeliveryItem
     incident: BuyerDeliveryDetail['incidents'][number]
@@ -391,7 +395,47 @@ export function BuyerDeliveryPage() {
           }}
         />
       ) : null}
-      {confirmShipment ? <ConfirmReceivedModal shipment={confirmShipment} onClose={() => setConfirmShipment(null)} onDone={(updated) => void refreshAfterAction(updated)} /> : null}
+      {confirmShipment ? <ConfirmReceivedModal shipment={confirmShipment} onClose={() => setConfirmShipment(null)} onDone={(updated) => { if (updated?.paymentDue) setPaymentDue(updated.paymentDue); void refreshAfterAction(updated) }} /> : null}
+      <BuyerPaymentInstructionModal
+        open={Boolean(paymentDue)}
+        mode="debt"
+        title="Thanh toán phần còn lại"
+        description={paymentDue?.dueDate ? `Hạn thanh toán: ${formatDate(paymentDue.dueDate)}` : 'Thanh toán qua tài khoản sàn'}
+        invoiceCode={paymentDue?.displayInvoiceCode || paymentDue?.invoiceCode}
+        orderCode={paymentDue?.orderCode}
+        supplierName={paymentDue?.supplierName}
+        productName={paymentDue?.productName}
+        quantity={paymentDue?.quantity}
+        unit={paymentDue?.unit}
+        paymentMethod={paymentDue?.paymentMethod === 'DEPOSIT_50' ? 'DEPOSIT_50' : 'ESCROW_TRANSFER'}
+        totalAmount={paymentDue?.totalAmount}
+        paidAmount={paymentDue?.paidAmount}
+        balanceAmount={paymentDue?.remainingAmount}
+        payableAmount={paymentDue?.remainingAmount}
+        transferContent={paymentDue?.transferContent}
+        onClose={() => setPaymentDue(null)}
+        onDemoPaid={async () => {
+          if (!paymentDue) return
+          setSubmittingPaymentDue(true)
+          try {
+            await createBuyerDebtPayment({
+              invoiceId: paymentDue.invoiceId,
+              amount: paymentDue.remainingAmount,
+              paymentMethod: 'BANK_TRANSFER_DEMO',
+              paymentDate: new Date().toISOString(),
+              note: `Demo thanh toán phần còn lại ${paymentDue.invoiceCode || paymentDue.orderCode}`,
+            })
+            showToast('Thanh toán phần còn lại thành công.', 'success')
+            setPaymentDue(null)
+            await loadDeliveries()
+          } catch (requestError) {
+            showToast(readApiErrorMessage(requestError) || 'Không thể thanh toán phần còn lại.', 'error')
+          } finally {
+            setSubmittingPaymentDue(false)
+          }
+        }}
+        submitting={submittingPaymentDue}
+      />
     </>
   )
 }

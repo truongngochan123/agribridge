@@ -11,6 +11,7 @@ import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.CreditLimitEntity;
 import com.agribridge.backend.entity.EscrowTransactionEntity;
 import com.agribridge.backend.entity.InvoiceEntity;
+import com.agribridge.backend.entity.NotificationEntity;
 import com.agribridge.backend.entity.OrderEntity;
 import com.agribridge.backend.entity.OrderItemEntity;
 import com.agribridge.backend.entity.PaymentAllocationEntity;
@@ -23,8 +24,10 @@ import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.ComplaintStatusEnum;
 import com.agribridge.backend.entity.enums.CreditLimitStatusEnum;
 import com.agribridge.backend.entity.enums.InvoiceStatusEnum;
+import com.agribridge.backend.entity.enums.NotificationTypeEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
 import com.agribridge.backend.entity.enums.ShipmentStatusEnum;
+import com.agribridge.backend.entity.enums.UserRoleEnum;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.BranchRepository;
 import com.agribridge.backend.repository.ComplaintRepository;
@@ -32,6 +35,7 @@ import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.CreditLimitRepository;
 import com.agribridge.backend.repository.EscrowTransactionRepository;
 import com.agribridge.backend.repository.InvoiceRepository;
+import com.agribridge.backend.repository.NotificationRepository;
 import com.agribridge.backend.repository.OrderItemRepository;
 import com.agribridge.backend.repository.OrderRepository;
 import com.agribridge.backend.repository.PaymentAllocationRepository;
@@ -40,6 +44,7 @@ import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.ShipmentEventRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
 import com.agribridge.backend.repository.SupplierPayoutRepository;
+import com.agribridge.backend.repository.UserRepository;
 import com.agribridge.backend.service.BatchAvailabilityService;
 import com.agribridge.backend.service.BuyerOrderService;
 import com.agribridge.backend.service.CurrentUserService;
@@ -78,6 +83,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final InvoiceRepository invoiceRepository;
+    private final NotificationRepository notificationRepository;
     private final PaymentAllocationRepository paymentAllocationRepository;
     private final PaymentRepository paymentRepository;
     private final ShipmentRepository shipmentRepository;
@@ -90,6 +96,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
     private final ComplaintRepository complaintRepository;
     private final EscrowTransactionRepository escrowTransactionRepository;
     private final SupplierPayoutRepository supplierPayoutRepository;
+    private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
     private final BatchAvailabilityService batchAvailabilityService;
     private final ShipmentStatusTransitionService shipmentStatusTransitionService;
@@ -370,7 +377,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         if (!buyerCompanyId.equals(order.getBuyerCompanyId())) {
             throw new IllegalArgumentException("Order does not belong to this buyer");
         }
-        if (!OrderStatusEnum.WAITING_BUYER_CONFIRM.equals(order.getStatus())) {
+        if (!List.of(OrderStatusEnum.WAITING_BUYER_CONFIRM, OrderStatusEnum.WAITING_FINAL_PAYMENT, OrderStatusEnum.DELIVERED).contains(order.getStatus())) {
             throw new IllegalArgumentException("Order is not waiting for buyer confirmation");
         }
 
@@ -384,6 +391,22 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 shipment,
                 currentUserService.requireCurrentUser().getId(),
                 "Người mua xác nhận đã nhận hàng");
+        InvoiceEntity invoice = latestInvoice(orderId);
+        BigDecimal paid = paidAmountForInvoice(invoice.getId(), paymentRepository.findByInvoiceIdOrderByPaymentDateDesc(invoice.getId()));
+        BigDecimal remaining = safeAmount(invoice.getAdjustedAmount()).subtract(paid).max(BigDecimal.ZERO);
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            LocalDate dueDate = invoice.getDueDate() == null ? LocalDate.now() : invoice.getDueDate();
+            invoice.setDueDate(dueDate);
+            invoice.setStatus(InvoiceStatusEnum.PARTIAL);
+            invoiceRepository.save(invoice);
+            order.setStatus(OrderStatusEnum.WAITING_FINAL_PAYMENT);
+            order.setPaymentStatus("PARTIALLY_PAID");
+            order.setRemainingAmount(remaining);
+            order.setUpdatedAt(LocalDateTime.now());
+            orderRepository.save(order);
+            createBuyerPaymentDueNotification(order, invoice, remaining, dueDate);
+            return;
+        }
         releaseEscrowAndComplete(order);
     }
 
@@ -775,10 +798,53 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
     private BigDecimal paidAmountForInvoice(Long invoiceId, List<PaymentEntity> payments) {
         return payments.stream()
                 .filter(payment -> Objects.equals(invoiceId, payment.getInvoiceId()))
-                .filter(payment -> payment.getStatus() != null && "PAID".equalsIgnoreCase(payment.getStatus()))
+                .filter(payment -> payment.getStatus() != null && List.of("PAID", "PARTIALLY_PAID", "COMPLETED", "CONFIRMED", "SUCCESS").contains(payment.getStatus().trim().toUpperCase(Locale.ROOT)))
                 .map(payment -> payment.getPaidAmount() == null ? safeAmount(payment.getAmount())
                         : safeAmount(payment.getPaidAmount()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private void createBuyerPaymentDueNotification(OrderEntity order, InvoiceEntity invoice, BigDecimal remaining, LocalDate dueDate) {
+        List<OrderItemEntity> items = orderItemRepository.findByOrderIdOrderByIdAsc(order.getId());
+        OrderItemEntity firstItem = items.isEmpty() ? null : items.get(0);
+        ProductEntity product = firstItem == null || firstItem.getProductId() == null ? null : productRepository.findById(firstItem.getProductId()).orElse(null);
+        String productName = product == null ? "sản phẩm" : firstText(product.getName(), "sản phẩm");
+        String orderCode = orderCode(order.getId());
+        String dueLabel = dueDate == null ? "chưa xác định" : dueDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        String message = "Đơn " + orderCode + " đã được giao thành công. Vui lòng thanh toán phần còn lại "
+                + formatMoney(remaining) + " trước ngày " + dueLabel + ".";
+        String metadata = "{"
+                + "\"role\":\"buyer\""
+                + ",\"invoiceId\":" + invoice.getId()
+                + ",\"invoiceCode\":\"" + json(firstText(invoice.getInvoiceNumber(), "INV-" + order.getId())) + "\""
+                + ",\"displayInvoiceCode\":\"INV-" + order.getId() + "\""
+                + ",\"orderId\":" + order.getId()
+                + ",\"orderCode\":\"" + orderCode + "\""
+                + ",\"supplierCompanyId\":" + order.getSupplierCompanyId()
+                + ",\"buyerCompanyId\":" + order.getBuyerCompanyId()
+                + ",\"productName\":\"" + json(productName) + "\""
+                + ",\"amount\":" + remaining
+                + ",\"dueDate\":\"" + (dueDate == null ? "" : dueDate) + "\""
+                + ",\"route\":\"/buyer/debt?supplierId=" + order.getSupplierCompanyId() + "&invoiceId=" + invoice.getId() + "&pay=1\""
+                + ",\"type\":\"PAYMENT_DUE\""
+                + "}";
+        userRepository.findFirstByCompanyIdAndRole(order.getBuyerCompanyId(), UserRoleEnum.OWNER)
+                .ifPresent(owner -> notificationRepository.save(NotificationEntity.builder()
+                        .userId(owner.getId())
+                        .companyId(order.getBuyerCompanyId())
+                        .type(NotificationTypeEnum.PAYMENT_DUE)
+                        .title("Cần thanh toán phần còn lại")
+                        .body(message)
+                        .metadata(metadata)
+                        .refTable("invoices")
+                        .refId(invoice.getId())
+                        .isRead(Boolean.FALSE)
+                        .createdAt(LocalDateTime.now())
+                        .build()));
+    }
+
+    private String json(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private OrderEntity requireBuyerOrder(Long buyerCompanyId, Long orderId) {
