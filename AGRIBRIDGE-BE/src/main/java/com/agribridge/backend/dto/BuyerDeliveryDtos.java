@@ -114,7 +114,12 @@ public final class BuyerDeliveryDtos {
             Integer damagedQuantity,
             String updateNote,
             List<String> evidenceUrls,
-            LocalDateTime updatedAt
+            LocalDateTime updatedAt,
+            String supplierResponse,
+            List<String> supplierEvidenceUrls,
+            String proposedResolution,
+            String resolutionType,
+            LocalDateTime buyerActionRequiredAt
     ) {
     }
 
@@ -142,12 +147,14 @@ public final class BuyerDeliveryDtos {
             String incidentType,
             String description,
             String imageUrl,
+            List<String> evidenceUrls,
             Integer missingQuantity,
             Integer damagedQuantity
     ) {
     }
 
     public record UpdateIncidentRequest(
+            String action,
             String note,
             Integer missingQuantity,
             Integer damagedQuantity,

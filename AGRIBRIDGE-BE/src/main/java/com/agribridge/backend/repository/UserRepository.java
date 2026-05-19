@@ -25,6 +25,8 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     Optional<UserEntity> findFirstByCompanyIdAndRole(Long companyId, UserRoleEnum role);
 
+    Optional<UserEntity> findFirstByCompanyIdOrderByCreatedAtAsc(Long companyId);
+
     List<UserEntity> findByCompanyIdInAndRole(Collection<Long> companyIds, UserRoleEnum role);
 
     @Query(value = """
@@ -36,6 +38,8 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     List<SupplierOwnerRef> findSupplierOwnerRefsByCompanyIds(@Param("companyIds") Collection<Long> companyIds);
 
     List<UserEntity> findByCompanyIdAndBranchIdOrderByCreatedAtDesc(Long companyId, Long branchId);
+
+    List<UserEntity> findByCompanyIdAndBranchIdIsNullOrderByCreatedAtDesc(Long companyId);
 
     boolean existsByBranchId(Long branchId);
 

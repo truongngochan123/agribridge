@@ -12,10 +12,15 @@ public final class NotificationDtos {
 
     public record NotificationItem(
             Long id,
+            String module,
             String type,
             String title,
             String body,
             String metadata,
+            String actionUrl,
+            String entityType,
+            Long entityId,
+            Boolean actionRequired,
             Boolean isRead,
             LocalDateTime createdAt
     ) {

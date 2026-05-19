@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -44,6 +45,28 @@ public class BuyerBranchController {
     @PatchMapping("/{id}/status")
     public BuyerBranchDtos.Summary updateStatus(@PathVariable Long id, @RequestBody BuyerBranchDtos.StatusRequest request) {
         return buyerBranchService.updateStatus(id, request);
+    }
+
+    @GetMapping("/{id}/employees/candidates")
+    public List<BuyerBranchDtos.Staff> getAssignableEmployees(@PathVariable Long id, @RequestParam(name = "search", required = false) String search) {
+        return buyerBranchService.getAssignableEmployees(id, search);
+    }
+
+    @GetMapping("/employees/availability")
+    public BuyerBranchDtos.EmployeeAvailability checkEmployeeAvailability(
+            @RequestParam(name = "email", required = false) String email,
+            @RequestParam(name = "phone", required = false) String phone) {
+        return buyerBranchService.checkEmployeeAvailability(email, phone);
+    }
+
+    @PostMapping("/{id}/employees")
+    public BuyerBranchDtos.Staff createEmployee(@PathVariable Long id, @RequestBody BuyerBranchDtos.EmployeeCreateRequest request) {
+        return buyerBranchService.createEmployee(id, request);
+    }
+
+    @PostMapping("/{id}/employees/assign")
+    public BuyerBranchDtos.Staff assignEmployee(@PathVariable Long id, @RequestBody BuyerBranchDtos.EmployeeAssignRequest request) {
+        return buyerBranchService.assignEmployee(id, request);
     }
 
     @DeleteMapping("/{id}")

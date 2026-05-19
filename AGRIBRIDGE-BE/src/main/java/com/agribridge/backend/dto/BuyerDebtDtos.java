@@ -32,6 +32,7 @@ public final class BuyerDebtDtos {
             BigDecimal limitUsage,
             Boolean isBlocked,
             String blockedReason,
+            String creditStatus,
             String status,
             String statusLabel
     ) {

@@ -36,6 +36,7 @@ import com.agribridge.backend.repository.RfqRepository;
 import com.agribridge.backend.service.BatchAvailabilityService;
 import com.agribridge.backend.service.BuyerRfqService;
 import com.agribridge.backend.service.CurrentUserService;
+import com.agribridge.backend.service.NotificationCenterService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -89,6 +90,7 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
     private final CompanyRepository companyRepository;
     private final CurrentUserService currentUserService;
     private final BatchAvailabilityService batchAvailabilityService;
+    private final NotificationCenterService notificationCenterService;
 
     @Override
     @Transactional(readOnly = true)
@@ -217,6 +219,8 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build());
+        CompanyEntity buyer = companyRepository.findById(buyerCompanyId).orElse(null);
+        notificationCenterService.notifySuppliersNewRfq(rfq, buyer == null ? "Buyer" : buyer.getName());
         return toDetail(rfq, 0);
     }
 
@@ -380,6 +384,7 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
         rfq.setStatus(RfqStatusEnum.ACCEPTED);
         rfq.setUpdatedAt(now);
         rfqRepository.save(rfq);
+        notificationCenterService.notifySupplierQuoteSelected(rfq, quote, order);
 
         return new ConvertQuoteToOrderResponse(
                 order.getId(),

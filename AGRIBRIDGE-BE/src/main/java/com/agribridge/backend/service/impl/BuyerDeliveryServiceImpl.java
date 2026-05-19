@@ -33,6 +33,7 @@ import com.agribridge.backend.service.BuyerDeliveryService;
 import com.agribridge.backend.service.BuyerOrderService;
 import com.agribridge.backend.service.CurrentUserService;
 import com.agribridge.backend.service.MarketPriceAggregationService;
+import com.agribridge.backend.service.NotificationCenterService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -69,6 +70,7 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
     private final ComplaintRepository complaintRepository;
     private final MarketPriceAggregationService marketPriceAggregationService;
     private final BuyerOrderService buyerOrderService;
+    private final NotificationCenterService notificationCenterService;
 
     @Override
     @Transactional(readOnly = true)
@@ -126,7 +128,7 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
             throw new IllegalArgumentException("condition is required");
         }
         if (!"OK".equalsIgnoreCase(condition)) {
-            createIncidentInternal(shipment, user.getId(), condition, firstText(request.note(), "Buyer reported delivery issue"), request.evidenceImage(), null, null);
+            createIncidentInternal(shipment, user.getId(), condition, firstText(request.note(), "Buyer reported delivery issue"), request.evidenceImage(), null, null, null);
             return toDetail(shipmentRepository.findById(shipmentId).orElseThrow());
         }
 
@@ -161,11 +163,12 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
                 request == null ? null : request.incidentType(),
                 request == null ? null : request.description(),
                 request == null ? null : request.imageUrl(),
+                request == null ? null : request.evidenceUrls(),
                 request == null ? null : request.missingQuantity(),
                 request == null ? null : request.damagedQuantity()));
     }
 
-    private ShipmentIncidentEntity createIncidentInternal(ShipmentEntity shipment, Long userId, String type, String description, String imageUrl, Integer missingQty, Integer damagedQty) {
+    private ShipmentIncidentEntity createIncidentInternal(ShipmentEntity shipment, Long userId, String type, String description, String imageUrl, List<String> evidenceUrls, Integer missingQty, Integer damagedQty) {
         String incidentType = firstText(type, "DELIVERY_ISSUE").toUpperCase(Locale.ROOT);
         String incidentDescription = required(description, "description is required");
         LocalDateTime now = LocalDateTime.now();
@@ -193,15 +196,36 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
                 .description(shortEventDesc)
                 .eventTime(now)
                 .build());
-        return shipmentIncidentRepository.save(ShipmentIncidentEntity.builder()
+        List<String> evidence = new java.util.ArrayList<>();
+        if (clean(imageUrl) != null) {
+            evidence.add(clean(imageUrl));
+        }
+        if (evidenceUrls != null) {
+            for (String url : evidenceUrls) {
+                String cleaned = clean(url);
+                if (cleaned != null && !evidence.contains(cleaned)) {
+                    evidence.add(cleaned);
+                }
+            }
+        }
+        ShipmentIncidentEntity incident = shipmentIncidentRepository.save(ShipmentIncidentEntity.builder()
                 .shipmentId(shipment.getId())
                 .reportedByUserId(userId)
                 .incidentType(incidentType)
                 .description(incidentDescription)
                 .imageUrl(clean(imageUrl))
-                .status("OPEN")
+                .evidenceUrls(evidence.isEmpty() ? null : String.join(",", evidence))
+                .status("WAITING_SUPPLIER_RESPONSE")
                 .createdAt(now)
                 .build());
+        OrderEntity order = orderRepository.findById(shipment.getOrderId()).orElse(null);
+        if (order != null) {
+            String buyerName = companyRepository.findById(order.getBuyerCompanyId())
+                    .map(CompanyEntity::getName)
+                    .orElse("Buyer");
+            notificationCenterService.notifySupplierShipmentIncidentCreated(order, shipment, incident, buyerName);
+        }
+        return incident;
     }
 
     private ShipmentEntity requireBuyerShipment(Long shipmentId) {
@@ -442,7 +466,12 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
                 incident.getDamagedQuantity(),
                 incident.getUpdateNote(),
                 evidenceList,
-                incident.getUpdatedAt());
+                incident.getUpdatedAt(),
+                incident.getSupplierResponse(),
+                parseEvidenceUrls(incident.getSupplierEvidenceUrls()),
+                incident.getProposedResolution(),
+                incident.getResolutionType(),
+                incident.getBuyerActionRequiredAt());
     }
 
     private BuyerDeliveryDtos.Complaint toComplaint(ComplaintEntity complaint) {
@@ -466,7 +495,11 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
         if (!incident.getShipmentId().equals(shipmentId)) {
             throw new IllegalArgumentException("INCIDENT_NOT_FOUND");
         }
-        if (!"OPEN".equals(incident.getStatus()) && !"PROCESSING".equals(incident.getStatus())) {
+        String action = clean(request == null ? null : request.action());
+        if (action != null) {
+            return handleBuyerIncidentAction(shipment, incident, action, request);
+        }
+        if (!"OPEN".equals(incident.getStatus()) && !"PROCESSING".equals(incident.getStatus()) && !"PENDING_SUPPLIER_RESPONSE".equals(incident.getStatus()) && !"WAITING_SUPPLIER_RESPONSE".equals(incident.getStatus()) && !"WAITING_BUYER_RESPONSE".equals(incident.getStatus()) && !"WAITING_BUYER_CONFIRMATION".equals(incident.getStatus()) && !"NEGOTIATING".equals(incident.getStatus())) {
             throw new IllegalArgumentException("INCIDENT_NOT_EDITABLE");
         }
 
@@ -519,6 +552,66 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
                 .build());
 
         return toIncident(incident);
+    }
+
+    private BuyerDeliveryDtos.Incident handleBuyerIncidentAction(ShipmentEntity shipment, ShipmentIncidentEntity incident, String action, BuyerDeliveryDtos.UpdateIncidentRequest request) {
+        String normalizedAction = action.toUpperCase(Locale.ROOT);
+        String currentStatus = incident.getStatus() == null ? "" : incident.getStatus().toUpperCase(Locale.ROOT);
+        if (!"WAITING_BUYER_CONFIRMATION".equals(currentStatus) && !"SUPPLIER_PROPOSED_RESOLUTION".equals(currentStatus) && !"NEGOTIATING".equals(currentStatus)) {
+            throw new IllegalArgumentException("INCIDENT_NOT_WAITING_BUYER_CONFIRMATION");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        String note = clean(request == null ? null : request.note());
+        String nextStatus = switch (normalizedAction) {
+            case "ACCEPT_RESOLUTION" -> "RESOLVED";
+            case "REJECT_RESOLUTION", "REQUEST_CONTINUE" -> "NEGOTIATING";
+            case "ESCALATE" -> "ESCALATED";
+            default -> throw new IllegalArgumentException("INCIDENT_ACTION_INVALID");
+        };
+        if (note != null) {
+            String prefix = switch (normalizedAction) {
+                case "ACCEPT_RESOLUTION" -> "Buyer đồng ý phương án";
+                case "REJECT_RESOLUTION" -> "Buyer không đồng ý";
+                case "REQUEST_CONTINUE" -> "Buyer yêu cầu xử lý tiếp";
+                default -> "Buyer phản hồi";
+            };
+            String existing = clean(incident.getUpdateNote());
+            String nextNote = prefix + ": " + note;
+            incident.setUpdateNote(existing == null ? nextNote : existing + "\n---\n" + nextNote);
+        }
+        incident.setStatus(nextStatus);
+        incident.setUpdatedAt(now);
+        incident.setBuyerActionRequiredAt(null);
+        if ("RESOLVED".equals(nextStatus)) {
+            incident.setResolvedAt(now);
+            incident.setResolutionNote(firstText(incident.getProposedResolution(), incident.getSupplierResponse(), note, "Buyer đã đồng ý phương án xử lý"));
+        }
+        shipmentIncidentRepository.save(incident);
+
+        shipmentEventRepository.save(ShipmentEventEntity.builder()
+                .shipmentId(shipment.getId())
+                .status("DISPUTE_" + nextStatus)
+                .description(buyerIncidentEventDescription(normalizedAction, note))
+                .eventTime(now)
+                .build());
+
+        OrderEntity order = orderRepository.findById(shipment.getOrderId()).orElse(null);
+        if (order != null) {
+            String buyerName = companyRepository.findById(order.getBuyerCompanyId()).map(CompanyEntity::getName).orElse("Buyer");
+            notificationCenterService.notifySupplierShipmentIncidentBuyerAction(order, shipment, incident, buyerName, normalizedAction);
+        }
+        return toIncident(incident);
+    }
+
+    private String buyerIncidentEventDescription(String action, String note) {
+        String summary = switch (action) {
+            case "ACCEPT_RESOLUTION" -> "Buyer đồng ý phương án xử lý";
+            case "REJECT_RESOLUTION" -> "Buyer không đồng ý phương án xử lý";
+            case "REQUEST_CONTINUE" -> "Buyer yêu cầu nhà cung cấp xử lý tiếp";
+            case "ESCALATE" -> "Buyer chuyển sự cố lên xử lý cấp cao";
+            default -> "Buyer phản hồi sự cố";
+        };
+        return note == null || note.isBlank() ? summary : summary + ": " + note;
     }
 
     private List<String> parseEvidenceUrls(String raw) {

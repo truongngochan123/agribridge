@@ -7,6 +7,8 @@ import com.agribridge.backend.entity.RfqEntity;
 import com.agribridge.backend.entity.UserEntity;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
 import com.agribridge.backend.entity.enums.RfqStatusEnum;
+import com.agribridge.backend.entity.enums.UserRoleEnum;
+import com.agribridge.backend.entity.enums.UserStatusEnum;
 import com.agribridge.backend.exception.ApiException;
 import com.agribridge.backend.repository.BranchRepository;
 import com.agribridge.backend.repository.OrderRepository;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,12 +36,15 @@ public class BuyerBranchServiceImpl implements BuyerBranchService {
             OrderStatusEnum.CONFIRMED,
             OrderStatusEnum.SHIPPING);
     private static final String VN_PHONE_PATTERN = "^(0|\\+84)(3|5|7|8|9)[0-9]{8}$";
+    private static final String EMAIL_PATTERN = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$";
+    private static final int MIN_TEMP_PASSWORD_LENGTH = 8;
 
     private final CurrentUserService currentUserService;
     private final BranchRepository branchRepository;
     private final OrderRepository orderRepository;
     private final RfqRepository rfqRepository;
     private final UserRepository userRepository;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
     @Transactional(readOnly = true)
@@ -120,6 +126,87 @@ public class BuyerBranchServiceImpl implements BuyerBranchService {
         branch.setIsActive(request.isActive());
         branch.setUpdatedAt(LocalDateTime.now());
         return toSummary(branchRepository.save(branch), buyerCompanyId);
+    }
+
+    @Override
+    @Transactional
+    public BuyerBranchDtos.Staff createEmployee(Long branchId, BuyerBranchDtos.EmployeeCreateRequest request) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
+        requireBranch(branchId, buyerCompanyId);
+        if (request == null) {
+            throw new IllegalArgumentException("employee payload is required");
+        }
+
+        String fullName = required(request.fullName(), "fullName is required");
+        String email = normalizeEmail(request.email());
+        String phone = normalizePhone(request.phone());
+        String temporaryPassword = required(request.temporaryPassword(), "temporaryPassword is required");
+        if (temporaryPassword.length() < MIN_TEMP_PASSWORD_LENGTH) {
+            throw new IllegalArgumentException("temporary password must be at least 8 characters");
+        }
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            throw new IllegalArgumentException("Email is already in use: " + email);
+        }
+        if (userRepository.existsByPhone(phone)) {
+            throw new IllegalArgumentException("Phone is already in use: " + phone);
+        }
+
+        UserStatusEnum status = Boolean.TRUE.equals(request.inviteOnly())
+                ? UserStatusEnum.PENDING_INVITE
+                : parseEmployeeStatus(request.status());
+        UserEntity employee = UserEntity.builder()
+                .companyId(buyerCompanyId)
+                .branchId(branchId)
+                .fullName(fullName)
+                .email(email)
+                .phone(phone)
+                .passwordHash(passwordEncoder.encode(temporaryPassword))
+                .role(parseEmployeeRole(request.role()))
+                .status(status)
+                .createdAt(LocalDateTime.now())
+                .build();
+        return toStaff(userRepository.save(employee));
+    }
+
+    @Override
+    @Transactional
+    public BuyerBranchDtos.Staff assignEmployee(Long branchId, BuyerBranchDtos.EmployeeAssignRequest request) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
+        requireBranch(branchId, buyerCompanyId);
+        if (request == null || request.userId() == null) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        UserEntity user = userRepository.findById(request.userId())
+                .filter(candidate -> buyerCompanyId.equals(candidate.getCompanyId()))
+                .orElseThrow(() -> new IllegalArgumentException("USER_NOT_FOUND_IN_BUYER_COMPANY"));
+        user.setBranchId(branchId);
+        user.setRole(parseEmployeeRole(request.role()));
+        user.setStatus(parseEmployeeStatus(request.status()));
+        return toStaff(userRepository.save(user));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BuyerBranchDtos.Staff> getAssignableEmployees(Long branchId, String search) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
+        requireBranch(branchId, buyerCompanyId);
+        String text = clean(search);
+        String normalizedText = text == null ? null : text.toLowerCase(Locale.ROOT);
+        return userRepository.findByCompanyIdAndBranchIdIsNullOrderByCreatedAtDesc(buyerCompanyId).stream()
+                .filter(user -> user.getRole() != UserRoleEnum.ADMIN)
+                .filter(user -> normalizedText == null || searchableUserText(user).contains(normalizedText))
+                .map(this::toStaff)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BuyerBranchDtos.EmployeeAvailability checkEmployeeAvailability(String email, String phone) {
+        String normalizedEmail = normalizeEmailOptional(email);
+        String normalizedPhone = normalizePhoneOptional(phone);
+        return new BuyerBranchDtos.EmployeeAvailability(
+                normalizedPhone != null && userRepository.existsByPhone(normalizedPhone),
+                normalizedEmail != null && userRepository.existsByEmailIgnoreCase(normalizedEmail));
     }
 
     @Override
@@ -228,6 +315,76 @@ public class BuyerBranchServiceImpl implements BuyerBranchService {
                 user.getRole().name(),
                 user.getStatus().name(),
                 user.getCreatedAt());
+    }
+
+    private UserRoleEnum parseEmployeeRole(String role) {
+        String value = clean(role);
+        if (value == null) {
+            return UserRoleEnum.WAREHOUSE;
+        }
+        return switch (value.replace('-', '_').replace(' ', '_').toUpperCase(Locale.ROOT)) {
+            case "BRANCH_MANAGER", "MANAGER" -> UserRoleEnum.ORDER_STAFF;
+            case "PURCHASER", "PURCHASE", "BUYER" -> UserRoleEnum.SALES;
+            case "QC", "QUALITY_CONTROL" -> UserRoleEnum.QC;
+            case "ACCOUNTANT", "ACCOUNTING" -> UserRoleEnum.ACCOUNTANT;
+            case "WAREHOUSE", "WAREHOUSE_STAFF" -> UserRoleEnum.WAREHOUSE;
+            default -> UserRoleEnum.WAREHOUSE;
+        };
+    }
+
+    private UserStatusEnum parseEmployeeStatus(String status) {
+        String value = clean(status);
+        if (value == null) {
+            return UserStatusEnum.ACTIVE;
+        }
+        return switch (value.replace('-', '_').replace(' ', '_').toUpperCase(Locale.ROOT)) {
+            case "BLOCKED", "LOCKED", "SUSPENDED" -> UserStatusEnum.BLOCKED;
+            case "PENDING", "PENDING_INVITE", "INVITED" -> UserStatusEnum.PENDING_INVITE;
+            default -> UserStatusEnum.ACTIVE;
+        };
+    }
+
+    private String normalizeEmail(String email) {
+        String normalized = normalizeEmailOptional(email);
+        if (normalized == null) {
+            throw new IllegalArgumentException("email is required");
+        }
+        if (!normalized.matches(EMAIL_PATTERN)) {
+            throw new IllegalArgumentException("email must be valid");
+        }
+        return normalized;
+    }
+
+    private String normalizeEmailOptional(String email) {
+        String normalized = clean(email);
+        return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizePhone(String phone) {
+        String normalized = normalizePhoneOptional(phone);
+        if (normalized == null) {
+            throw new IllegalArgumentException("phone is required");
+        }
+        if (!normalized.matches(VN_PHONE_PATTERN)) {
+            throw new IllegalArgumentException("phone must be a valid Vietnamese phone number");
+        }
+        return normalized;
+    }
+
+    private String normalizePhoneOptional(String phone) {
+        String normalized = clean(phone);
+        if (normalized == null) {
+            return null;
+        }
+        return normalized.replaceAll("[^0-9+]", "");
+    }
+
+    private String searchableUserText(UserEntity user) {
+        return String.join(" ",
+                user.getFullName() == null ? "" : user.getFullName(),
+                user.getEmail() == null ? "" : user.getEmail(),
+                user.getPhone() == null ? "" : user.getPhone(),
+                user.getRole() == null ? "" : user.getRole().name()).toLowerCase(Locale.ROOT);
     }
 
     private String required(String value, String message) {

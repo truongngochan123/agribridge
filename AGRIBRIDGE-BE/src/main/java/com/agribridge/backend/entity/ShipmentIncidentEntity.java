@@ -79,4 +79,19 @@ public class ShipmentIncidentEntity {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "supplier_response", columnDefinition = "NVARCHAR(MAX)")
+    private String supplierResponse;
+
+    @Column(name = "supplier_evidence_urls", columnDefinition = "NVARCHAR(MAX)")
+    private String supplierEvidenceUrls;
+
+    @Column(name = "proposed_resolution", columnDefinition = "NVARCHAR(MAX)")
+    private String proposedResolution;
+
+    @Column(name = "resolution_type")
+    private String resolutionType;
+
+    @Column(name = "buyer_action_required_at")
+    private LocalDateTime buyerActionRequiredAt;
 }

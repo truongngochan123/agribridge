@@ -3,6 +3,7 @@ package com.agribridge.backend.service.impl;
 import com.agribridge.backend.dto.CreateSupplierShipmentDto;
 import com.agribridge.backend.dto.SupplierOrderDetailDto;
 import com.agribridge.backend.dto.SupplierOrderDto;
+import com.agribridge.backend.dto.SupplierShipmentIncidentActionDto;
 import com.agribridge.backend.dto.UpdateSupplierOrderStatusDto;
 import com.agribridge.backend.dto.UpdateSupplierShipmentStatusDto;
 import com.agribridge.backend.entity.BatchEntity;
@@ -15,6 +16,7 @@ import com.agribridge.backend.entity.PaymentEntity;
 import com.agribridge.backend.entity.ProductEntity;
 import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.ShipmentEventEntity;
+import com.agribridge.backend.entity.ShipmentIncidentEntity;
 import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
 import com.agribridge.backend.entity.enums.ShipmentStatusEnum;
@@ -28,9 +30,11 @@ import com.agribridge.backend.repository.InvoiceRepository;
 import com.agribridge.backend.repository.PaymentRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.ShipmentEventRepository;
+import com.agribridge.backend.repository.ShipmentIncidentRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
 import com.agribridge.backend.service.CurrentUserService;
 import com.agribridge.backend.service.GhnShippingService;
+import com.agribridge.backend.service.NotificationCenterService;
 import com.agribridge.backend.service.ShipmentStatusTransitionService;
 import com.agribridge.backend.service.SupplierOrderService;
 import java.math.BigDecimal;
@@ -74,8 +78,10 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
     private final ProductRepository productRepository;
     private final ShipmentRepository shipmentRepository;
     private final ShipmentEventRepository shipmentEventRepository;
+    private final ShipmentIncidentRepository shipmentIncidentRepository;
     private final CurrentUserService currentUserService;
     private final GhnShippingService ghnShippingService;
+    private final NotificationCenterService notificationCenterService;
     private final ShipmentStatusTransitionService shipmentStatusTransitionService;
 
     @Override
@@ -151,7 +157,14 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
             throw new IllegalArgumentException("Supplier cannot set order status to " + nextStatus);
         }
 
+        OrderStatusEnum appliedStatus = order.getStatus();
         OrderEntity saved = orderRepository.save(order);
+        String supplierName = companyRepository.findById(saved.getSupplierCompanyId()).map(CompanyEntity::getName).orElse("Nhà cung cấp");
+        if (appliedStatus == OrderStatusEnum.CONFIRMED) {
+            notificationCenterService.notifyBuyerOrderConfirmed(saved, supplierName);
+        } else if (appliedStatus == OrderStatusEnum.CANCELLED) {
+            notificationCenterService.notifyBuyerOrderCancelled(saved, supplierName);
+        }
         return toOrderDto(saved, buildLookup(List.of(saved)));
     }
 
@@ -217,6 +230,13 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         }
         shipmentRepository.save(shipment);
         saveShipmentEvent(shipment, shipmentEventDescription(next));
+        if (next == ShipmentStatusEnum.SHIPPED || next == ShipmentStatusEnum.IN_TRANSIT || next == ShipmentStatusEnum.SHIPPING) {
+            notificationCenterService.notifyBuyerDeliveryInTransit(order);
+        } else if (next == ShipmentStatusEnum.WAITING_CONFIRMATION) {
+            notificationCenterService.notifyBuyerDeliveryWaitingConfirmation(order);
+        } else if (next == ShipmentStatusEnum.FAILED || next == ShipmentStatusEnum.FAILED_DELIVERY) {
+            notificationCenterService.notifyDeliveryFailed(order);
+        }
 
         return toOrderDto(order, buildLookup(List.of(order)));
     }
@@ -234,6 +254,8 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         order.setStatus(OrderStatusEnum.SUPPLIER_CONFIRMED);
         order.setUpdatedAt(LocalDateTime.now());
         OrderEntity saved = orderRepository.save(order);
+        String supplierName = companyRepository.findById(saved.getSupplierCompanyId()).map(CompanyEntity::getName).orElse("Nhà cung cấp");
+        notificationCenterService.notifyBuyerOrderConfirmed(saved, supplierName);
         return toOrderDto(saved, buildLookup(List.of(saved)));
     }
 
@@ -361,6 +383,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         order.setStatus(OrderStatusEnum.SHIPPING);
         order.setUpdatedAt(now);
         OrderEntity saved = orderRepository.save(order);
+        notificationCenterService.notifyBuyerDeliveryInTransit(saved);
         return toOrderDto(saved, buildLookup(List.of(saved)));
     }
 
@@ -386,6 +409,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         }
         order.setUpdatedAt(now);
         OrderEntity saved = orderRepository.save(order);
+        notificationCenterService.notifyBuyerDeliveryWaitingConfirmation(saved);
         return toOrderDto(saved, buildLookup(List.of(saved)));
     }
 
@@ -448,6 +472,87 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         }
 
         return toOrderDto(order, buildLookup(List.of(order)));
+    }
+
+    @Override
+    @Transactional
+    public void updateShipmentIncident(Long shipmentId, Long incidentId, SupplierShipmentIncidentActionDto request) {
+        Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
+        ShipmentEntity shipment = shipmentRepository.findById(shipmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Shipment not found"));
+        OrderEntity order = getSupplierOrder(supplierCompanyId, shipment.getOrderId());
+        ShipmentIncidentEntity incident = shipmentIncidentRepository.findById(incidentId)
+                .orElseThrow(() -> new IllegalArgumentException("Incident not found"));
+        if (!shipment.getId().equals(incident.getShipmentId())) {
+            throw new IllegalArgumentException("Incident not found");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        String action = normalizeText(request == null ? null : request.action());
+        String note = normalizeText(request == null ? null : request.note());
+        String resolution = normalizeText(request == null ? null : request.proposedResolution());
+        String resolutionType = normalizeText(request == null ? null : request.resolutionType());
+        BigDecimal compensationAmount = request == null ? null : request.compensationAmount();
+        if (resolutionType == null && action != null) {
+            String normalizedAction = action.toUpperCase(Locale.ROOT);
+            if (normalizedAction.contains("REFUND")) {
+                resolutionType = "REFUND";
+            } else if (normalizedAction.contains("REPLACEMENT")) {
+                resolutionType = "REPLACEMENT";
+            } else if (normalizedAction.contains("ACCEPT")) {
+                resolutionType = "ACCEPT_COMPLAINT";
+            } else if (normalizedAction.contains("REJECT")) {
+                resolutionType = "REJECT_COMPLAINT";
+            }
+        }
+        String nextStatus = incidentNextStatus(action);
+        String eventDescription = incidentEventDescription(action, nextStatus, resolutionType, note, compensationAmount);
+
+        if (note != null) {
+            String existing = normalizeText(incident.getSupplierResponse());
+            incident.setSupplierResponse(existing == null ? note : existing + "\n---\n" + note);
+        }
+        if (resolution != null) {
+            incident.setProposedResolution(withCompensationAmount(resolution, compensationAmount));
+        } else if (compensationAmount != null) {
+            incident.setProposedResolution(withCompensationAmount("Đề xuất bồi hoàn", compensationAmount));
+        }
+        if (resolutionType != null) {
+            incident.setResolutionType(resolutionType.toUpperCase(Locale.ROOT));
+        }
+        List<String> mergedEvidence = new java.util.ArrayList<>(parseEvidenceUrls(incident.getSupplierEvidenceUrls()));
+        if (request != null && request.evidenceUrls() != null) {
+            for (String url : request.evidenceUrls()) {
+                String cleaned = normalizeText(url);
+                if (cleaned != null && !mergedEvidence.contains(cleaned)) {
+                    mergedEvidence.add(cleaned);
+                }
+            }
+        }
+        incident.setSupplierEvidenceUrls(mergedEvidence.isEmpty() ? null : String.join(",", mergedEvidence));
+        incident.setStatus(nextStatus);
+        incident.setUpdatedAt(now);
+        if ("WAITING_BUYER_CONFIRMATION".equals(nextStatus)) {
+            incident.setBuyerActionRequiredAt(now);
+        } else {
+            incident.setBuyerActionRequiredAt(null);
+        }
+        shipmentIncidentRepository.save(incident);
+
+        shipment.setStatus(ShipmentStatusEnum.INCIDENT);
+        shipment.setIncidentNote(firstNonBlank(resolution, note, incident.getDescription()));
+        shipment.setUpdatedAt(now);
+        shipmentRepository.save(shipment);
+        shipmentEventRepository.save(ShipmentEventEntity.builder()
+                .shipmentId(shipment.getId())
+                .status("DISPUTE_" + nextStatus)
+                .description(eventDescription)
+                .eventTime(now)
+                .build());
+        String supplierName = companyRepository.findById(order.getSupplierCompanyId()).map(CompanyEntity::getName).orElse("Nhà cung cấp");
+        notificationCenterService.notifyBuyerShipmentIncidentSupplierResponded(order, shipment, incident, supplierName);
+        log.info("Supplier updated shipment incident orderId={} shipmentId={} incidentId={} status={}",
+                order.getId(), shipmentId, incidentId, nextStatus);
     }
 
     private void confirmOrder(OrderEntity order) {
@@ -732,6 +837,82 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
                 .description(description)
                 .eventTime(LocalDateTime.now())
                 .build());
+    }
+
+    private String incidentNextStatus(String action) {
+        String normalizedAction = action == null ? "RESPOND" : action.trim().toUpperCase(Locale.ROOT);
+        return switch (normalizedAction) {
+            case "OFFER_COMPENSATION", "ACCEPT_COMPENSATION", "OFFER_REFUND", "PROPOSE_REFUND", "PARTIAL_REFUND",
+                    "OFFER_REPLACEMENT", "PROPOSE_REPLACEMENT", "RESEND_SHIPMENT", "REJECT", "REJECT_COMPLAINT",
+                    "REQUEST_MORE_EVIDENCE", "RESPOND" -> "WAITING_BUYER_CONFIRMATION";
+            default -> throw new IllegalArgumentException("Incident action is invalid");
+        };
+    }
+
+    private String normalizeIncidentStatus(String rawStatus) {
+        String status = normalizeText(rawStatus);
+        if (status == null) {
+            return "UNDER_REVIEW";
+        }
+        return switch (status.toUpperCase(Locale.ROOT)) {
+            case "OPEN", "PENDING_SUPPLIER_RESPONSE", "WAITING_SUPPLIER_RESPONSE", "BUYER_REPORTED" -> "WAITING_SUPPLIER_RESPONSE";
+            case "UNDER_REVIEW", "PROCESSING", "INVESTIGATING", "SUPPLIER_PROPOSED_RESOLUTION" -> "SUPPLIER_PROPOSED_RESOLUTION";
+            case "WAITING_BUYER_RESPONSE", "WAITING_BUYER", "WAITING_BUYER_CONFIRMATION" -> "WAITING_BUYER_CONFIRMATION";
+            case "NEGOTIATING" -> "NEGOTIATING";
+            case "ESCALATED" -> "ESCALATED";
+            case "RESOLVED" -> "RESOLVED";
+            case "REJECTED" -> "REJECTED";
+            case "COMPENSATED" -> "COMPENSATED";
+            default -> throw new IllegalArgumentException("Incident status is invalid");
+        };
+    }
+
+    private String incidentEventDescription(String action, String status, String resolutionType, String note, BigDecimal compensationAmount) {
+        String normalizedAction = action == null ? "RESPOND" : action.trim().toUpperCase(Locale.ROOT);
+        String summary = switch (normalizedAction) {
+            case "OFFER_COMPENSATION", "ACCEPT_COMPENSATION" -> "Nhà cung cấp đề xuất bồi hoàn";
+            case "PARTIAL_REFUND", "OFFER_REFUND", "PROPOSE_REFUND" -> "Nhà cung cấp đề xuất hoàn tiền một phần";
+            case "RESEND_SHIPMENT", "OFFER_REPLACEMENT", "PROPOSE_REPLACEMENT" -> "Nhà cung cấp đề xuất gửi lại hàng";
+            case "REJECT", "REJECT_COMPLAINT" -> "Nhà cung cấp từ chối yêu cầu";
+            case "REQUEST_MORE_EVIDENCE" -> "Nhà cung cấp yêu cầu thêm bằng chứng";
+            default -> "Nhà cung cấp đã phản hồi sự cố";
+        };
+        if (compensationAmount != null) {
+            summary = summary + " (" + formatMoney(compensationAmount) + ")";
+        }
+        if (resolutionType != null && !resolutionType.isBlank()
+                && !summary.toUpperCase(Locale.ROOT).contains(resolutionType.toUpperCase(Locale.ROOT))) {
+            summary = summary + " (" + resolutionType + ")";
+        }
+        return note == null || note.isBlank() ? summary : summary + ": " + note;
+    }
+
+    private String withCompensationAmount(String resolution, BigDecimal compensationAmount) {
+        if (compensationAmount == null) {
+            return resolution;
+        }
+        return resolution + "\nSố tiền bồi hoàn đề xuất: " + formatMoney(compensationAmount);
+    }
+
+    private List<String> parseEvidenceUrls(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .distinct()
+                .toList();
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            String normalized = normalizeText(value);
+            if (normalized != null) {
+                return normalized;
+            }
+        }
+        return null;
     }
 
     private OrderStatusEnum parseOrderStatus(String rawStatus) {

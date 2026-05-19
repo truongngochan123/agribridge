@@ -1,36 +1,42 @@
-﻿package com.agribridge.backend.service.impl;
+package com.agribridge.backend.service.impl;
 
 import com.agribridge.backend.dto.BuyerDebtDtos;
 import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.CreditLimitEntity;
 import com.agribridge.backend.entity.DebtAdjustmentEntity;
 import com.agribridge.backend.entity.DebtReminderEntity;
+import com.agribridge.backend.entity.BatchEntity;
 import com.agribridge.backend.entity.InvoiceEntity;
 import com.agribridge.backend.entity.InvoiceItemEntity;
 import com.agribridge.backend.entity.NotificationEntity;
+import com.agribridge.backend.entity.OrderItemEntity;
 import com.agribridge.backend.entity.OrderEntity;
 import com.agribridge.backend.entity.PaymentEntity;
 import com.agribridge.backend.entity.PaymentAllocationEntity;
+import com.agribridge.backend.entity.ProductEntity;
 import com.agribridge.backend.entity.UserEntity;
 import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.enums.InvoiceStatusEnum;
 import com.agribridge.backend.entity.enums.NotificationTypeEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
-import com.agribridge.backend.entity.enums.UserRoleEnum;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.CreditLimitRepository;
 import com.agribridge.backend.repository.DebtAdjustmentRepository;
 import com.agribridge.backend.repository.DebtReminderRepository;
+import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.InvoiceRepository;
 import com.agribridge.backend.repository.InvoiceItemRepository;
 import com.agribridge.backend.repository.NotificationRepository;
+import com.agribridge.backend.repository.OrderItemRepository;
 import com.agribridge.backend.repository.OrderRepository;
 import com.agribridge.backend.repository.PaymentAllocationRepository;
 import com.agribridge.backend.repository.PaymentRepository;
+import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.UserRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
 import com.agribridge.backend.service.BuyerDebtService;
 import com.agribridge.backend.service.CurrentUserService;
+import com.agribridge.backend.service.NotificationCenterService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
@@ -38,6 +44,7 @@ import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -69,9 +76,13 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
     private final DebtReminderRepository debtReminderRepository;
     private final CreditLimitRepository creditLimitRepository;
     private final CompanyRepository companyRepository;
+    private final OrderItemRepository orderItemRepository;
+    private final ProductRepository productRepository;
+    private final BatchRepository batchRepository;
     private final UserRepository userRepository;
     private final ShipmentRepository shipmentRepository;
     private final NotificationRepository notificationRepository;
+    private final NotificationCenterService notificationCenterService;
 
     @Override
     @Transactional(readOnly = true)
@@ -260,8 +271,28 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
         List<InvoiceEntity> invoices = orderIds.isEmpty() ? List.of() : invoiceRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds);
         List<Long> invoiceIds = invoices.stream().map(InvoiceEntity::getId).toList();
         List<InvoiceItemEntity> invoiceItems = invoiceIds.isEmpty() ? List.of() : invoiceItemRepository.findByInvoiceIdIn(invoiceIds);
-        Map<Long, InvoiceItemEntity> invoiceMainItemByInvoiceId = invoiceItems.stream()
+        Map<Long, InvoiceItemEntity> invoiceItemByInvoiceId = invoiceItems.stream()
                 .collect(Collectors.toMap(InvoiceItemEntity::getInvoiceId, Function.identity(), (a, b) -> a));
+        List<OrderItemEntity> orderItems = orderIds.isEmpty() ? List.of() : orderItemRepository.findByOrderIdIn(orderIds);
+        Map<Long, OrderItemEntity> orderItemById = orderItems.stream()
+                .collect(Collectors.toMap(OrderItemEntity::getId, Function.identity(), (a, b) -> a));
+        Map<Long, OrderItemEntity> orderMainItemByOrderId = orderItems.stream()
+                .collect(Collectors.toMap(OrderItemEntity::getOrderId, Function.identity(), (a, b) -> a));
+        List<Long> batchIds = orderItems.stream().map(OrderItemEntity::getBatchId).filter(Objects::nonNull).distinct().toList();
+        Map<Long, BatchEntity> batchesById = batchIds.isEmpty() ? Map.of() : batchRepository.findAllById(batchIds).stream().collect(Collectors.toMap(BatchEntity::getId, Function.identity()));
+        Map<Long, ProductEntity> productsById = loadProductsForLines(orderItems, invoiceItems, batchesById);
+        Map<Long, InvoiceLine> invoiceMainItemByInvoiceId = invoices.stream()
+                .collect(Collectors.toMap(
+                        InvoiceEntity::getId,
+                        invoice -> {
+                            InvoiceItemEntity invoiceItem = invoiceItemByInvoiceId.get(invoice.getId());
+                            OrderItemEntity orderItem = invoiceItem == null || invoiceItem.getOrderItemId() == null ? null : orderItemById.get(invoiceItem.getOrderItemId());
+                            if (orderItem == null) orderItem = orderMainItemByOrderId.get(invoice.getOrderId());
+                            InvoiceLine orderLine = toInvoiceLine(orderItem, productsById, batchesById);
+                            InvoiceLine invoiceLine = toInvoiceLine(invoiceItem, orderLine, productsById);
+                            return invoiceLine == null ? new InvoiceLine(null, null, null) : invoiceLine;
+                        },
+                        (a, b) -> a));
         List<ShipmentEntity> shipments = orderIds.isEmpty() ? List.of() : shipmentRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds);
         Map<Long, LocalDateTime> confirmedReceivedAtByOrderId = shipments.stream()
                 .filter(item -> item.getConfirmedReceivedAt() != null)
@@ -341,8 +372,22 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
         long dueSoonCount = calcs.stream().filter(InvoiceCalc::dueSoon).count();
         CreditLimitEntity credit = context.creditBySupplier().get(supplierId);
         BigDecimal limit = credit == null ? BigDecimal.ZERO : nullToZero(credit.getCreditLimit());
-        BigDecimal usage = limit.compareTo(BigDecimal.ZERO) > 0 ? remaining.multiply(BigDecimal.valueOf(100)).divide(limit, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
-        String status = status(Boolean.TRUE.equals(credit == null ? null : credit.getIsBlocked()), overdue, usage, dueSoon);
+        BigDecimal creditRemaining = calcs.stream()
+                .filter(item -> "CREDIT_TERM".equals(item.paymentPlanType()))
+                .map(InvoiceCalc::remaining)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal creditOverdue = calcs.stream()
+                .filter(item -> "CREDIT_TERM".equals(item.paymentPlanType()))
+                .filter(InvoiceCalc::overdue)
+                .map(InvoiceCalc::remaining)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal creditDueSoon = calcs.stream()
+                .filter(item -> "CREDIT_TERM".equals(item.paymentPlanType()))
+                .filter(InvoiceCalc::dueSoon)
+                .map(InvoiceCalc::remaining)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal usage = limit.compareTo(BigDecimal.ZERO) > 0 ? creditRemaining.multiply(BigDecimal.valueOf(100)).divide(limit, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        String status = status(Boolean.TRUE.equals(credit == null ? null : credit.getIsBlocked()), creditOverdue, usage, creditDueSoon);
         CompanyEntity supplier = context.suppliersById().get(supplierId);
         return new BuyerDebtDtos.SupplierDebt(
                 supplierId,
@@ -361,6 +406,7 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
                 usage,
                 credit != null && Boolean.TRUE.equals(credit.getIsBlocked()),
                 credit == null ? null : credit.getBlockedReason(),
+                credit == null || credit.getStatus() == null ? null : credit.getStatus().name(),
                 status,
                 statusLabel(status));
     }
@@ -370,12 +416,12 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
     }
 
     private BuyerDebtDtos.InvoiceItem toInvoiceItem(InvoiceEntity invoice, BigDecimal paidValue) {
-        InvoiceItemEntity mainItem = invoiceItemRepository.findByInvoiceIdIn(List.of(invoice.getId())).stream().findFirst().orElse(null);
+        InvoiceLine mainItem = resolveInvoiceLine(invoice);
         LocalDateTime confirmedReceivedAt = shipmentRepository.findTopByOrderIdOrderByCreatedAtDesc(invoice.getOrderId()).map(ShipmentEntity::getConfirmedReceivedAt).orElse(null);
         return toInvoiceItem(invoice, paidValue, mainItem, confirmedReceivedAt);
     }
 
-    private BuyerDebtDtos.InvoiceItem toInvoiceItem(InvoiceEntity invoice, BigDecimal paidValue, InvoiceItemEntity mainItem, LocalDateTime confirmedReceivedAt) {
+    private BuyerDebtDtos.InvoiceItem toInvoiceItem(InvoiceEntity invoice, BigDecimal paidValue, InvoiceLine mainItem, LocalDateTime confirmedReceivedAt) {
         InvoiceCalc calc = calc(invoice, paidValue, confirmedReceivedAt);
         String paymentPlan = paymentPlanType(invoice);
         LocalDateTime expectedDueAt = shipmentRepository.findTopByOrderIdOrderByCreatedAtDesc(invoice.getOrderId())
@@ -386,9 +432,9 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
                 invoice.getInvoiceNumber(),
                 invoice.getOrderId(),
                 orderCode(invoice.getOrderId()),
-                mainItem == null ? null : firstText(mainItem.getDescription(), null),
-                mainItem == null ? null : mainItem.getQuantity(),
-                mainItem == null ? null : mainItem.getUnit(),
+                mainItem == null ? null : mainItem.productName(),
+                mainItem == null ? null : mainItem.quantity(),
+                mainItem == null ? null : mainItem.unit(),
                 invoice.getCreatedAt(),
                 confirmedReceivedAt,
                 invoice.getDueDate(),
@@ -431,7 +477,7 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
         InvoiceEntity invoice = reminder.getInvoiceId() == null ? null : invoiceRepository.findById(reminder.getInvoiceId()).orElse(null);
         if (orderId == null && invoice != null) orderId = invoice.getOrderId();
         String invoiceNumber = invoice == null ? null : invoice.getInvoiceNumber();
-        InvoiceItemEntity mainItem = reminder.getInvoiceId() == null ? null : invoiceItemRepository.findByInvoiceIdIn(List.of(reminder.getInvoiceId())).stream().findFirst().orElse(null);
+        InvoiceLine mainItem = invoice == null ? null : resolveInvoiceLine(invoice);
         LocalDateTime confirmedReceivedAt = orderId == null ? null : shipmentRepository.findTopByOrderIdOrderByCreatedAtDesc(orderId).map(ShipmentEntity::getConfirmedReceivedAt).orElse(null);
         String dueLabel = dueLabel(invoice == null ? "" : paymentPlanType(invoice), invoice == null ? null : invoice.getDueDate(), confirmedReceivedAt, null);
         UserEntity sender = reminder.getCreatedByUserId() == null ? null : userRepository.findById(reminder.getCreatedByUserId()).orElse(null);
@@ -443,9 +489,9 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
                 invoiceNumber,
                 orderId,
                 orderId == null ? null : orderCode(orderId),
-                mainItem == null ? null : firstText(mainItem.getDescription(), null),
-                mainItem == null ? null : mainItem.getQuantity(),
-                mainItem == null ? null : mainItem.getUnit(),
+                mainItem == null ? null : mainItem.productName(),
+                mainItem == null ? null : mainItem.quantity(),
+                mainItem == null ? null : mainItem.unit(),
                 dueLabel,
                 reminder.getAmount(),
                 reminder.getMessage(),
@@ -474,7 +520,7 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
         boolean overdue = remaining.compareTo(BigDecimal.ZERO) > 0 && effectiveDueDate != null && effectiveDueDate.isBefore(today);
         boolean dueSoon = remaining.compareTo(BigDecimal.ZERO) > 0 && effectiveDueDate != null && !effectiveDueDate.isBefore(today) && !effectiveDueDate.isAfter(today.plusDays(7));
         long overdueDays = overdue ? ChronoUnit.DAYS.between(effectiveDueDate, today) : 0;
-        return new InvoiceCalc(amount, paid, remaining, overdue, dueSoon, overdueDays);
+        return new InvoiceCalc(amount, paid, remaining, overdue, dueSoon, overdueDays, plan);
     }
 
     private BigDecimal invoiceAmount(InvoiceEntity invoice) {
@@ -503,36 +549,8 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
 
     private void createSupplierPaymentNotification(InvoiceEntity invoice, OrderEntity order, BigDecimal amount, LocalDateTime paymentTime) {
         CompanyEntity buyer = companyRepository.findById(order.getBuyerCompanyId()).orElse(null);
-        CompanyEntity supplier = companyRepository.findById(order.getSupplierCompanyId()).orElse(null);
         String buyerName = buyer == null ? "Buyer" : buyer.getName();
-        String invoiceCode = invoice.getInvoiceNumber();
-        String orderCode = orderCode(order.getId());
-        String message = "Đơn hàng " + orderCode + " - " + buyerName + " đã thanh toán " + formatMoney(amount) + " vào lúc " + paymentTime + ".";
-        String metadata = "{"
-                + "\"invoiceId\":" + invoice.getId()
-                + ",\"invoiceCode\":\"" + json(invoiceCode) + "\""
-                + ",\"orderId\":" + order.getId()
-                + ",\"orderCode\":\"" + json(orderCode) + "\""
-                + ",\"buyerCompanyId\":" + order.getBuyerCompanyId()
-                + ",\"buyerName\":\"" + json(buyerName) + "\""
-                + ",\"supplierCompanyId\":" + order.getSupplierCompanyId()
-                + ",\"amount\":" + amount
-                + ",\"paymentTime\":\"" + paymentTime + "\""
-                + ",\"type\":\"DEBT_PAYMENT_CONFIRMED\""
-                + "}";
-        userRepository.findFirstByCompanyIdAndRole(order.getSupplierCompanyId(), UserRoleEnum.OWNER)
-                .ifPresent(owner -> notificationRepository.save(NotificationEntity.builder()
-                        .userId(owner.getId())
-                        .companyId(order.getSupplierCompanyId())
-                        .type(NotificationTypeEnum.DEBT_PAYMENT_CONFIRMED)
-                        .title("Buyer đã thanh toán công nợ")
-                        .body(message)
-                        .metadata(metadata)
-                        .refTable("invoices")
-                        .refId(invoice.getId())
-                        .isRead(Boolean.FALSE)
-                        .createdAt(LocalDateTime.now())
-                        .build()));
+        notificationCenterService.notifySupplierRemainingPaid(order, invoice, amount, buyerName);
     }
 
     private String status(boolean blocked, BigDecimal overdue, BigDecimal usage, BigDecimal dueSoon) {
@@ -582,6 +600,64 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
 
     private String orderCode(Long id) {
         return id == null ? "ORD-N/A" : "ORD-" + id;
+    }
+
+    private InvoiceLine resolveInvoiceLine(InvoiceEntity invoice) {
+        if (invoice == null) return null;
+        InvoiceItemEntity invoiceItem = invoiceItemRepository.findByInvoiceIdIn(List.of(invoice.getId())).stream().findFirst().orElse(null);
+        OrderItemEntity orderItem = invoiceItem == null || invoiceItem.getOrderItemId() == null
+                ? null
+                : orderItemRepository.findById(invoiceItem.getOrderItemId()).orElse(null);
+        if (orderItem == null) orderItem = orderItemRepository.findByOrderIdOrderByIdAsc(invoice.getOrderId()).stream().findFirst().orElse(null);
+        Map<Long, BatchEntity> batchesById = orderItem == null || orderItem.getBatchId() == null
+                ? Map.of()
+                : batchRepository.findAllById(List.of(orderItem.getBatchId())).stream().collect(Collectors.toMap(BatchEntity::getId, Function.identity()));
+        Map<Long, ProductEntity> productsById = loadProductsForLines(
+                orderItem == null ? List.of() : List.of(orderItem),
+                invoiceItem == null ? List.of() : List.of(invoiceItem),
+                batchesById);
+        InvoiceLine orderLine = toInvoiceLine(orderItem, productsById, batchesById);
+        return toInvoiceLine(invoiceItem, orderLine, productsById);
+    }
+
+    private Map<Long, ProductEntity> loadProductsForLines(List<OrderItemEntity> orderItems, List<InvoiceItemEntity> invoiceItems, Map<Long, BatchEntity> batchesById) {
+        List<Long> productIds = new ArrayList<>();
+        orderItems.stream().map(OrderItemEntity::getProductId).filter(Objects::nonNull).forEach(productIds::add);
+        invoiceItems.stream().map(InvoiceItemEntity::getProductId).filter(Objects::nonNull).forEach(productIds::add);
+        orderItems.stream()
+                .map(OrderItemEntity::getBatchId)
+                .filter(Objects::nonNull)
+                .map(batchesById::get)
+                .filter(Objects::nonNull)
+                .map(BatchEntity::getProductId)
+                .filter(Objects::nonNull)
+                .forEach(productIds::add);
+        List<Long> distinctIds = productIds.stream().distinct().toList();
+        return distinctIds.isEmpty()
+                ? Map.of()
+                : productRepository.findByIdIn(distinctIds).stream().collect(Collectors.toMap(ProductEntity::getId, Function.identity()));
+    }
+
+    private InvoiceLine toInvoiceLine(InvoiceItemEntity item, InvoiceLine orderLine, Map<Long, ProductEntity> productsById) {
+        if (item == null) return orderLine;
+        ProductEntity product = item.getProductId() == null ? null : productsById.get(item.getProductId());
+        return new InvoiceLine(
+                firstText(firstText(item.getDescription(), null), orderLine == null ? product == null ? null : product.getName() : orderLine.productName()),
+                item.getQuantity(),
+                firstText(item.getUnit(), orderLine == null ? product == null ? null : product.getUnit() : orderLine.unit()));
+    }
+
+    private InvoiceLine toInvoiceLine(OrderItemEntity item, Map<Long, ProductEntity> productsById, Map<Long, BatchEntity> batchesById) {
+        if (item == null) return null;
+        ProductEntity product = item.getProductId() == null ? null : productsById.get(item.getProductId());
+        BatchEntity batch = item.getBatchId() == null ? null : batchesById.get(item.getBatchId());
+        if (product == null && batch != null && batch.getProductId() != null) {
+            product = productsById.get(batch.getProductId());
+        }
+        return new InvoiceLine(
+                product == null ? null : product.getName(),
+                item.getQuantity(),
+                firstText(item.getUnit(), product == null ? null : product.getUnit()));
     }
 
     private String paymentPlanType(InvoiceEntity invoice) {
@@ -651,13 +727,16 @@ private Integer paymentTermDays(InvoiceEntity invoice) {
             Map<Long, CompanyEntity> suppliersById,
             Map<Long, CreditLimitEntity> creditBySupplier,
             Map<Long, UserEntity> usersById,
-            Map<Long, InvoiceItemEntity> invoiceMainItemByInvoiceId,
+            Map<Long, InvoiceLine> invoiceMainItemByInvoiceId,
             Map<Long, LocalDateTime> confirmedReceivedAtByOrderId,
             Map<Long, LocalDateTime> expectedDeliveryAtByOrderId
     ) {
     }
 
-    private record InvoiceCalc(BigDecimal amount, BigDecimal paid, BigDecimal remaining, boolean overdue, boolean dueSoon, long overdueDays) {
+    private record InvoiceCalc(BigDecimal amount, BigDecimal paid, BigDecimal remaining, boolean overdue, boolean dueSoon, long overdueDays, String paymentPlanType) {
+    }
+
+    private record InvoiceLine(String productName, BigDecimal quantity, String unit) {
     }
 }
 

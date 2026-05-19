@@ -17,6 +17,7 @@ import com.agribridge.backend.repository.QuoteRepository;
 import com.agribridge.backend.repository.RfqRepository;
 import com.agribridge.backend.service.BatchAvailabilityService;
 import com.agribridge.backend.service.CurrentUserService;
+import com.agribridge.backend.service.NotificationCenterService;
 import com.agribridge.backend.service.SupplierRfqQuoteService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -45,6 +46,7 @@ public class SupplierRfqQuoteServiceImpl implements SupplierRfqQuoteService {
     private final BatchRepository batchRepository;
     private final BatchAvailabilityService batchAvailabilityService;
     private final CurrentUserService currentUserService;
+    private final NotificationCenterService notificationCenterService;
 
     @Override
     @Transactional(readOnly = true)
@@ -118,12 +120,14 @@ public class SupplierRfqQuoteServiceImpl implements SupplierRfqQuoteService {
         if (quote.getCreatedAt() == null) {
             quote.setCreatedAt(LocalDateTime.now());
         }
-        quoteRepository.save(quote);
+        QuoteEntity savedQuote = quoteRepository.save(quote);
         if (RfqStatusEnum.OPEN.equals(rfq.getStatus())) {
             rfq.setStatus(RfqStatusEnum.QUOTED);
             rfq.setUpdatedAt(LocalDateTime.now());
             rfqRepository.save(rfq);
         }
+        String supplierName = companyRepository.findById(supplierCompanyId).map(CompanyEntity::getName).orElse("Nhà cung cấp");
+        notificationCenterService.notifyBuyerQuoteSubmitted(rfq, savedQuote, supplierName);
     }
 
     private Long validateSelectedBatch(Long batchId, RfqEntity rfq, Long supplierCompanyId, BigDecimal quoteQuantity) {

@@ -91,7 +91,9 @@ public record SupplierDashboardResponseDto(
             String estimatedDeliveryTime,
             String createdAt,
             Long rawOrderId,
-            List<ShipmentEventDto> shipmentEvents) {
+            Long rawShipmentId,
+            List<ShipmentEventDto> shipmentEvents,
+            List<ShipmentIncidentDto> incidents) {
     }
 
     public record ShipmentEventDto(
@@ -100,6 +102,29 @@ public record SupplierDashboardResponseDto(
             String description,
             String location,
             String eventTime) {
+    }
+
+    public record ShipmentIncidentDto(
+            Long id,
+            String incidentType,
+            String severity,
+            String description,
+            Integer affectedQuantity,
+            Integer missingQuantity,
+            Integer damagedQuantity,
+            String status,
+            String createdAt,
+            String updatedAt,
+            String resolvedAt,
+            String resolutionNote,
+            String buyerNotes,
+            String supplierResponse,
+            String proposedResolution,
+            String resolutionType,
+            List<String> evidenceUrls,
+            List<String> supplierEvidenceUrls,
+            int attachmentCount,
+            List<ShipmentEventDto> timeline) {
     }
 
     public record DebtCustomerDto(

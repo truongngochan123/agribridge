@@ -3,12 +3,16 @@ package com.agribridge.backend.controller;
 import com.agribridge.backend.dto.AuthResponseDto;
 import com.agribridge.backend.dto.CreateBuyerRegistrationDto;
 import com.agribridge.backend.dto.CreateSupplierRegistrationDto;
+import com.agribridge.backend.dto.ForgotPasswordResponseDto;
+import com.agribridge.backend.dto.ForgotPasswordSendRequestDto;
+import com.agribridge.backend.dto.ForgotPasswordVerifyRequestDto;
 import com.agribridge.backend.dto.LoginRequestDto;
 import com.agribridge.backend.dto.RegistrationAvailabilityRequestDto;
 import com.agribridge.backend.dto.RegistrationAvailabilityResponseDto;
 import com.agribridge.backend.dto.RegistrationOtpResponseDto;
 import com.agribridge.backend.dto.RegistrationOtpSendRequestDto;
 import com.agribridge.backend.dto.RegistrationOtpVerifyRequestDto;
+import com.agribridge.backend.dto.ResetPasswordRequestDto;
 import com.agribridge.backend.dto.TaxCodeLookupRequestDto;
 import com.agribridge.backend.dto.TaxCodeLookupResponseDto;
 import com.agribridge.backend.service.AuthService;
@@ -45,6 +49,21 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponseDto login(@Valid @RequestBody LoginRequestDto request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/password/forgot")
+    public ForgotPasswordResponseDto sendForgotPasswordOtp(@Valid @RequestBody ForgotPasswordSendRequestDto request) {
+        return authService.sendForgotPasswordOtp(request);
+    }
+
+    @PostMapping("/password/otp/verify")
+    public ForgotPasswordResponseDto verifyForgotPasswordOtp(@Valid @RequestBody ForgotPasswordVerifyRequestDto request) {
+        return authService.verifyForgotPasswordOtp(request);
+    }
+
+    @PostMapping("/password/reset")
+    public ForgotPasswordResponseDto resetPassword(@Valid @RequestBody ResetPasswordRequestDto request) {
+        return authService.resetPassword(request);
     }
 
     @PostMapping("/register/otp/send")

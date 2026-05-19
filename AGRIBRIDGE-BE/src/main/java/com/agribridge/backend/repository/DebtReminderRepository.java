@@ -10,4 +10,6 @@ public interface DebtReminderRepository extends JpaRepository<DebtReminderEntity
     List<DebtReminderEntity> findByInvoiceIdInOrderByCreatedAtDesc(Collection<Long> invoiceIds);
 
     List<DebtReminderEntity> findBySupplierCompanyIdAndBuyerCompanyIdOrderByCreatedAtDesc(Long supplierCompanyId, Long buyerCompanyId);
+
+    List<DebtReminderEntity> findByBuyerCompanyIdOrderByCreatedAtDesc(Long buyerCompanyId);
 }

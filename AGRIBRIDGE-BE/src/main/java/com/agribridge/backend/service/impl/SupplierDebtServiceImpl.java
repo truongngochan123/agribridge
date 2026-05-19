@@ -1,4 +1,4 @@
-﻿package com.agribridge.backend.service.impl;
+package com.agribridge.backend.service.impl;
 
 import com.agribridge.backend.dto.SupplierDebtDtos;
 import com.agribridge.backend.entity.CompanyEntity;
@@ -22,7 +22,6 @@ import com.agribridge.backend.entity.enums.DebtReminderStatusEnum;
 import com.agribridge.backend.entity.enums.InvoiceStatusEnum;
 import com.agribridge.backend.entity.enums.NotificationTypeEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
-import com.agribridge.backend.entity.enums.UserRoleEnum;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.CreditLimitRepository;
 import com.agribridge.backend.repository.BatchRepository;
@@ -39,6 +38,7 @@ import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.UserRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
 import com.agribridge.backend.service.CurrentUserService;
+import com.agribridge.backend.service.NotificationCenterService;
 import com.agribridge.backend.service.SupplierDebtService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -49,6 +49,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -81,6 +82,7 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
     private final UserRepository userRepository;
     private final ShipmentRepository shipmentRepository;
     private final NotificationRepository notificationRepository;
+    private final NotificationCenterService notificationCenterService;
 
     @Override
     @Transactional(readOnly = true)
@@ -150,14 +152,113 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
                         .buyerCompanyId(request.buyerId())
                         .createdAt(now)
                         .build());
-        entity.setCreditLimit(request.creditLimit());
+        BigDecimal previousLimit = nullToZero(entity.getCreditLimit());
+        Integer previousTermDays = entity.getPaymentTermDays();
+        CreditLimitStatusEnum previousStatus = entity.getStatus();
+        entity.setCreditLimit(CreditLimitStatusEnum.CLOSED.equals(status) ? BigDecimal.ZERO : request.creditLimit());
         entity.setPaymentTermDays(request.paymentTermDays());
         entity.setStatus(status);
         entity.setIsBlocked(CreditLimitStatusEnum.SUSPENDED.equals(status));
         entity.setBlockedReason(CreditLimitStatusEnum.SUSPENDED.equals(status) ? "Bị tạm khóa công nợ" : null);
         entity.setNote(clean(request.note()));
         entity.setUpdatedAt(now);
-        return toCreditLimitItem(creditLimitRepository.save(entity), request.buyerId());
+        CreditLimitEntity saved = creditLimitRepository.save(entity);
+        notifyBuyerCreditLimitStatusChanged(saved, previousLimit, previousTermDays, previousStatus);
+        return toCreditLimitItem(saved, request.buyerId());
+    }
+
+    private void notifyBuyerCreditLimitStatusChanged(
+            CreditLimitEntity creditLimit,
+            BigDecimal previousLimit,
+            Integer previousTermDays,
+            CreditLimitStatusEnum previousStatus) {
+        if (creditLimit == null || creditLimit.getBuyerCompanyId() == null || creditLimit.getSupplierCompanyId() == null) return;
+        BigDecimal limit = nullToZero(creditLimit.getCreditLimit());
+        if (CreditLimitStatusEnum.SUSPENDED.equals(creditLimit.getStatus()) || CreditLimitStatusEnum.CLOSED.equals(creditLimit.getStatus())) {
+            notifyBuyerCreditLimitDisabled(creditLimit, limit);
+            return;
+        }
+        if (!CreditLimitStatusEnum.ACTIVE.equals(creditLimit.getStatus()) || limit.compareTo(BigDecimal.ZERO) <= 0) return;
+
+        boolean wasActive = CreditLimitStatusEnum.ACTIVE.equals(previousStatus) && nullToZero(previousLimit).compareTo(BigDecimal.ZERO) > 0;
+        boolean unchanged = wasActive
+                && nullToZero(previousLimit).compareTo(limit) == 0
+                && Objects.equals(previousTermDays, creditLimit.getPaymentTermDays());
+        if (unchanged) return;
+
+        String supplierName = firstText(companyRepository.findById(creditLimit.getSupplierCompanyId()).map(CompanyEntity::getName).orElse(null), "Nhà cung cấp");
+        String title = wasActive ? "Hạn mức công nợ được cập nhật" : "Bạn đã được cấp hạn mức công nợ";
+        String body = "Nhà cung cấp đã cấp công nợ "
+                + creditLimit.getPaymentTermDays()
+                + " ngày cho bạn.\nHạn mức: "
+                + formatMoney(limit);
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("role", "buyer");
+        metadata.put("buyerCompanyId", creditLimit.getBuyerCompanyId());
+        metadata.put("supplierCompanyId", creditLimit.getSupplierCompanyId());
+        metadata.put("supplierName", supplierName);
+        metadata.put("creditLimitId", creditLimit.getId());
+        metadata.put("creditLimit", limit);
+        metadata.put("paymentTermDays", creditLimit.getPaymentTermDays());
+
+        NotificationEntity notification = notificationCenterService.saveCompanyOwnerNotification(
+                creditLimit.getBuyerCompanyId(),
+                NotificationTypeEnum.DEBT_CREDIT_LIMIT_GRANTED,
+                title,
+                body,
+                "DEBT",
+                "/buyer/debt?supplierId=" + creditLimit.getSupplierCompanyId(),
+                "credit_limits",
+                creditLimit.getId(),
+                false,
+                metadata);
+        if (notification == null) {
+            log.warn("Credit limit notification was not persisted buyerCompanyId={} creditLimitId={}", creditLimit.getBuyerCompanyId(), creditLimit.getId());
+        } else {
+            notificationCenterService.pushRealtime(notification);
+        }
+    }
+
+    private void notifyBuyerCreditLimitDisabled(CreditLimitEntity creditLimit, BigDecimal limit) {
+        CreditLimitStatusEnum status = creditLimit.getStatus();
+        NotificationTypeEnum type = CreditLimitStatusEnum.CLOSED.equals(status)
+                ? NotificationTypeEnum.DEBT_CREDIT_LIMIT_CLOSED
+                : NotificationTypeEnum.DEBT_CREDIT_LIMIT_SUSPENDED;
+        String title = CreditLimitStatusEnum.CLOSED.equals(status)
+                ? "Nhà cung cấp đã ngưng cấp công nợ"
+                : "Công nợ đã bị tạm khóa";
+        String body = CreditLimitStatusEnum.CLOSED.equals(status)
+                ? "Nhà cung cấp đã ngưng cấp công nợ cho bạn."
+                : "Nhà cung cấp đã tạm khóa công nợ của bạn. Vui lòng hoàn tất các khoản thanh toán hiện tại để tiếp tục sử dụng.";
+        String supplierName = firstText(companyRepository.findById(creditLimit.getSupplierCompanyId()).map(CompanyEntity::getName).orElse(null), "Nhà cung cấp");
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("role", "buyer");
+        metadata.put("buyerCompanyId", creditLimit.getBuyerCompanyId());
+        metadata.put("supplierCompanyId", creditLimit.getSupplierCompanyId());
+        metadata.put("supplierName", supplierName);
+        metadata.put("creditLimitId", creditLimit.getId());
+        metadata.put("creditLimit", limit);
+        metadata.put("paymentTermDays", creditLimit.getPaymentTermDays());
+        metadata.put("creditStatus", status.name());
+
+        NotificationEntity notification = notificationCenterService.saveCompanyOwnerNotification(
+                creditLimit.getBuyerCompanyId(),
+                type,
+                title,
+                body,
+                "DEBT",
+                "/buyer/debt?supplierId=" + creditLimit.getSupplierCompanyId(),
+                "credit_limits",
+                creditLimit.getId(),
+                false,
+                metadata);
+        if (notification == null) {
+            log.warn("Credit limit status notification was not persisted buyerCompanyId={} creditLimitId={}", creditLimit.getBuyerCompanyId(), creditLimit.getId());
+        } else {
+            notificationCenterService.pushRealtime(notification);
+        }
     }
 
     @Override
@@ -260,14 +361,15 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
         String supplierName = supplierCompany == null ? "Nhà cung cấp" : firstText(supplierCompany.getName(), "Nhà cung cấp");
         String invoiceCode = firstText(invoice.getInvoiceNumber(), "N/A");
         String orderCode = order == null ? "ORD-N/A" : "ORD-" + order.getId();
-        InvoiceItemEntity mainItem = invoiceItemRepository.findByInvoiceIdIn(List.of(invoice.getId())).stream().findFirst().orElse(null);
-        String productName = mainItem == null ? "Sản phẩm" : firstText(mainItem.getDescription(), "Sản phẩm");
-        BigDecimal quantity = mainItem == null ? BigDecimal.ZERO : nullToZero(mainItem.getQuantity());
-        String unit = mainItem == null ? "" : firstText(mainItem.getUnit(), "");
+        InvoiceLine reminderLine = resolveReminderLine(invoice);
+        String productName = firstText(reminderLine == null ? null : reminderLine.productName(), "Sản phẩm");
+        BigDecimal quantity = reminderLine == null ? null : reminderLine.quantity();
+        String unit = reminderLine == null ? "" : firstText(reminderLine.unit(), "");
+        String productSummary = productName + quantityLabel(quantity, unit);
         LocalDateTime confirmedReceivedAt = order == null ? null : shipmentRepository.findTopByOrderIdOrderByCreatedAtDesc(order.getId()).map(ShipmentEntity::getConfirmedReceivedAt).orElse(null);
         String dueLabel = dueLabel(paymentPlanType(invoice), invoice.getDueDate(), confirmedReceivedAt, null);
         String defaultMessage = "Nhà cung cấp " + supplierName + " nhắc bạn thanh toán đơn " + orderCode + ": "
-                + productName + " " + formatQuantity(quantity, unit) + ", còn phải trả " + formatMoney(amount)
+                + productSummary + ", còn phải trả " + formatMoney(amount)
                 + ". Hạn thanh toán: " + dueLabel + ". Mã hóa đơn: " + invoiceCode + ".";
         DebtReminderEntity reminder = debtReminderRepository.save(DebtReminderEntity.builder()
                 .invoiceId(invoice.getId())
@@ -285,36 +387,38 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
         boolean sendSystemNotification = !Boolean.FALSE.equals(request.sendSystemNotification());
         boolean markOnBuyerDebtPage = !Boolean.FALSE.equals(request.markOnBuyerDebtPage());
         if (sendSystemNotification || markOnBuyerDebtPage) {
-            String metadata = "{"
-                    + "\"invoiceId\":" + reminder.getInvoiceId()
-                    + ",\"invoiceCode\":\"" + json(invoiceCode) + "\""
-                    + ",\"orderId\":" + (order == null ? "null" : order.getId())
-                    + ",\"orderCode\":\"" + json(orderCode) + "\""
-                    + ",\"productName\":\"" + json(productName) + "\""
-                    + ",\"quantity\":" + quantity
-                    + ",\"unit\":\"" + json(unit) + "\""
-                    + ",\"buyerCompanyId\":" + request.buyerId()
-                    + ",\"buyerName\":\"" + json(firstText(companyRepository.findById(request.buyerId()).map(CompanyEntity::getName).orElse("Buyer"), "Buyer")) + "\""
-                    + ",\"supplierCompanyId\":" + supplierCompanyId
-                    + ",\"supplierName\":\"" + json(supplierName) + "\""
-                    + ",\"amount\":" + amount
-                    + ",\"dueDate\":\"" + (invoice.getDueDate() == null ? "" : invoice.getDueDate()) + "\""
-                    + ",\"dueLabel\":\"" + json(dueLabel) + "\""
-                    + ",\"type\":\"DEBT_REMINDER\""
-                    + "}";
-            userRepository.findFirstByCompanyIdAndRole(request.buyerId(), UserRoleEnum.OWNER)
-                    .ifPresent(owner -> notificationRepository.save(NotificationEntity.builder()
-                            .userId(owner.getId())
-                            .companyId(request.buyerId())
-                            .type(NotificationTypeEnum.DEBT_REMINDER)
-                            .title("Nhắc thanh toán công nợ")
-                            .body(supplierName + " nhắc bạn thanh toán đơn " + orderCode + ": " + productName + " " + formatQuantity(quantity, unit) + ", còn " + formatMoney(amount) + ".")
-                            .metadata(metadata)
-                            .refTable("debt_reminders")
-                            .refId(reminder.getId())
-                            .isRead(Boolean.FALSE)
-                            .createdAt(now)
-                            .build()));
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            metadata.put("role", "buyer");
+            metadata.put("invoiceId", reminder.getInvoiceId());
+            metadata.put("invoiceCode", invoiceCode);
+            metadata.put("orderId", order == null ? null : order.getId());
+            metadata.put("orderCode", orderCode);
+            metadata.put("productName", productName);
+            metadata.put("quantity", quantity);
+            metadata.put("unit", unit);
+            metadata.put("buyerCompanyId", request.buyerId());
+            metadata.put("buyerName", firstText(companyRepository.findById(request.buyerId()).map(CompanyEntity::getName).orElse("Buyer"), "Buyer"));
+            metadata.put("supplierCompanyId", supplierCompanyId);
+            metadata.put("supplierName", supplierName);
+            metadata.put("amount", amount);
+            metadata.put("dueDate", invoice.getDueDate() == null ? "" : invoice.getDueDate().toString());
+            metadata.put("dueLabel", dueLabel);
+            NotificationEntity notification = notificationCenterService.saveCompanyOwnerNotification(
+                    request.buyerId(),
+                    NotificationTypeEnum.DEBT_REMINDER,
+                    "Nhắc thanh toán công nợ",
+                    supplierName + " nhắc bạn thanh toán đơn " + orderCode + ": " + productSummary + ", còn " + formatMoney(amount) + ".",
+                    "DEBT",
+                    "/buyer/debt?supplierId=" + supplierCompanyId + "&invoiceId=" + invoice.getId(),
+                    "debt_reminders",
+                    reminder.getId(),
+                    true,
+                    metadata);
+            if (notification == null) {
+                log.warn("Debt reminder notification was not persisted buyerCompanyId={} reminderId={}", request.buyerId(), reminder.getId());
+            } else {
+                notificationCenterService.pushRealtime(notification);
+            }
         }
         return getBuyerDetail(request.buyerId());
     }
@@ -437,8 +541,11 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
         CreditLimitEntity credit = context.creditByBuyer().get(buyerId);
         BigDecimal limit = credit == null ? BigDecimal.ZERO : nullToZero(credit.getCreditLimit());
         BigDecimal usedCredit = calcs.stream().filter(item -> "CREDIT_TERM".equals(item.paymentPlanType())).map(InvoiceCalc::remaining).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal remainingCredit = limit.compareTo(BigDecimal.ZERO) > 0 ? limit.subtract(remaining) : BigDecimal.ZERO;
-        String status = status(credit, overdue, dueSoon, remainingCredit);
+        BigDecimal creditRemaining = usedCredit;
+        BigDecimal creditOverdue = calcs.stream().filter(item -> "CREDIT_TERM".equals(item.paymentPlanType())).filter(InvoiceCalc::overdue).map(InvoiceCalc::remaining).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal creditDueSoon = calcs.stream().filter(item -> "CREDIT_TERM".equals(item.paymentPlanType())).filter(InvoiceCalc::dueSoon).map(InvoiceCalc::remaining).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal remainingCredit = limit.compareTo(BigDecimal.ZERO) > 0 ? limit.subtract(usedCredit) : BigDecimal.ZERO;
+        String status = status(credit, creditOverdue, creditDueSoon, remainingCredit);
         CompanyEntity buyer = context.buyersById().get(buyerId);
         for (int i = 0; i < buyerInvoices.size(); i++) {
             InvoiceEntity invoice = buyerInvoices.get(i);
@@ -455,7 +562,7 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
         return new SupplierDebtDtos.BuyerDebt(buyerId, buyer == null ? "Chưa có" : buyer.getName(), calcs.size(),
                 (int) calcs.stream().filter(item -> item.remaining().compareTo(BigDecimal.ZERO) > 0).count(),
                 (int) calcs.stream().filter(InvoiceCalc::overdue).count(), total, paid, remaining, overdue, dueSoon,
-                limit, usedCredit, remainingCredit, credit == null ? null : credit.getPaymentTermDays(),
+                limit, creditRemaining, remainingCredit, credit == null ? null : credit.getPaymentTermDays(),
                 credit == null || credit.getStatus() == null ? "Chưa có" : credit.getStatus().name(), status, statusLabel(status));
     }
 
@@ -685,6 +792,11 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
         return number + firstText(unit, "");
     }
 
+    private String quantityLabel(BigDecimal quantity, String unit) {
+        if (quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0) return "";
+        return " " + formatQuantity(quantity, unit);
+    }
+
     private String dueLabel(String paymentPlan, LocalDate dueDate, LocalDateTime confirmedReceivedAt, LocalDateTime expectedDueAt) {
         if ("DEPOSIT_50".equalsIgnoreCase(paymentPlan)) {
             if (confirmedReceivedAt == null) {
@@ -789,6 +901,32 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
                 item.getQuantity(),
                 firstText(item.getUnit(), product == null ? null : product.getUnit()),
                 batch == null ? null : batchCode(batch.getId()));
+    }
+
+    private InvoiceLine resolveReminderLine(InvoiceEntity invoice) {
+        if (invoice == null) return null;
+        OrderItemEntity orderItem = orderItemRepository.findByOrderIdOrderByIdAsc(invoice.getOrderId()).stream().findFirst().orElse(null);
+        Map<Long, BatchEntity> batchesById = orderItem == null || orderItem.getBatchId() == null
+                ? Map.of()
+                : batchRepository.findAllById(List.of(orderItem.getBatchId())).stream().collect(Collectors.toMap(BatchEntity::getId, Function.identity()));
+        InvoiceItemEntity invoiceItem = invoiceItemRepository.findByInvoiceIdIn(List.of(invoice.getId())).stream().findFirst().orElse(null);
+        Map<Long, ProductEntity> productsById = loadProductsForLine(orderItem, invoiceItem, batchesById);
+        InvoiceLine orderLine = toInvoiceLine(orderItem, productsById, batchesById);
+        return toInvoiceLine(invoiceItem, orderLine, productsById);
+    }
+
+    private Map<Long, ProductEntity> loadProductsForLine(OrderItemEntity orderItem, InvoiceItemEntity invoiceItem, Map<Long, BatchEntity> batchesById) {
+        List<Long> productIds = new java.util.ArrayList<>();
+        if (orderItem != null && orderItem.getProductId() != null) productIds.add(orderItem.getProductId());
+        if (invoiceItem != null && invoiceItem.getProductId() != null) productIds.add(invoiceItem.getProductId());
+        if (orderItem != null && orderItem.getBatchId() != null) {
+            BatchEntity batch = batchesById.get(orderItem.getBatchId());
+            if (batch != null && batch.getProductId() != null) productIds.add(batch.getProductId());
+        }
+        List<Long> distinctIds = productIds.stream().filter(Objects::nonNull).distinct().toList();
+        return distinctIds.isEmpty()
+                ? Map.of()
+                : productRepository.findByIdIn(distinctIds).stream().collect(Collectors.toMap(ProductEntity::getId, Function.identity()));
     }
 
     private String batchCode(Long id) {

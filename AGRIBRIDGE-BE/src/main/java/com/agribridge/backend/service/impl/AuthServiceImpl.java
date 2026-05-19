@@ -3,12 +3,16 @@ package com.agribridge.backend.service.impl;
 import com.agribridge.backend.dto.AuthResponseDto;
 import com.agribridge.backend.dto.CreateBuyerRegistrationDto;
 import com.agribridge.backend.dto.CreateSupplierRegistrationDto;
+import com.agribridge.backend.dto.ForgotPasswordResponseDto;
+import com.agribridge.backend.dto.ForgotPasswordSendRequestDto;
+import com.agribridge.backend.dto.ForgotPasswordVerifyRequestDto;
 import com.agribridge.backend.dto.LoginRequestDto;
 import com.agribridge.backend.dto.RegistrationAvailabilityRequestDto;
 import com.agribridge.backend.dto.RegistrationAvailabilityResponseDto;
 import com.agribridge.backend.dto.RegistrationOtpResponseDto;
 import com.agribridge.backend.dto.RegistrationOtpSendRequestDto;
 import com.agribridge.backend.dto.RegistrationOtpVerifyRequestDto;
+import com.agribridge.backend.dto.ResetPasswordRequestDto;
 import com.agribridge.backend.dto.TaxCodeLookupRequestDto;
 import com.agribridge.backend.dto.TaxCodeLookupResponseDto;
 import jakarta.mail.internet.InternetAddress;
@@ -63,6 +67,7 @@ public class AuthServiceImpl implements AuthService {
     private static final String STATUS_REJECTED = "REJECTED";
     private static final int MAX_IMAGE_URL_LENGTH = 240;
     private static final long OTP_TTL_MINUTES = 10;
+    private static final long PASSWORD_RESET_RESEND_SECONDS = 60;
     private static final int AUTO_APPROVE_THRESHOLD = 80;
     private static final BigDecimal DEFAULT_CREDIT_LIMIT = BigDecimal.ZERO;
     private final CompanyRepository companyRepository;
@@ -94,6 +99,7 @@ public class AuthServiceImpl implements AuthService {
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final Map<String, PendingRegistrationOtp> registrationOtpStore = new ConcurrentHashMap<>();
+    private final Map<String, PendingPasswordResetOtp> passwordResetOtpStore = new ConcurrentHashMap<>();
 
     @Override
     @Transactional
@@ -300,7 +306,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponseDto login(LoginRequestDto request) {
         log.info("Authenticating user email={}", request.getEmail());
         String normalizedEmail = normalizeRequiredEmail(request.getEmail());
@@ -310,7 +316,13 @@ public class AuthServiceImpl implements AuthService {
         if (!passwordEncoder.matches(request.getPassword(), user.passwordHash())) {
             throw new IllegalArgumentException("Invalid email or password");
         }
-        if (user.status() != null && user.status() != UserStatusEnum.ACTIVE) {
+        if (user.status() == UserStatusEnum.PENDING_INVITE) {
+            userRepository.findById(user.userId()).ifPresent(invitedUser -> {
+                invitedUser.setStatus(UserStatusEnum.ACTIVE);
+                userRepository.save(invitedUser);
+            });
+            log.info("Activated invited employee userId={} on first successful login", user.userId());
+        } else if (user.status() != null && user.status() != UserStatusEnum.ACTIVE) {
             throw new IllegalArgumentException("Tài khoản đã bị khóa");
         }
         AuthCompanySnapshot company = loadAuthCompany(user.companyId())
@@ -319,6 +331,102 @@ public class AuthServiceImpl implements AuthService {
         log.info("Authenticated user successfully email={} userId={} companyId={} status={}",
                 normalizedEmail, user.userId(), user.companyId(), response.getStatus());
         return response;
+    }
+
+    @Override
+    public ForgotPasswordResponseDto sendForgotPasswordOtp(ForgotPasswordSendRequestDto request) {
+        String normalizedEmail = normalizeRequiredEmail(request.getEmail());
+        log.info("Sending password reset OTP email={}", normalizedEmail);
+
+        if (userRepository.findByEmailIgnoreCase(normalizedEmail).isEmpty()) {
+            throw new IllegalArgumentException("Email không tồn tại trong hệ thống.");
+        }
+
+        PendingPasswordResetOtp currentOtp = passwordResetOtpStore.get(normalizedEmail);
+        if (currentOtp != null && currentOtp.resendBlocked()) {
+            long waitSeconds = Math.max(1, ChronoUnit.SECONDS.between(LocalDateTime.now(), currentOtp.resendAvailableAt()));
+            throw new IllegalArgumentException("Vui lòng chờ " + waitSeconds + " giây trước khi gửi lại mã.");
+        }
+
+        String otp = String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1_000_000));
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expiresAt = now.plusMinutes(OTP_TTL_MINUTES);
+        LocalDateTime resendAvailableAt = now.plusSeconds(PASSWORD_RESET_RESEND_SECONDS);
+        passwordResetOtpStore.put(normalizedEmail,
+                new PendingPasswordResetOtp(otp, expiresAt, resendAvailableAt, false));
+
+        sendPasswordResetOtpEmail(normalizedEmail, otp, expiresAt);
+
+        return ForgotPasswordResponseDto.builder()
+                .success(true)
+                .verified(false)
+                .email(normalizedEmail)
+                .message(mailEnabled
+                        ? "Mã xác thực đã được gửi tới email của bạn."
+                        : "Mã xác thực đã được tạo nhưng SMTP đang tắt. Hãy bật APP_MAIL_ENABLED để gửi email thật.")
+                .expiresInSeconds(OTP_TTL_MINUTES * 60)
+                .resendAfterSeconds(PASSWORD_RESET_RESEND_SECONDS)
+                .build();
+    }
+
+    @Override
+    public ForgotPasswordResponseDto verifyForgotPasswordOtp(ForgotPasswordVerifyRequestDto request) {
+        String normalizedEmail = normalizeRequiredEmail(request.getEmail());
+        PendingPasswordResetOtp pendingOtp = passwordResetOtpStore.get(normalizedEmail);
+
+        if (pendingOtp == null || pendingOtp.isExpired()) {
+            passwordResetOtpStore.remove(normalizedEmail);
+            throw new IllegalArgumentException("Mã OTP đã hết hạn hoặc chưa được gửi.");
+        }
+
+        if (!Objects.equals(pendingOtp.code(), safeTrim(request.getOtp()))) {
+            throw new IllegalArgumentException("Mã OTP không chính xác.");
+        }
+
+        PendingPasswordResetOtp verifiedOtp = pendingOtp.markVerified();
+        passwordResetOtpStore.put(normalizedEmail, verifiedOtp);
+
+        return ForgotPasswordResponseDto.builder()
+                .success(true)
+                .verified(true)
+                .email(normalizedEmail)
+                .message("Mã xác thực hợp lệ. Bạn có thể đặt mật khẩu mới.")
+                .expiresInSeconds(Math.max(0, ChronoUnit.SECONDS.between(LocalDateTime.now(), pendingOtp.expiresAt())))
+                .resendAfterSeconds(Math.max(0,
+                        ChronoUnit.SECONDS.between(LocalDateTime.now(), pendingOtp.resendAvailableAt())))
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public ForgotPasswordResponseDto resetPassword(ResetPasswordRequestDto request) {
+        String normalizedEmail = normalizeRequiredEmail(request.getEmail());
+        PendingPasswordResetOtp pendingOtp = passwordResetOtpStore.get(normalizedEmail);
+
+        if (pendingOtp == null || pendingOtp.isExpired()) {
+            passwordResetOtpStore.remove(normalizedEmail);
+            throw new IllegalArgumentException("Phiên đặt lại mật khẩu đã hết hạn.");
+        }
+        if (!pendingOtp.verified() || !Objects.equals(pendingOtp.code(), safeTrim(request.getOtp()))) {
+            throw new IllegalArgumentException("Mã xác thực không hợp lệ.");
+        }
+
+        validateStrongPassword(request.getNewPassword());
+        UserEntity user = userRepository.findByEmailIgnoreCase(normalizedEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Email không tồn tại trong hệ thống."));
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        passwordResetOtpStore.remove(normalizedEmail);
+
+        log.info("Password reset completed email={} userId={}", normalizedEmail, user.getId());
+        return ForgotPasswordResponseDto.builder()
+                .success(true)
+                .verified(true)
+                .email(normalizedEmail)
+                .message("Mật khẩu đã được cập nhật thành công.")
+                .expiresInSeconds(0)
+                .resendAfterSeconds(0)
+                .build();
     }
 
     @Override
@@ -860,6 +968,57 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    private void sendPasswordResetOtpEmail(String email, String otp, LocalDateTime expiresAt) {
+        if (!mailEnabled) {
+            log.info("Password reset OTP for {} is {} (mail disabled)", email, otp);
+            return;
+        }
+
+        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+        if (mailSender == null) {
+            throw new IllegalStateException("Mail service is unavailable. Please configure SMTP first.");
+        }
+
+        try {
+            var message = mailSender.createMimeMessage();
+            var helper = new MimeMessageHelper(message, false, "UTF-8");
+            String resolvedFromAddress = safeTrim(mailFromAddress) != null ? safeTrim(mailFromAddress)
+                    : safeTrim(mailUsername);
+            if (resolvedFromAddress == null) {
+                throw new IllegalStateException(
+                        "Mail sender address is missing. Please set MAIL_USERNAME or MAIL_FROM_ADDRESS.");
+            }
+
+            helper.setFrom(new InternetAddress(resolvedFromAddress,
+                    safeTrim(mailFromName) != null ? safeTrim(mailFromName) : "AgriBridge"));
+            helper.setTo(email);
+            helper.setSubject("Ma xac thuc dat lai mat khau AgriBridge");
+            helper.setText(
+                    """
+                            Xin chao,
+
+                            Ma xac thuc dat lai mat khau AgriBridge cua ban la: %s
+
+                            Ma co hieu luc trong %d phut. Vui long khong chia se ma nay cho nguoi khac.
+                            Neu ban khong yeu cau dat lai mat khau, hay bo qua email nay.
+
+                            AgriBridge
+                            """
+                            .formatted(otp, OTP_TTL_MINUTES));
+            mailSender.send(message);
+            log.info("Sent password reset OTP email={} expiresAt={}", email, expiresAt);
+        } catch (Exception exception) {
+            log.error("Failed to send password reset OTP email={} host={} port={} username={} fromAddress={}",
+                    email,
+                    safeTrim(mailHost),
+                    mailPort,
+                    safeTrim(mailUsername),
+                    safeTrim(mailFromAddress),
+                    exception);
+            throw new IllegalStateException("Khong the gui email OTP. Vui long kiem tra lai cau hinh SMTP.", exception);
+        }
+    }
+
     private void validateUniqueTaxCode(String taxCode) {
         if (taxCode == null) {
             return;
@@ -881,6 +1040,25 @@ public class AuthServiceImpl implements AuthService {
     private void validatePassword(String rawPassword) {
         if (rawPassword == null || rawPassword.trim().length() < 6) {
             throw new IllegalArgumentException("Password must be at least 6 characters");
+        }
+    }
+
+    private void validateStrongPassword(String rawPassword) {
+        String value = safeTrim(rawPassword);
+        if (value == null || value.length() < 8) {
+            throw new IllegalArgumentException("Mật khẩu phải có ít nhất 8 ký tự.");
+        }
+        if (!value.matches(".*[A-Z].*")) {
+            throw new IllegalArgumentException("Mật khẩu phải có ít nhất một chữ hoa.");
+        }
+        if (!value.matches(".*[a-z].*")) {
+            throw new IllegalArgumentException("Mật khẩu phải có ít nhất một chữ thường.");
+        }
+        if (!value.matches(".*\\d.*")) {
+            throw new IllegalArgumentException("Mật khẩu phải có ít nhất một chữ số.");
+        }
+        if (!value.matches(".*[^A-Za-z0-9].*")) {
+            throw new IllegalArgumentException("Mật khẩu phải có ít nhất một ký tự đặc biệt.");
         }
     }
 
@@ -925,6 +1103,24 @@ public class AuthServiceImpl implements AuthService {
 
         PendingRegistrationOtp markVerified() {
             return new PendingRegistrationOtp(code, expiresAt, true);
+        }
+    }
+
+    private record PendingPasswordResetOtp(
+            String code,
+            LocalDateTime expiresAt,
+            LocalDateTime resendAvailableAt,
+            boolean verified) {
+        boolean isExpired() {
+            return expiresAt == null || LocalDateTime.now().isAfter(expiresAt);
+        }
+
+        boolean resendBlocked() {
+            return resendAvailableAt != null && LocalDateTime.now().isBefore(resendAvailableAt);
+        }
+
+        PendingPasswordResetOtp markVerified() {
+            return new PendingPasswordResetOtp(code, expiresAt, resendAvailableAt, true);
         }
     }
 

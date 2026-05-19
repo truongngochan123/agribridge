@@ -8,11 +8,19 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface NotificationRepository extends JpaRepository<NotificationEntity, Long> {
     List<NotificationEntity> findByUserIdOrderByCreatedAtDesc(Long userId);
 
+    List<NotificationEntity> findByCompanyIdOrderByCreatedAtDesc(Long companyId);
+
     long countByUserIdAndIsReadFalse(Long userId);
+
+    long countByCompanyIdAndIsReadFalse(Long companyId);
 
     List<NotificationEntity> findByUserIdAndIsReadFalseOrderByCreatedAtDesc(Long userId);
 
+    List<NotificationEntity> findByCompanyIdAndIsReadFalseOrderByCreatedAtDesc(Long companyId);
+
     java.util.Optional<NotificationEntity> findByIdAndUserId(Long id, Long userId);
+
+    java.util.Optional<NotificationEntity> findByIdAndCompanyId(Long id, Long companyId);
 
     List<NotificationEntity> findByCompanyIdAndTypeAndRefTableAndRefIdIn(
             Long companyId,

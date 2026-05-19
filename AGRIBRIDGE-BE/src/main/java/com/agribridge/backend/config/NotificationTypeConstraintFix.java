@@ -16,6 +16,42 @@ import org.springframework.stereotype.Component;
 public class NotificationTypeConstraintFix {
 
     private static final String NEW_CONSTRAINT_NAME = "CK_notifications_type_v2";
+    private static final String ALLOWED_TYPES = """
+            'ORDER_CREATED_FOR_SUPPLIER',
+            'ORDER_CONFIRMED_FOR_BUYER',
+            'ORDER_CANCELLED_FOR_BUYER',
+            'ORDER_CANCELLED_BY_BUYER_FOR_SUPPLIER',
+            'PAYMENT_DEPOSIT_PAID_FOR_SUPPLIER',
+            'PAYMENT_REMAINING_PAID_FOR_SUPPLIER',
+            'PAYMENT_COMPLETED_FOR_BUYER',
+            'PAYMENT_REMAINING_REQUIRED',
+            'DELIVERY_IN_TRANSIT_FOR_BUYER',
+            'DELIVERY_WAITING_CONFIRMATION_FOR_BUYER',
+            'DELIVERY_FAILED',
+            'SHIPMENT_INCIDENT',
+            'DELIVERY_DISPUTE',
+            'BUYER_COMPLAINT',
+            'RFQ_CREATED_FOR_SUPPLIER',
+            'RFQ_QUOTE_SENT_FOR_BUYER',
+            'RFQ_QUOTE_SELECTED_FOR_SUPPLIER',
+            'COMPLAINT_CREATED_FOR_SUPPLIER',
+            'COMPLAINT_RESPONDED_FOR_BUYER',
+            'DEBT_REMINDER',
+            'DEBT_CREDIT_LIMIT_GRANTED',
+            'DEBT_CREDIT_LIMIT_SUSPENDED',
+            'DEBT_CREDIT_LIMIT_CLOSED',
+            'PAYMENT_DUE',
+            'DEBT_OVERDUE',
+            'DEBT_PAYMENT_CONFIRMED',
+            'PRICE_ALERT',
+            'ORDER_UPDATE',
+            'RFQ_RESPONSE',
+            'REGISTRATION_APPROVED',
+            'REGISTRATION_NEED_MORE_INFO',
+            'REGISTRATION_REJECTED',
+            'REGISTRATION_REOPENED',
+            'SYSTEM'
+            """;
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -23,6 +59,7 @@ public class NotificationTypeConstraintFix {
     public void fixNotificationTypeConstraint() {
         try {
             dropOldConstraints();
+            normalizeLegacyTypes();
             ensureNewConstraintExists();
         } catch (Exception ex) {
             log.error("NotificationTypeConstraintFix: failed to fix constraint - {}", ex.getMessage(), ex);
@@ -33,11 +70,8 @@ public class NotificationTypeConstraintFix {
         String findSql = """
                 SELECT cc.name
                 FROM sys.check_constraints cc
-                JOIN sys.columns c
-                    ON cc.parent_object_id = c.object_id
-                   AND cc.parent_column_id = c.column_id
                 WHERE cc.parent_object_id = OBJECT_ID('dbo.notifications')
-                  AND c.name = 'type'
+                  AND cc.definition LIKE '%[type]%'
                 """;
 
         jdbcTemplate.query(findSql, rs -> {
@@ -50,6 +84,34 @@ public class NotificationTypeConstraintFix {
                         constraintName, ex.getMessage());
             }
         });
+    }
+
+    private void normalizeLegacyTypes() {
+        String allowedTypes = ALLOWED_TYPES.replace("\n", " ");
+        int uppercased = jdbcTemplate.update("""
+                UPDATE dbo.notifications
+                   SET [type] = UPPER([type])
+                 WHERE [type] IS NOT NULL
+                   AND [type] COLLATE Latin1_General_CS_AS <> UPPER([type]) COLLATE Latin1_General_CS_AS
+                   AND UPPER([type]) IN (
+                """ + allowedTypes + """
+                   )
+                """);
+        if (uppercased > 0) {
+            log.info("NotificationTypeConstraintFix: normalized {} legacy notification type values", uppercased);
+        }
+
+        int repaired = jdbcTemplate.update("""
+                UPDATE dbo.notifications
+                   SET [type] = 'SYSTEM'
+                 WHERE [type] IS NULL
+                    OR [type] NOT IN (
+                """ + allowedTypes + """
+                   )
+                """);
+        if (repaired > 0) {
+            log.warn("NotificationTypeConstraintFix: repaired {} unsupported notification type values as SYSTEM", repaired);
+        }
     }
 
     private void ensureNewConstraintExists() {
@@ -66,18 +128,7 @@ public class NotificationTypeConstraintFix {
                 ALTER TABLE dbo.notifications
                 ADD CONSTRAINT CK_notifications_type_v2
                 CHECK ([type] IN (
-                    'DEBT_REMINDER',
-                    'PAYMENT_DUE',
-                    'DEBT_OVERDUE',
-                    'DEBT_PAYMENT_CONFIRMED',
-                    'PRICE_ALERT',
-                    'ORDER_UPDATE',
-                    'RFQ_RESPONSE',
-                    'REGISTRATION_APPROVED',
-                    'REGISTRATION_NEED_MORE_INFO',
-                    'REGISTRATION_REJECTED',
-                    'REGISTRATION_REOPENED',
-                    'SYSTEM'
+                """ + ALLOWED_TYPES + """
                 ))
                 """);
         log.info("NotificationTypeConstraintFix: created new constraint '{}'", NEW_CONSTRAINT_NAME);
