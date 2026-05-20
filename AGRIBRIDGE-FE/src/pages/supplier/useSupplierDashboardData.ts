@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { fetchSupplierDashboard } from '../../services/supplierService'
 import type { SupplierDashboardPayload } from '../../types/supplierDashboard'
 
@@ -39,6 +40,11 @@ export function useSupplierDashboardData() {
       active = false
     }
   }, [reloadToken])
+
+  useNotificationModuleRefresh(
+    ['DASHBOARD', 'ORDER', 'RFQ', 'QUOTE', 'DELIVERY', 'DEBT', 'PAYMENT', 'INVENTORY', 'NOTIFICATION'],
+    reload,
+  )
 
   return {
     data,

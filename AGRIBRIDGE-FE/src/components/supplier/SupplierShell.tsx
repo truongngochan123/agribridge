@@ -19,6 +19,8 @@ import { clearAuthSession } from '../../services/authSession'
 import { NotificationDrawer } from '../site/NotificationDrawer'
 import type { SupplierMenuKey } from '../../types/supplierDashboard'
 import { fetchNotifications, resolveNotificationRoute, type AppNotification } from '../../services/notificationService'
+import { createNotificationRealtimeClient, dispatchNotificationRealtime } from '../../services/notificationRealtimeService'
+import { getNotificationSoundEnabled, playNotificationSound, setNotificationSoundEnabled } from '../../services/notificationSoundService'
 
 type SupplierShellProps = {
   activeKey: SupplierMenuKey
@@ -39,16 +41,53 @@ const iconByKey = {
   reports: BarChart3,
 }
 
+const notificationModuleByMenuKey: Partial<Record<SupplierMenuKey, string[]>> = {
+  rfq: ['RFQ', 'QUOTE'],
+  orders: ['ORDER', 'PAYMENT', 'DELIVERY'],
+  delivery: ['DELIVERY'],
+  debt: ['DEBT', 'PAYMENT'],
+}
+
+function moduleCounts(items: AppNotification[]) {
+  return items.reduce<Record<string, number>>((counts, item) => {
+    if (item.isRead) return counts
+    const module = item.module || (item.type?.startsWith('PAYMENT_') ? 'PAYMENT' : item.type?.startsWith('ORDER_') ? 'ORDER' : item.type?.startsWith('RFQ_') ? 'RFQ' : item.type?.startsWith('DELIVERY_') ? 'DELIVERY' : item.type?.startsWith('DEBT_') ? 'DEBT' : item.type?.startsWith('COMPLAINT_') ? 'COMPLAINT' : 'SYSTEM')
+    counts[module] = (counts[module] || 0) + 1
+    return counts
+  }, {})
+}
+
+function formatBadgeCount(count: number) {
+  return count > 99 ? '99+' : String(count)
+}
+
+function totalUnreadModuleCount(counts: Record<string, number>) {
+  return Object.values(counts).reduce((sum, count) => sum + count, 0)
+}
+
 export function SupplierShell({ activeKey, title, subtitle, children, actions, filterBar }: SupplierShellProps) {
   const navigate = useNavigate()
   const [openNotifications, setOpenNotifications] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [notificationItems, setNotificationItems] = useState<AppNotification[]>([])
+  const [moduleBadgeCounts, setModuleBadgeCounts] = useState<Record<string, number>>({})
   const [slideNotification, setSlideNotification] = useState<AppNotification | null>(null)
-  const prevLatestIdRef = useRef<number | null>(null)
+  const [hasNewNotificationAnimation, setHasNewNotificationAnimation] = useState(false)
+  const [soundEnabled, setSoundEnabled] = useState(() => getNotificationSoundEnabled())
+  const maxSeenNotificationIdRef = useRef<number | null>(null)
+  const liveNotificationIdsRef = useRef<Set<number>>(new Set())
+  const notificationItemsRef = useRef<AppNotification[]>([])
+  const bellAnimationTimerRef = useRef<number | undefined>(undefined)
+  const slideTimerRef = useRef<number | undefined>(undefined)
+  const soundEnabledRef = useRef(soundEnabled)
   const { profile } = useCurrentUserProfile()
   const displayName = profile?.shortName ?? profile?.fullName ?? 'Người dùng'
   const roleLabel = profile?.roleLabel ?? 'Nhà cung cấp'
   const initials = profile?.initials ?? 'U'
+  const displayedUnreadCount = Math.max(unreadCount, totalUnreadModuleCount(moduleBadgeCounts))
+
+  soundEnabledRef.current = soundEnabled
+  notificationItemsRef.current = notificationItems
 
   const handleLogout = () => {
     clearAuthSession()
@@ -70,33 +109,71 @@ export function SupplierShell({ activeKey, title, subtitle, children, actions, f
   useEffect(() => {
     let cancelled = false
     let timerId: number | undefined
+    const showNewNotification = (notification: AppNotification) => {
+      if (bellAnimationTimerRef.current) window.clearTimeout(bellAnimationTimerRef.current)
+      if (slideTimerRef.current) window.clearTimeout(slideTimerRef.current)
+      setHasNewNotificationAnimation(true)
+      bellAnimationTimerRef.current = window.setTimeout(() => setHasNewNotificationAnimation(false), 800)
+      setSlideNotification(notification)
+      slideTimerRef.current = window.setTimeout(() => setSlideNotification(null), 5000)
+    }
+    const realtimeClient = createNotificationRealtimeClient((notification) => {
+      if (liveNotificationIdsRef.current.has(notification.id)) return
+      liveNotificationIdsRef.current.add(notification.id)
+      maxSeenNotificationIdRef.current = Math.max(maxSeenNotificationIdRef.current || 0, notification.id)
+      if (!notification.isRead) setUnreadCount((count) => count + 1)
+      const nextItems = notificationItemsRef.current.some((item) => item.id === notification.id)
+        ? notificationItemsRef.current
+        : [notification, ...notificationItemsRef.current]
+      notificationItemsRef.current = nextItems
+      setNotificationItems(nextItems)
+      if (!notification.isRead && notification.module) {
+        setModuleBadgeCounts((counts) => ({ ...counts, [notification.module || 'SYSTEM']: (counts[notification.module || 'SYSTEM'] || 0) + 1 }))
+      }
+      showNewNotification(notification)
+      playNotificationSound(notification, soundEnabledRef.current)
+      void loadNotifications()
+    })
 
     const loadNotifications = async () => {
       try {
         const data = await fetchNotifications()
         if (cancelled) return
-        setUnreadCount(data.unreadCount || 0)
+        const dataItems = data.items || []
+        const nextItems = dataItems.length > 0 || notificationItemsRef.current.length === 0 ? dataItems : notificationItemsRef.current
+        notificationItemsRef.current = nextItems
+        setNotificationItems(nextItems)
+        setUnreadCount(dataItems.length > 0 || nextItems.length === 0 ? data.unreadCount || 0 : nextItems.filter((item) => !item.isRead).length)
+        setModuleBadgeCounts(moduleCounts(nextItems))
         const latestUnread = (data.items || []).find((item) => !item.isRead)
-        if (latestUnread) {
-          if (prevLatestIdRef.current !== null && prevLatestIdRef.current !== latestUnread.id) {
-            setSlideNotification(latestUnread)
-            window.setTimeout(() => setSlideNotification(null), 5000)
-          }
-          prevLatestIdRef.current = latestUnread.id
+        const maxFetchedId = (data.items || []).reduce((maxId, item) => Math.max(maxId, item.id || 0), 0)
+        if (latestUnread && maxSeenNotificationIdRef.current !== null && latestUnread.id > maxSeenNotificationIdRef.current) {
+          liveNotificationIdsRef.current.add(latestUnread.id)
+          dispatchNotificationRealtime(latestUnread)
+          showNewNotification(latestUnread)
+        }
+        if (maxFetchedId > 0) {
+          maxSeenNotificationIdRef.current = Math.max(maxSeenNotificationIdRef.current || 0, maxFetchedId)
         }
       } catch {
-        if (!cancelled) setUnreadCount(0)
+        if (!cancelled) {
+          setUnreadCount(notificationItemsRef.current.filter((item) => !item.isRead).length)
+        }
       }
     }
 
     void loadNotifications()
+    realtimeClient?.activate()
     timerId = window.setInterval(() => {
       void loadNotifications()
     }, 15000)
 
     return () => {
       cancelled = true
+      void realtimeClient?.deactivate()
       if (timerId) window.clearInterval(timerId)
+      if (bellAnimationTimerRef.current) window.clearTimeout(bellAnimationTimerRef.current)
+      if (slideTimerRef.current) window.clearTimeout(slideTimerRef.current)
     }
   }, [])
 
@@ -131,6 +208,11 @@ export function SupplierShell({ activeKey, title, subtitle, children, actions, f
                     >
                       <Icon className="h-4 w-4" />
                       {item.label}
+                      {notificationModuleByMenuKey[item.key]?.reduce((sum, module) => sum + (moduleBadgeCounts[module] || 0), 0) ? (
+                        <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                          {notificationModuleByMenuKey[item.key]?.reduce((sum, module) => sum + (moduleBadgeCounts[module] || 0), 0)}
+                        </span>
+                      ) : null}
                     </NavLink>
                   </li>
                 )
@@ -167,10 +249,12 @@ export function SupplierShell({ activeKey, title, subtitle, children, actions, f
                   onClick={() => setOpenNotifications(true)}
                   aria-label="Thông báo"
                 >
-                  <Bell className="h-4 w-4" />
-                  <span className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                    {unreadCount}
-                  </span>
+                  <Bell className={`h-4 w-4 ${hasNewNotificationAnimation ? 'animate-bell' : ''}`} />
+                  {displayedUnreadCount > 0 ? (
+                    <span className="absolute -right-1 -top-1 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
+                      {formatBadgeCount(displayedUnreadCount)}
+                    </span>
+                  ) : null}
                 </button>
 
                 <Link to="/supplier/profile" className="flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5">
@@ -210,7 +294,19 @@ export function SupplierShell({ activeKey, title, subtitle, children, actions, f
         open={openNotifications}
         onClose={() => setOpenNotifications(false)}
         onUnreadCountChange={setUnreadCount}
+        onNotificationsChange={(nextItems) => {
+          notificationItemsRef.current = nextItems
+          setNotificationItems(nextItems)
+          setModuleBadgeCounts(moduleCounts(nextItems))
+        }}
         onNotificationClick={(route) => navigate(route)}
+        initialItems={notificationItems}
+        initialUnreadCount={displayedUnreadCount}
+        soundEnabled={soundEnabled}
+        onSoundEnabledChange={(enabled) => {
+          setSoundEnabled(enabled)
+          setNotificationSoundEnabled(enabled)
+        }}
       />
     </div>
   )

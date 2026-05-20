@@ -1,0 +1,2238 @@
+diff --git a/.m2-temp/.meta/prefixes-central.txt b/.m2-temp/.meta/prefixes-central.txt
+index 1a25326..dbb3255 100644
+--- a/.m2-temp/.meta/prefixes-central.txt
++++ b/.m2-temp/.meta/prefixes-central.txt
+@@ -1089,6 +1089,7 @@
+ /com/astralanguage
+ /com/astrapay
+ /com/astrepid
++/com/astrologyapi
+ /com/astuetz
+ /com/astutebits
+ /com/asual
+@@ -1100,6 +1101,8 @@
+ /com/ataraxer
+ /com/atatctech
+ /com/atatus
++/com/atchurey
++/com/atharly
+ /com/athaydes
+ /com/atilika
+ /com/atina-connection
+@@ -4074,6 +4077,7 @@
+ /com/flipkart
+ /com/flipthebird
+ /com/fliptoo
++/com/flision
+ /com/flitt
+ /com/flixmedia
+ /com/flockinger
+@@ -4798,6 +4802,7 @@
+ /com/happinesea
+ /com/happy3w
+ /com/happyblueduck
++/com/happycodelucky
+ /com/happy-dev
+ /com/happypathprogramming
+ /com/hapsunday
+@@ -6041,6 +6046,7 @@
+ /com/juanmuscaria
+ /com/jubalrife
+ /com/jubiman
++/com/jucius
+ /com/juconcurrent
+ /com/judgmentlabs
+ /com/judopay
+@@ -6324,6 +6330,7 @@
+ /com/knowably
+ /com/knowgate
+ /com/knowledgepixels
++/com/knowledgespike
+ /com/knuddels
+ /com/koahlabs
+ /com/kobakei
+@@ -7765,6 +7772,7 @@
+ /com/mounacheikhna
+ /com/mountainminds
+ /com/movableink
++/com/movexgeo
+ /com/moviejukebox
+ /com/movielabs
+ /com/movile
+@@ -8033,6 +8041,7 @@
+ /com/nettleweb
+ /com/nettoolkit
+ /com/netuitive
++/com/netumscan
+ /com/networkbench
+ /com/networkedassets
+ /com/networknt
+@@ -8524,6 +8533,7 @@
+ /com/optersoft
+ /com/optimaize
+ /com/optimalbi
++/com/optimasc
+ /com/optimetriks
+ /com/optimizely
+ /com/optimove
+@@ -9218,6 +9228,7 @@
+ /com/pyx4j
+ /com/pyx4me
+ /com/q42
++/com/qainsights
+ /com/qaiware
+ /com/qaneh
+ /com/qantium
+@@ -9348,6 +9359,7 @@
+ /com/qulice
+ /com/qunar
+ /com/quoininc
++/com/quonfig
+ /com/quotemedia
+ /com/qurami
+ /com/quran
+@@ -11822,6 +11834,7 @@
+ /com/tuzhihai
+ /com/tvd12
+ /com/tweesky
++/com/twelvedata
+ /com/twelvemonkeys
+ /com/twikey
+ /com/twilio
+@@ -12009,6 +12022,7 @@
+ /com/usehashmap
+ /com/useinspetor
+ /com/useoptic
++/com/usepolylingo
+ /com/usercentrics
+ /com/userexperior
+ /com/usergeek
+@@ -14518,6 +14532,7 @@
+ /io/ipinfo
+ /io/iplocate
+ /io/ipsq
++/io/ipwhois
+ /io/irain
+ /io/iron
+ /io/irontest
+@@ -15361,6 +15376,7 @@
+ /io/rhpatrick
+ /io/rightmesh
+ /io/rincl
++/io/ringloom
+ /io/rivulet
+ /io/rnkit
+ /io/rny
+@@ -15573,6 +15589,7 @@
+ /io/spsw
+ /io/sqooba
+ /io/sqreen
++/io/squarescreen
+ /io/squark
+ /io/squashql
+ /io/squidex
+@@ -15934,6 +15951,7 @@
+ /io/ygdrasil
+ /io/yggdrash
+ /io/yielder
++/io/yki
+ /io/yokota
+ /io/yonoma
+ /io/yosemiteblockchain
+@@ -17157,6 +17175,7 @@
+ /net/nodebox
+ /net/noerd
+ /net/nokok
++/net/nolax
+ /net/northfuse
+ /net/nova
+ /net/nowina
+@@ -17821,6 +17840,7 @@
+ /org/aioobe
+ /org/airsonic
+ /org/aisbreaker
++/org/aistemsplitter
+ /org/ajax4jsf
+ /org/ajaxanywhere
+ /org/ajaxer
+@@ -21962,6 +21982,7 @@
+ /org/tplatform
+ /org/tpolecat
+ /org/traceo
++/org/traffichunter
+ /org/trailsframework
+ /org/tranql
+ /org/transactionunit
+diff --git a/.m2-temp/.meta/prefixes-central.txt.sha1 b/.m2-temp/.meta/prefixes-central.txt.sha1
+index 3c201c3..0980165 100644
+--- a/.m2-temp/.meta/prefixes-central.txt.sha1
++++ b/.m2-temp/.meta/prefixes-central.txt.sha1
+@@ -1 +1 @@
+-f7c5751f7edc8653253d1a090ff672981763ef5d
+\ No newline at end of file
++7a7891383fef9e848c10bbecc6cd3bc66b6738f1
+\ No newline at end of file
+diff --git a/.m2-temp/.meta/resolver-status.properties b/.m2-temp/.meta/resolver-status.properties
+index 4a908b1..390a51e 100644
+--- a/.m2-temp/.meta/resolver-status.properties
++++ b/.m2-temp/.meta/resolver-status.properties
+@@ -1,11 +1,13 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Sat May 09 09:40:49 GMT+07:00 2026
+-prefixes-apache.snapshots-c1d4c55f9308e5ac18a4069bed41dca64d85c515.txt.lastUpdated=1778294435418
++#Wed May 13 08:37:47 GMT+07:00 2026
++prefixes-apache.snapshots-c1d4c55f9308e5ac18a4069bed41dca64d85c515.txt.error=Could not transfer metadata /.meta/prefixes.txt from/to apache.snapshots-c1d4c55f9308e5ac18a4069bed41dca64d85c515 (https\://repository.apache.org/snapshots)\: d\:\\AGRIBRIDGE\\.m2-temp\\.meta\\prefixes-apache.snapshots-c1d4c55f9308e5ac18a4069bed41dca64d85c515.txt.65273979138403220.tmp.15499169734372027078.tmp
++prefixes-apache.snapshots-c1d4c55f9308e5ac18a4069bed41dca64d85c515.txt/@default-apache.snapshots-c1d4c55f9308e5ac18a4069bed41dca64d85c515-https\://repository.apache.org/snapshots/.lastUpdated=1778605688885
+ prefixes-central-snapshots-352bfcd0a19f69feab0d695da3597248f399af75.txt.error=
+-prefixes-central-snapshots-352bfcd0a19f69feab0d695da3597248f399af75.txt.lastUpdated=1778294431854
+-prefixes-central.txt.lastUpdated=1778294429666
+-prefixes-ow2-snapshot-40669f8efefaadb4c1705a2585cefc8851f735ac.txt.lastUpdated=1778294449731
++prefixes-central-snapshots-352bfcd0a19f69feab0d695da3597248f399af75.txt.lastUpdated=1778605687568
++prefixes-central.txt.error=Could not transfer metadata /.meta/prefixes.txt from/to central (https\://repo.maven.apache.org/maven2)\: d\:\\AGRIBRIDGE\\.m2-temp\\.meta\\prefixes-central.txt.12807389816449760030.tmp.6711599616766596113.tmp
++prefixes-central.txt/@default-central-https\://repo.maven.apache.org/maven2/.lastUpdated=1778605686172
++prefixes-ow2-snapshot-40669f8efefaadb4c1705a2585cefc8851f735ac.txt.lastUpdated=1778636267799
+ prefixes-plexus.snapshots-9dedea94451709299d055319c137abeb30aacdef.txt.error=
+-prefixes-plexus.snapshots-9dedea94451709299d055319c137abeb30aacdef.txt.lastUpdated=1778294436665
++prefixes-plexus.snapshots-9dedea94451709299d055319c137abeb30aacdef.txt.lastUpdated=1778605689724
+ prefixes-sonatype-nexus-snapshots-696eddf78d2a1df624a12b8dedcbe2cacce1d215.txt.error=
+-prefixes-sonatype-nexus-snapshots-696eddf78d2a1df624a12b8dedcbe2cacce1d215.txt.lastUpdated=1778294437982
++prefixes-sonatype-nexus-snapshots-696eddf78d2a1df624a12b8dedcbe2cacce1d215.txt.lastUpdated=1778605690805
+diff --git a/.m2-temp/io/github/git-commit-id/resolver-status.properties b/.m2-temp/io/github/git-commit-id/resolver-status.properties
+index df9220d..08a3c8d 100644
+--- a/.m2-temp/io/github/git-commit-id/resolver-status.properties
++++ b/.m2-temp/io/github/git-commit-id/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Sat May 09 09:40:33 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1778294433528
++#Wed May 13 08:37:44 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778636264560
+diff --git a/.m2-temp/org/apache/maven/plugins/resolver-status.properties b/.m2-temp/org/apache/maven/plugins/resolver-status.properties
+index 6e73c6b..35d2636 100644
+--- a/.m2-temp/org/apache/maven/plugins/resolver-status.properties
++++ b/.m2-temp/org/apache/maven/plugins/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Sat May 09 09:40:33 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1778294433530
++#Wed May 13 08:37:44 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778636264564
+diff --git a/.m2-temp/org/codehaus/mojo/resolver-status.properties b/.m2-temp/org/codehaus/mojo/resolver-status.properties
+index e7b9266..35d2636 100644
+--- a/.m2-temp/org/codehaus/mojo/resolver-status.properties
++++ b/.m2-temp/org/codehaus/mojo/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Sat May 09 09:40:33 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1778294433531
++#Wed May 13 08:37:44 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778636264564
+diff --git a/.m2-temp/org/cyclonedx/resolver-status.properties b/.m2-temp/org/cyclonedx/resolver-status.properties
+index fa4762e..87f5bf5 100644
+--- a/.m2-temp/org/cyclonedx/resolver-status.properties
++++ b/.m2-temp/org/cyclonedx/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Sat May 09 09:40:33 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1778294433527
++#Wed May 13 08:37:44 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778636264558
+diff --git a/.m2-temp/org/flywaydb/resolver-status.properties b/.m2-temp/org/flywaydb/resolver-status.properties
+index fa4762e..9c33408 100644
+--- a/.m2-temp/org/flywaydb/resolver-status.properties
++++ b/.m2-temp/org/flywaydb/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Sat May 09 09:40:33 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1778294433527
++#Wed May 13 08:37:44 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778636264559
+diff --git a/.m2-temp/org/graalvm/buildtools/resolver-status.properties b/.m2-temp/org/graalvm/buildtools/resolver-status.properties
+index 6e73c6b..8597b55 100644
+--- a/.m2-temp/org/graalvm/buildtools/resolver-status.properties
++++ b/.m2-temp/org/graalvm/buildtools/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Sat May 09 09:40:33 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1778294433530
++#Wed May 13 08:37:44 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778636264563
+diff --git a/.m2-temp/org/jetbrains/kotlin/resolver-status.properties b/.m2-temp/org/jetbrains/kotlin/resolver-status.properties
+index f9f6248..ad64209 100644
+--- a/.m2-temp/org/jetbrains/kotlin/resolver-status.properties
++++ b/.m2-temp/org/jetbrains/kotlin/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Sat May 09 09:40:33 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1778294433529
++#Wed May 13 08:37:44 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778636264562
+diff --git a/.m2-temp/org/jooq/resolver-status.properties b/.m2-temp/org/jooq/resolver-status.properties
+index df9220d..6bdcfa7 100644
+--- a/.m2-temp/org/jooq/resolver-status.properties
++++ b/.m2-temp/org/jooq/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Sat May 09 09:40:33 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1778294433528
++#Wed May 13 08:37:44 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778636264561
+diff --git a/.m2-temp/org/liquibase/resolver-status.properties b/.m2-temp/org/liquibase/resolver-status.properties
+index 6e73c6b..8597b55 100644
+--- a/.m2-temp/org/liquibase/resolver-status.properties
++++ b/.m2-temp/org/liquibase/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Sat May 09 09:40:33 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1778294433530
++#Wed May 13 08:37:44 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778636264563
+diff --git a/.m2-temp/org/springframework/boot/resolver-status.properties b/.m2-temp/org/springframework/boot/resolver-status.properties
+index 13c18fb..e43f066 100644
+--- a/.m2-temp/org/springframework/boot/resolver-status.properties
++++ b/.m2-temp/org/springframework/boot/resolver-status.properties
+@@ -1,3 +1,3 @@
+ #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+-#Sat May 09 09:40:33 GMT+07:00 2026
+-maven-metadata-central.xml.lastUpdated=1778294433526
++#Wed May 13 08:37:44 GMT+07:00 2026
++maven-metadata-central.xml.lastUpdated=1778636264540
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+index b4eced2..459a639 100644
+--- a/.vscode/settings.json
++++ b/.vscode/settings.json
+@@ -1,4 +1,7 @@
+ {
++    "files.encoding": "utf8",
++    "files.autoGuessEncoding": false,
++    "files.eol": "\n",
+     "java.jdt.ls.java.home": "D:\\JDK",
+     "java.configuration.runtimes": [
+         {
+diff --git a/AGRIBRIDGE-BE/logs/agribridge.log.2026-05-02.0.gz b/AGRIBRIDGE-BE/logs/agribridge.log.2026-05-02.0.gz
+deleted file mode 100644
+index 885a9f600cd414f4f549d60ed5aedb023cfd6f57..0000000000000000000000000000000000000000
+GIT binary patch
+literal 0
+HcmV?d00001
+
+literal 6118
+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
+
+diff --git a/AGRIBRIDGE-BE/logs/agribridge.log.2026-05-04.0.gz b/AGRIBRIDGE-BE/logs/agribridge.log.2026-05-04.0.gz
+deleted file mode 100644
+index e0b347e3a8e22c94ef55a57b4026a82bdfacc8ba..0000000000000000000000000000000000000000
+GIT binary patch
+literal 0
+HcmV?d00001
+
+literal 36881
+zcmcfobx>SeyTuD9!GZ(`?(QDkt%2a~8a$1=Ymmm>-CcrvaCdiicZYCEviI5heb4!-
+zzN%Yw`D4|ru_oQK=bBB8XZ#-UgWtdT{qu6vGHkObUc1Y+!j-i`*i=SL)4TlbTnwq`
+zFkk}8aFBFyA*vY{cL5$!ltg%rfFCTwY&v6?=R|Jw0m5Z2JL%dv$|bsq@vSTgM1UBX
+z5Pz>}FNYxvc;w5IDz(bb2>iyPItL|F6&8AXa~YN!I0ayG&r5Obtzv9M^ldMGz|4$Y
+zWmA(xS;}GG;pa40DaXevrUoo7?XyHUl+XLrk5#AeDeWp)^^ehkryo+fV8Nn()_tZ!
+zA{TF7OX7CAWj3m7wzt5^(g-Tr+iHpr>6`DDD>B^udOG?%yGstWOa8gM$rj%cq0v(i
+zW|sNhc8$wgQXi=brBLFbZmYo6MZDRI`|J?i^InOb>SJ+iY@gii+U6mZ#FiTtI87Zl
+z2t7K$o%emG?-E8(?$;j6`|jkpENb;8$uEx;MMpM5{R~&nXIu)Ikzy$DJn2aEWFrLU
+z7JGR2#rW_zFXh4$G~E-WH93?O8&r{uvLpK>AuS{!76_eR_OxV(>5c*(t`@{7MD@2(
+z$Rn8&8GvdWxEz6im9*n%ikB9sVJ{`uTc?-JeNs#iol;OuEzNaBHJ+<CdUyum$Y6?C
+zGwFGo81_4g>1s60UKkGed~XRm*H2t^RuY2QnM@hhy1W^gCBSw<gPd|VmA!fyt@uW9
+zq_9j(iuk8=nQBjgY;3Iaoi=)JaQbtc)kpHJ0Jdc@4APwJ1GITe(*B&W2>!XD2q8ZX
+zWMhUbm>lRrh%m<Y#6@1%(3<2ni8Pk{=vopfTFv6Q9&`$oY278V6CcW2yy!SM$VT&_
+zGoJ=|Y-&dFBV*Skq?DMu8O6bq8e7WvzXpJ9%l0#sX<9eo_<eeOy0{$5k+~R1W=d{8
+zfS$TZ!S>oo8N(L~6w>Fhy@ww*%P`1gG*!A)(6@+eXcMG#bu_29SM;&s_TKfjGvcIO
+zezQn9vsgL95*#_3FZTwm#4V8>rmm^&JQlcdKLB)k_J4?;qFHHn&Mqn{OLE<!foW%S
+zMt2a&o(o3Cg4_Fy=#B&jut8<l{|ZZo%c;;>VqeQ*&XYTSoif9xTFHd|<4mV)YRc{|
+z;pLkfyXR+BS2DJFnauAflk#n*93Fu}wmhxye$cUe)E%}iANFwo=<o1o%_Gi$+C(|f
+zwL(z3YbOs^{tpIirM=gB`KJnXs&VG!hq`*Cia#ijNm+ces0PJP+(o4Uy)9QgSIG7W
+zd?7%_RDPdkctH!HA(_iIAO3Qbu1*H5$pTSh4Y_L;*CVTvr^)+s9}(Gcozy;sl`~IO
+zKAVry#3v9{8=E>QewnSsk;{o(@-ZDNS)~{*pXCR@C*)6}NDbw08bIDyANIT!Pu7n%
+z`^VEn;N8O^`<H|r!|fKz^y`gG>&*A<X3ah<Hl?n&t>D(0PupmI#;-RL`!QoD6D91n
+z8z4R~Z&nKY1S|5vT&#h*At9c_)V87f>z7YwFEe-uv=7p7gjmcgEjpfw&(Ak|YY}eT
+ze55MQA3IN@<xr%{KX>^xZ7|1=o^HDu^LEmwd8WA*U<<%u9DjVTw1?Qpal6fYhvmEK
+z)8NWjUI}%gCg=HV=$YgztEx}G-mbcCDYG#q^UPKE+~K++Aj6Or22Blv1fY?3i@((0
+z))GdYkyBrIpbMjdz9mb$V6`40fE|LSxvO)gU#e)(aCU8wA)9Xj_vc9)<;IzR`y!aO
+z%JTL^5l8!FAihiPBAuID?7aZw%Wy|_LS2hAV7$X?NO>XkdT9)O?}i}ni~FZ1scee~
+zr~YFua;q|6jPoVf0r;gHWCFKsh;Us;9}!VBS3E2WSm=iH3<od$n3>>MwL{H!hG$st
+zgVj9dMkNp9m&Fev@FeWWQH%B~#4c__ZK?NNVj`Zz<baKw_V*~4mRrN8`34(8h-QLM
+zhmSc33!8eAZ1%!BvsVHa2~gYUc(znfa(A&JrvxQl9j;)6`7+tLg!UD#yTI~QVwk*C
+zkD7E=)ltyF@roB%YZA-4iWswBhs&CP%FtkU^C7MXBBnb+cKJZUY9}LVCw(mMOQuas
+zZBQ_f4^L>tx5flbxb6Mf&1v4`xV^-o8y!r66JZJVNx90~ZI)GSzV&N=J&yG^Dh=H4
+zB|t_#G(|?o3EZA)UzG@|^?9kT-})h}z|G9aO~t(xK!v^6t7H-b10op)_}&MF=~Z(I
+z|A4c3v%1A`SMB*zn*oY};C?6H59aOan}=*i?H#7c3hu#nLbwsYOed5T_Ty}N7}&-Q
+zAor96F{WpruAtXrko%n3eMraSd9YkK^f7o5p8_AOkF~}B`^Tlt?$i8be6RrxX8Ka!
+zFg2X5I}d!A1Ix3nhNk|f<7U~lcOkSg^i8{4HZN<{5@r0DaQBSn>0%Gd>!8W-)0OCA
+z$pd4gCHC<zTS8oohAjlAd}(POKe0Vkhe#rdVbSE<NU?+?U`AJBb8DsQy9y$pTJ{hw
+zo;LaHR?`<s3nwk5G+1jiHpd+w+>a1`@ETi8<suiD^dYSKuxQ(iGJP0rH}UXh)l`>u
+zi+D!k)tdNpI8!Md;hq%RKGJck({_IZjGOil__?U`Fr;-;upE=#emk!HaDKS}oW!?d
+zkoqd{EpK7o!X=L~2@lrv6pnvCKd)C$?CVl7R_g}W=8r?}Yys}jy^CQ`GwY`D!AMcB
+z)wsD2aHQ{Ou%*p8L+C*_!2nRnK_5Bjjo4+p6(cfQlKSYFTWG&i?8{@xCS24UFcFUM
+zeog<0P!-Q}gH)&=&P&i?gA(o_4H(4q<@glYX|5@*-c6$@CwmlHx29Qn(MeU5ESqFI
+z?!k$2G$?~+mNv0k;^3uhL!x-uqF?cGXWwBVJmRF~29J+P9JShB4&une@58Y6g-ml6
+zVOZ9PDhGUa854$kLf5Dfe!4qG+N7@bvZJHH2y5wnTSL_zRGR0<N>wkOpWm*H&NLk$
+zP;{KyRUo)0M~=d-&P5IeAn;pPjV-|;`xDtR8F=&7cFF3<1&~gb9{u^2O-vbOUhp`g
+zpWApeBSlR>-vUvly#y_BJYh~=zI70geE}<ey#9h2RcLTc6Q%5$%Gs(y<qSi*4bhp)
+zk_I0I>=FsD0>LTNaNV|wwPa<|^LY@fAgX)`G$nzvwo?1%Z(+_RF#Hv`C_OGOtUv?p
+zjECh(VJ7+gat*f-?%4y*cJF&8-~Q^!c}(vL0nDaV0>wES-;SId)|$ZAR7f$~agT2A
+ztE7EES?k0m1<r0k*`VNa>NjkKCbP>36P!+;$qWS_3r)WtPZB~bp(<TNIbAtJB3uJ3
+zQY)Pd*C{;=eXEr9gtpv3zDIVfrSHl9OH~rNf=9L2UpdpXNH%>bIdGaBlf-lF)E$K7
+z>B8yYJJ09d>i75Jk>kVXb?V|x)hrrq&;QtbcFs!lPtDSpSeMZ-=h3F7P^eHm@-O3Q
+z^q)SKm2rLktR%N`A?e=I1-pWsD!d-P_$WrFC2by7*K(!RwT>A=4%dw+PVDL~mm<F&
+zPt&3l7#O~l4jl9#1#x{@A#c~BMGv_Oy)Sz{@BgNYEx1n^Bxsk4dY7O}5%)#1qavQ<
+zXxa=q)3ok@*bdG_YBT@Mo_y}@-4bZ<8dGcT<()?~H{a9e^7!1D!`#u+Yq%!cseOm0
+z?Qvlja(T`iJJJ1!3Bp`}I4B0568D$Dho4)_93vtPN`dFVwc*^d>)Xfb+vhyE;lNGi
+zJq5=LjpfyNBfeQ5za*W+l5LS^jX6&%T9&dj9Oc*NLppVsSX8mfVTK>uiwzqTu}0Vq
+z_yz(;fW|}OCUFuy`z1U!Kx-QkvP5x{IE!9HY!UVYqGpAnjAz6yCS>Yl-fs<4dq{@$
+z@(GS*?k|H~XDH#>4Z#YAfG`j~;puUAIR%^}ZW8tYehb>DA6ewNbDTuaBQ^-T0YS4u
+zLB_LU=WE!O3HFCAkaXF!e$EgbxsEN=fxJ%gEom#PN5ob7@t^S_k`NCGX8<K2RfGyW
+zJ)SO?fa^bkitd+CJA{3_37#BR(c6d<mWY%2n&I)LV`u%{q#l@;{KCmAo7h38Q|T+>
+z;VB<qSKvZR8n6gzK~91if&XNSU<{A};z#htd&dLr^8N~OkMOr3!<!}&2Esw$z_a1r
+za_T!z>N__{%H8eUj1s}Kvd*`VFxDJG8mis#W6z#8cf6SfaBsa!#AW0%aOgXVm?x|P
+z7=ec1Uxg;6A!)ie5p7U2yff|v=azlnVN&m*<n#h>xh;@ypW`GRnDU({EVgNMIN76)
+z#sPDK7FeFLGdyvcOGWUGV~&qG>>4WWEe%lce}8n4>gjHe3o7Jv-)+Px;VR$<$PM9M
+z8|*$!*DU?ixm{}S!(7n96@We=?2*|7WoD3NMMI{Epg}(A_8kAmO=o3K=Ujt1f*=cH
+z&yBg&rj+KPH^duQmp=~}M1mlO_s<i5bQaV0d;6b{jz7q_kVU>3vaFCc+cCU4i&chB
+z1N_ZPN9aKXkk_gMt*k)!3#bj=8}}U-xWoG+#5uz6fG@XIU`-}^Km+@}gNSLuVt_KJ
+zq%5$c%pcRy%Gu#Wp@iAu!|}IfL!(=YVxv>}qx1O(L_<~o8q2zn3ktCK0itrizqc}C
+zmhe>|#}*?l1*n6n;eogloH_PVIrgQ;lZ^~EgvzEH&5erlaYoa*fx|6O)#10L7N5I0
+z?ECg2#tE|lBA^g>Ok74z1G`@WPuHFSG4Rj$&&@LLkTRvtgIO_@#z_Gr>eVc~d{wCq
+zyM}s0*?3^f=YyGCJG?GfzPX=R)^@o26%P7t<}ypClNy(<UuBp*&Eh_zB|`ezz28Ti
+zAj|=Xf+FAvaRoVl2_C$nD!K%r|9*Ft$Z`AH(Y+rZTt50CS?QB*xJzUcET=XaO2!A3
+zy74a4v}=dwj~&)rjhz3OA0O}uQH1H>^tFF~h&V%70#F5ghu6jZCGg>w6tn*4fy3%M
+zTzI%~)?$8|=~F6~oQ<1luFN^v*{@rO1I|03t27g(19(Ah@b@?u99y=1yAh*=ufi>2
+zdUSAh<S=0}fE8p0KaW${Kvv0N`e;Un=Zvge8wzg6WUY~9S9Mj12u2hF7*=kAf)YK5
+zm?A6$$b)j=#c-oIN$md!t^rg1y%VB`5i^8;Jtr+>pw<U!olMs-JwrwqA0u<gUVB;q
+zCta1i$m`)enQE-q=wmJ`{mF2*k;wKuvbPX~&mI#r$p62W335Bx-L}23X0GHgu<hH4
+z_`Tj)e%9GS-B{Csovbm>cVEK_OWba7WC~~XM^CQRm-UO?$4q#>n?o*vRN*Ud^f<a~
+z0=5wc3F81Xzl5dH;B6A0uLd@KTM_+)(Eu`#WLcnOng4VtWwhzqz>FZ(t!S}&RfJwG
+zu*Z6~HvCv$b0X;X2K{RVzjiF;P4Xghgvh_wj5WL~y@Kyq5H<SAEOsRtjGb}hln6k7
+zw(-#()h6MBYp-;=1Zp`@2PL@X=;lEWeSP3`60yjQAxocJMLa>(BlRlPfZ@QI4m$70
+z>D9Ay_t+x9>~IB5!nAOKY&#){6W_!2^X6Q`k8-%2RQwm|p8Z*p^(^t+1j!%|NA^<~
+zO0}%t2D)j%7>TOl0{5q9hFjKiFrqk}T0KZjIHf3Q+3GDD|GlQbu~c?|pI|zj!xVax
+zWt4$UI|%Gv$2jw}b9Xf(E1JRD?M8PEL?dhaAb=6t{>HK&-W0Ogk`T~)ng7x7wp$j|
+zb(`_&GM#CI-CF<%BdFu{Gqg*LJxx>cag8|&abbL#1O|%W1D?m-`t#$-I%#yI`w?CR
+zUzjxA$&Ug2NTaKihmm7cQwXbN*oSo#kr-kqgLa>G_eczpfh|-yPhtke3yTaRkrMHZ
+zD=fH)ya=m}E}bgsFEPmJWS8jc{p-xmC7*j`IV|;O(v}Kkvi&}rLWIu<;cJcUm4xXP
+zWO*2X)9SLFbu5P!X*3NT=F*OOE3?VM#}*G-!L2_VZx0~oeqn>rzq#Kwj#}&#TdR2c
+z{Z{78p9D84f|x#yVbPBa1`moPdiUfach_)0BWj@C=&MfPq+-mYym(AG{nSd_Sf^Tx
+zYs1zMG-MaSX1!1b?Ex4p_(Fq>!A0|1CGLofX6W84q86)no}=Jt{$YbK*5Io?%M<<j
+zqKs@&%nn3nLEsCd_4q$o1A<e$kln#UXLh>d#@NpZ<h>5uLnbC!RUoApw=A3S0Pz(K
+zWrTj-?n3wgC0Al4Q2ZlFT1Nr}RS-lynQbx|G<+x0cQI(G!#b)llDPsBgHlU>f<eSO
+z05tHh&N0F$h{Xw7?U2n0t-sXd)abL|#KX@tm5pzmI&rz!u8p~N)p2Vy0cKmU?F(hK
+zY%uwsp2hclMbcG5veoR^qFG-MD<$ZhBYGD+?4lhu%}(A3sptgCq(WO~=Hq`K@i3+n
+zs6QYdp_al<PM!N|-%~NK{BrsdxLAbMMIV#p)*(7IfxVqTElWDy9_N~(E^b<*wp$rO
+z%O%)8frR^{GSd=wYmk@|*JucJCwr<c@W~wQyzHp^Vj^n)cDfh7$2JmabM6Bd;`oKB
+z1e~IVQg3`>UYIYehR$RsAwOAvTtu}1lLjuB>O$JM@=%<wF0aRBIe(52l=jIJ^%&{;
+zGz_jeMATK$aK$^R<c5IQ5o!gaV8Q(&J={zO!$PDHJz~cfS%ft7Sl{&c_jUtW9nCo;
+zSsmBOkDY0}(K%wiI@tES@7(R_%!}I(4#s$+r{gFpJ|AJ51KhJV^-ax8tn*95HXVvT
+zbZ$zYpUq7W+6Ea0inQGso$R_X<y-zVl5V;+8mYuYn&d<(4<*t22GywTtcBgvS=_=F
+zpZDrlq?U6sSWAgNii!z!<l+W57Zt5bk^vvfr}2VRw^+<?1kF<kzs%f`zH151q9Sz6
+zJVZLt%NBK45+bE9wgFE7GLm4-h`ez$?3`V+nFJJtb2ZQ`PNkVG6&6=4SN2rQ=#?9)
+z3tN+er<U?)slb_za~+x#Ppk289cLEaR&fig_0PgYLY=1d9L3d*gaYg&<WN)HZlgYO
+zaB&QD9pM~5H@rMNZLK|R?b$n?Y@P_*%7|_xk$D;^JUM%lx;gN19HgaHicumwJqU{>
+z4$VFPjugcQeM^OP@3)<Yj3{t@bp<UZSU$FHqgzh&CmX`ld@g3G?a_TNz^6kZ%FGaD
+zwU^5TJ9%dt{uC?I`d}K#3XqE@I21Q$u(OVR?@zyLht#8uBvQ9e(+lKmxp<8clW471
+zHc7kV2&Bj^k(*Px2rWl%#A04neB#<nez-QjoL@zS0OHYDJ;B_rk{}xV=Qhpo4!?~g
+z_Glm>q*T*-DN4=uvn%&~!d69WsY*!Ks3*-FAA4)56ct(f!>F)IP9MJ~)NU!C&PkYb
+z-S#lXE(jN!BJa{xEqE>dWXDw?&gpVnpJOMu9oE~Fu9{5NXzq~8mJA-w8$}c)3O2<~
+zgxM*&&7O$O_9z&S%=U#Oov<F4a(Qh5b}y=G(0EAh=Qdu$!ftq<_<3#~RgxYiDGZl{
+zEvYcdfMnQ^X?mnLhw&RJ&P={2#?aDh<~%DR>Ug!m#&jIp@F7$*lX;CaOZJ5108!@7
+z+EXcBNr>d2Mvu&}X5P?uyu%(F6iW~9dS%cV)BI;G3;4v$H;0qiii!@38a|K6JG2K~
+zhlo@_>8dhh;0s)fF~IdJt%YQA)Z6VzK5w9zP$eyBE11~vkl!H0oeag(KgCP1u%rrO
+z&(rsTE**VqfHu+3)w$Kb@<8X;JWym(wTV6Rr?H=tbU9(B{+?u8Rc<H}@35(_P<zH6
+z0o;;S`ig8iTs?Gy_7GV^Q+Hz=`8;$(o9um-WMxgLa7|q7@?!*4c>GF&M;82L@F%G}
+z<gYQa0)4cB9A<caIVrFr3i?>6uq?CJ)3=*_%$f!~1H$Z~^=vdD#J1%*6n@YCh1Jt6
+z)V7xi4(VJ;?Pk^(4I1PQHr4r&fK`17^Aoy8SA#i=4^S4p3)BAU#<NG&(^|>$j`2lF
+z($gM;I9D~5A*H~pC_lH|aB=a*N%dJXG)e4*Xd4xWPxSUPCpJ~%b2s#B`!}LLI8mN9
+z7?vKd<L6f`!{OokdoLAiV$m6&crk_7uUv#Q>#3!y?w_=K9CvJ=Htu&DK#d=LeaG><
+z>;2#}J8gBOeaZ#ycoLe(FKJzcOeqh_TaRQgk8s0Vd_hKjtvrDMzU#}Sw<s%@@GidR
+zc9KRh)pvBey#q}_CM6K#caUMPIiDltpPUb22${yI!P)pV=d*N%_1O}0p!bf9h%aMU
+z2%IPKYGQ5U363r;k;EZ=>9?(o{`ld}5)H50&7xMckb%>b+Q?N(=L+J1?>)V0Ih^NY
+z0XB)Y&Ep7kiYb<%^s^UdyIb2^qtPY(@lqTvsS_M}4TK&v-kg@LOQLaHVROs1eXW8x
+z(R<e1@zM*f$5jgk8-nh{sHNJ=vhhuy_a~F&(u@z-9GFPtp%NJxp2U_Oe5A<a-^P$T
+zbXUpU5%JNJTi*gW09rbi2~hj!a3%)ywv}vLmIQCEfz`}obT=2==O17s8P2bYpR31R
+zc&DsxA)oH1OE6o-vnWw!!4Mj$)L|3LO!XUr*5k#~Ut~GNv3t6!@ezo^%N>l*!Qo&m
+zU&^p?joGW0Mupp_iQ_wjVeke9R^6_~)uegb^y$I}C&m{DU@O%$$VPS0644Y)O0knm
+z`hEB}eAueKXe(XCz5R#=`$oSqx&?(qu17jy(95-?R(orT0Qq5A(Q@PjoQbfZ21kbw
+z2JFgGF1-A!`NWA$V(s?xHe=x}Yl4QOEe8VU6#fwk<??O5gXzJQ#$=q-@r=_|st5j~
+zPx-cno&lDXEyt23JX?I{@b-TX%hr<z3#TpVew7Q!gX=ps^$j={bfDkE;dxC9|2?xB
+z5uw?(OMLP7%fzW~B6A(;>`QeW!#I~M&_})aB|!=BpK$d!yX*q?5hn@r0I$MHCKEvp
+z00?gX{s3``umB(n$|wuW7%6%?RndPXy*948Uv-_y9Ol}8oTFxYV1yN)xcqHvV0@WI
+z?LCjGU`tvd)?;etjhu5^MaKJ&ctqSnP620#>x3NuU(kDmSD`r_dtC`lo_GKd1EN5X
+z!^`3pavlaa`{zvu{Z0%5ekTSIuZh9b--&_!Yhv*4ayw#^uov)K_>~y^J4Kik3YjfK
+z-E3!DVK|(1{h%qPA$|$tD{<<kg5+_Q<HFNoKKI$EmkxmshM8~{PzKUOXuz}K*>dT-
+zjyU`yly|gYo#Sorbh!rHBAybim=df^hAy0~n2%y}%`z+B@kyl?#20JsxH@Lx1IzG8
+zmLw)mt|b+C#=_LqoxyF$p#t%cct~7CuOjvc#{pR&A%s7|#X0jgZgA)K7l>PgeSnBr
+zp@`W+=&k#+`kcso&85P{2?6vf@TzBL!m+RRi>dC{h%$}*UqNH=nYe;nz7Fq?5f=!n
+z0k47uYISsQ?#JKd@}K&-3Gy8mp#1GzLv{KU&g~$xv?^xr!1C^nRGS7`ljM0^wMy8f
+z(f+MGD&jYsBYdph2QcclasT(nzqPe(f$=c`cYA+_ct*GeXajkb2YQt&fvsJBOCH1i
+zE?lz@(q_QD1x`_v#hW(Q<v0k~<g%Y`^0^&@3`0Q`wu^YaCI%tLi)%f}^)q0mZ_us?
+z{{5T-E)cf~UxnMttY#Q6lYgf_<=z;hC7U>lm_4Rzl?#k+x1zx&ms^$gZ_enK3h<J5
+zz;?~nv(!l(M2{lo2rB@3pf318TqG_M2R^QfVzM}qe`?(Khe_`b4-#yl;*In9y2Ur+
+z#_9Sr{2jt8t#0VL@zTE|==vL~J~|9iATU|g(EK}o_@6wYGLm_Nv&%l<5OJ2U44^s7
+zuW3B}sg5p0^ZiT`dlj8hZLYIDP|w!#-SMV-@uHly@?Vwvf0gnG0-W=rSbvxGziyfm
+z<(SUC*(a0RlZFy2aSL|A(Ps&q+}?;2)5^QXE7CxpbVg)&`r>NVHEy5NyAXO_!(-hl
+zV>x`9$us^`p@ye!fc0Pb-k-ql@t#7<&zo8BcYg3^6|?-Jvqk!3%XI?uS+d|3B|^=%
+zK$P4jg}R}A`HI-lf@IRU!*djumbev;6*ew)=a@)wfqznxf6DQb-E8~mo{7IBnqPaQ
+zh3u_`TXm4NUME85X4qI;eH2S-&!*HmT`M_Q+f=`Y`WE*cC%E1FJ;X7>3;;jK3;tDT
+z1ieYs#0j;6U&ra-@U?xvi#Wo9I8rl>wWi5^K~`dgEw*R0QR};Jv~Tzc(ia1iRO)~L
+zk2p<O1W*JOz{}xgaSGW79Q+Y(5sRY3b3gumIG}oXYut@SvJK8ENKL3`TNLVOISgh~
+zTh21m#0l%fSi#2d7pwf4P}I+P*5=oscJ$HaeMga5<)^lBMNP>6z0TK#^U-HShi88r
+zAxr_VgMKf#fvkh0iIpAQ?<evXTS>$1%Uvh&7Ccvn^4SACjbk6>L+?_iHQp_ozU_!X
+z!gv53NE5yR$A;sV;Gs=NjwwVO1E2uO!e`<La`@VO@U_9sW~G>I>n`<EJ&8oCHTu+T
+zwi&WnW{$tuTVI6w&kp^w0*<%rbwGm9-&^_D-m-ig8;+|^Yv%hYOPQg+MAbr0Ze@_N
+zD(tVl)=hjswZ#D8G^SOohTe$WN}+6ub^Kw9ZX<RzpHT7Pi%_pLT`WV*6X!lx|Cgyt
+zO(aS8)&0lIsLWQ--b@Saj1jOjRGd-Cp7-e{tf#`(T?gwc7vIm+kjZkf4y9NV;3+UK
+ztJYqQ_ExVcc%0d~^Rzvg;prjKR~(M0m0D4(<I_?`vwy`~T<Pa0RzaJ{Ar626f(-HO
+zycEgEiF_Y<uRcIL?6a=j`m$`_8#tp4Ut;yI)vx7wH3=WC6f<Ap&@%UWjm?>h+Ksqc
+zM-Q>=kUrg2hdw2q(7FniA??NoJ7-=DIjRdHXmVsHG*#C`D$~cJiSipu9E6gd%a*NL
+zSFn}K0kQJCtLZWCvSYT3w&=2;X2XReH4pu}+=*R2#jw3G?}RJ8g>b0I-pzGem*e)c
+z%bU~2ach6T;PX?1z;>tUhi0un5{**P3G{7d-*txiaPSm3IP`De2OFu#URiq>aP+Tj
+z3I)gvuGgIjYFmp{?(%lnY}3#o?is4{0jV6;7)TAkaX$LNKsh<-lim-&-q9Xm^mXQU
+z0u9SX>+gI~o3Q3dnL7RH$j&pc?FY@f(N1LXbSzHHU^D_PD9laeN(^g<rg4V=V0(!q
+z?;Y9Ci4j(Kq!wZ4n8#@$^u#ZgB}BH4wkW16ZL4p0e;!^&`&>q6&n`EFH$g4)5kg?d
+z{7ej;oQI`d*}b*wm%F_}IS6{~;&?pgS0=hodC5L$@10eOd%r36tAhi$9PPs(*(Wu?
+z;xS0SlJizIur2OJRjG%eo8iiR<UUY@Opg6(qL1KM=eAGBeFyfZI?1r2WK~TZ^O<cK
+zlE9XuH2E5P0!Y*+28e}+E0?Za6(8f;oPr^=^{l8ZJ%m_a9(b|pItHg&;~0L+m!=){
+z2|U1$c2%+D#)a1NLus!XP9uRW*?C+S7`gfT48_S0jA5uYIMQJ8d#T+=OC7Y(q5g<~
+zF2DOX(Vu1qdtYPl+rq<d`h9{45<f@D7e+fwXK?OvhqmvZYM3n>qZ!0SKTp$EGKoit
+zWfFRSk88|hFy7$LDB@3wP+!Xd!?GgwJ`|#h-nI^B+g0B<+EAjZDRA5opQ%bf6>ogo
+z1#j2i|H*mnEA+O`No2A6&wvs*osO?+3N+b58F{6&h*%r^9Eukq)GAAKpLK_LTc5a@
+z_M@9Gc818xUEbC3>_VzS$#{|&B3;*zcz}!`i5sgGjY<zZOonI~(N!r7Ps@&T!%SvU
+zttUS*e=y5eEw6Bh{8NYtru}Kmm~=$UU%$pakdd!)y4(pZDrz)2iL9akAKcQKo7YkV
+z>zv&p!SLUr@`|txH&~Yv+s2+ra(MUgIQ2goGSCPNS_$w+RzJ?9^-JAM#!bjeO1v%K
+zz9U7Ny^57hkiD-WGSIcdFd+Q0K(Id9EF_9-7TD1?y?nj@;kw^TBmA(NX3R0zutw3=
+zd={NbCr0c>I;&uyGRhS{YI4k)zU9-i5bh3wev%~l7(uxY!vH`N&k2!N1>)V}r%-Xb
+zgBur~n;mPNov<Jug$TXmxSSa02}pdg#2EJzT}Y-JiIcsP*A5Fv07UrP%BJ8Gyv!u?
+zg0iCHS`BmkSv&QfGV{89I{U?Ehs9i<TGN<q)0RF!Wq?Z8G_9~k9gq%#rJ8iRY)emj
+zr(}2=ExUqJqsZhq@+lPlu2Z-E_K?1+brla6Cn|h5e~XG<@6MeusAK;+px#O)W#{6)
+z#qD&+_^$hM)E2>>IN)tI4@Ql*gpb9DJI99~kPIWgN-nDZDY>E}#sL^R6<<ou>d3A4
+z@_(i-daU!DW{_jZ^!lPg1QMcA{usQkxG2klF{N%?QCsYmBVAwVQdl7y!8GvZ@P>F{
+zJ@w;ab)>eWzwIY!iXW1N{HM1f<;YNUgW_H$jj2)?>}Rsy=TDZ&a@`$XCD{o*F6K6&
+z)-U~<0jkS$I(4Y_QnQ#B|F4@R6fx3EcY|h#co7;L({3Joya&E&B1zS~+YIq8tuwFD
+zdcXPF(_lJqsKoC)>=^PHFKF8rOmq8!fCe||LuElyjsC@xVWiTh%o`WN-Nq>>6kaDL
+zRSk_#=D6Re&@Q?SjH4hYNCpt0FHy~NmurLEFt;-F>80PH4|;FmSp6h|g4}pzB%YU3
+zIl#5o5-4yjamtmceKr;1M1cOm$NVnm@#mC<RH}#RLS^AHR``#}Q+>~~8n+Yiytl^Q
+zn>1D_5Mfnq)@bY_?|RkN*kN&giD&7SXil%j=il1v#FYZIwUn{>B6a*s(>2}?q+TbH
+z4kmr_O&WSebE(<Vb&K6C|F@5F{aOyWFN^gzDUFyU%r_;<XQ~_BpSyA<Kl@s8HUCZ)
+ztG8v#VWI@no+)&&&qBavd&?q@MhK54Q+re~^m#=0v4DF;Ro3@EG3g&}x-u$tMg?0K
+z`5Tk|p=ixyQOypiB=paAkG}jX%^SU2PEW+(xJfHKvIuzWzSi1^|1NO;#Z8L>3L<}F
+zQV<FPCEhD)ljkn=Pdz@Nz;oODP-W3F+h$mu%TUf=e^us4Iu0dMG&{NI?{465bg`Gs
+zkNj^+`Y&us1y>SzLbwcQ1pUUQEo2id(pq+>wY#CIrdZTZ>3PzVgGzLpEnMT_%nArd
+zC%M2|m%Ku}ub*j4x!*KI`}}WK`Wv3!J7N9JN`Dn^rUbo{*Dma72;mY~&TZYPjkKxO
+zpClL-lh8Lpl<St~RS?c2VE-GI{-&qOpST)SvHpgozX+cxQF&GE=%MC<j7!*~Ar^T_
+zfd2N0?PcC7ZLpTVlf(jbzH`-;YavVkKl}|ssQ$CJ;Twtn8y7z|RA~DNuw3wLx&F;e
+zXN7(kTmFB9OQ)=Ex<fWttfb5_TU>KcYn*N7iQe3yTPTK0U3w$eS_#ws?^>lP9d}L%
+zS%UaCDuq|Wt>iSYmoj(-oK>9l++4Sm%2;*&4gxETRjx5gRgRQ5cV_MZj5M7Kbs8eh
+zG2Rk}k-rh?zwq;~9gPmniTocHhda>-Il-y0$Xg0ajILKhHc~7RYYtS_N}5}8<$rWq
+zJ#bJ=QTPv1`ZqdV282knMv43zqbBw3nXqT;A^DxyMRfh@T%uHtX3(Ouz??EvKaFg(
+zr%Z)9??9++6~WQ^>{7Cfp|gm5`*=0;gtve^jGw$6DV+EA-__LL)U+`jVL}N*l=$Dw
+zR?5JRC57qSd@PtE#tWPJ<EaJ~#Qw<?t$w4T+4kkW5%i4<x1V--u4CBkaF{ZlL5}=?
+zq0&F>^zr_SR!s%-A2$C7D9`e18z(OA+K-=U5UaE>YH6rn4n#F3=dYS*<QXn%X`ToD
+zH!S@{PnQ60(sW@Wf5Fn<EHJ5WXJOIU_Pj6od!;!^MsnaHQf_i?ydMUlE{;j<0uMX?
+zf1}br>~tBBBh4Ep^6z2|OY~5^=LU#tH!4>mDWW@861rbsW+>Wgs64R8`?E7uolO}h
+zv8QGlA5w?=^{auYrEv}hlDEeE8|VH9-+gX&lji+jOI5e8XrQ=Cf0Lw7MV-#mt8j2V
+zSLNEGd^=}?U#*T{mi+eiZ$$bZ%=GqBkE5ReD-nm0!{9GwYDy4oT5SKR0kX`DHpeEs
+zx`+jq(kR&o$I<+8j<<)j^lwi4hb#YuO`*RxNPz+W0ni|~vT?VQt><$P)jdw9@;(oT
+z7xCs39plwIdOSH5LJ(!E&x-o6%UJ52aHOh~+;C`DUh}5g-7#+HYv+eHoQU1gmf*an
+z>(<kqBcpUH+1Tkr%=HQ4U}GJr{A*idE{#pvYQC<G&LH0Utk|j;WOmwa)R%)t%`vTY
+z9)e-{*f3fu^B9uo<u+JHt|E)$O2~RsH!?y|Kgc2+DwX(k45HG}fmnRO5T3t4Vf?}?
+zD69y$mHC=L5{lFxi7u1ia3(2x&+A7qp!MUbS+aq)kX!l3<PW6$LW<km7z!Pgg3_c#
+zBp9s~a5^t%r-rSPkKkP-ue9*X;DY8C>N*^<QEb_6FzA6~D@pnZSn{)5$u;0!eF-80
+z{jC_c-%k!IV7z=%Nhq^-Lb+_h7z5NA3}zyJJAEH`$<s&XBy8YTkUxq)+(-A2g(+4Q
+zh~rONmUyqg@JB<LZ%-hUJC16nJ_Qr23L3ecJXK-MusAq~P!)t!Ib(TFFo<G$acs^?
+z8(|nwNBavE(nc6TGt<3t#7Eb$>W*bohMlpx{S)U8ba#)gm7Fwd=5-$g)YPh-5dCz3
+zT{IE53uiB2+sMZ{zKBDlu(#ho0aB>`pk+&Uh>Bz8APkBJyNc`|bM9cyKi0l8zZ}wB
+zx!*lu`?iZEu=74LoB{kRQalhv^fA(wqHxhjE+g46InxjzyH0`$OGth|W%9moxZ-m`
+zXOp-~J#AcCj@c1})F<5NipKgP8tO=8AqEBTJe_qu-Y$1akP$!5@#uNtq-rj?$MO*k
+z?{QqGE>fc<blB7HfhOB{a5xBH@!)*8kX&DKe#7No-Ro^dA~at@CrwxL>|mhDrJq=u
+z7!x2ks)En9tdh8Avh@p6>OR5#SpFAVZdux6j%H~LD^ofizRB+|=tG;czw!6_D8Cnr
+z(M-b7arUGV2v~oCQ<`L{xx6)X_~1{pNz~2o;}ePCc_=DC&Zhm`u1$T{Y9Q&!=ivUC
+z{Diu+ySNkDVjdqiig8W_9UlRq2_0S7nHjY>8VdUJvQKz9oBdW$zNRE*Ox`%x*dAwK
+zRm?DtjU-{C@%1_Ab95V~PcV#SvzKu0<`EkymU&>@BwYz8+?sPpwG5Ofq7Ct^u~DH%
+z8#g_1v19H0!*fnc18tLtxLhXNOAg-3f)aJ#b*&fe=OXbDmI8}4#+WGoLRhV%)y2cs
+z^ET|oi$IWi@z?=>4&BEEGg$}c!|M~4UL^OtAI^je(`Z?8%KkMbQ|Qb|p;KRJzE+E~
+z1o`83{Jdf?|FZpq%+$MqGQL(YyJvz4UA$aN-KBJx<p8xQSvpbFv`Go>gsfawyM?47
+zbxZ{c|HbsSS?G&|>5tYzrR<DWAkSM*g<=tb;xvJzheiEDx!EE)&v)At3wVc9Utt#P
+zQ?Y0XU*?pjd*&pWSc2})YSoSTh>e)8O;9e^&09D=`6<&?a`+@noK={M!WGsjN7V#P
+z`86Jer8T9W+~0#PKeXH4ME$J6zrpon-9HIMuICl)XZC;-dHN>t)#LL#QTF|8%g4}8
+zAh^KK$20Cnry>5`C6cb&eF<z!{)^;5Hit6c6Jy>81Kjd*j6Jmu*(^fI9Hk_SOtjpt
+zEo&ybbfp_5(4jJz3t=fiI_qRe#@D;LhwV_xFEJjfRq2Gh`jj);fXpoa$zL%-J2lPq
+zbPJVjsQh^8g)up3p#on;fE9%X`AZ$O<O_Ri5_x0`b6;|A%V`zk*wE*xHUDy;+C;5M
+zK>kzr{ee&*lSCi~*vgyB&ql=OsrRPy3vbifePzPtb2oYIC#RW{ioOOJ8UPEEjXufL
+zvqz`ehge)n)|QMkCfbp~GmAo;IJ(hWO>kJ)PS%9;;L}`NZ8>>wKtLaYKV>ttG%DEW
+zEaXf;TOpYC^I8`4qE6_(j}a>jyD~00(En*7+i&FJ5j5$0!aP)#Gc45<zjuU*8rSB+
+zGBJ^E6N-|!$v}HC)PU<Ri^CU{o5ayS@HPLeZ0NZ#c&DNEaM0K7OR&LQlXBXG4Kn2u
+zD{4l~45AmU!7-W*oGx|wT}HL@QY-0kI-D8SOJOo3cM5H4wj3LVui2IS4F7<I<Saq~
+zR&8|tsx*wfCJBR?HPNlYmLwVTL+80AMa+QIUF->pM|`ZWQp2~BQ!2&pXIg0X%7kqV
+z$p;@r27W&2KuL2)TfYR`E&FL{x%SyUkc9*Xubl)Bkx)SkSk58q`<3r=<(q}g2yWb#
+z<s0f~T_x|9VQad+r5(C^QrUl36(pWIs_tXL2WQ#oyR&)Y_NLN_Me9~iJa-7c?=yE&
+zPcL_pLmd2<&ab*lOrAU%R{DeF+!~)#`5vd5@P>QFxJY%3i!-UE(njxG9qPW&8?!^m
+z-<87p02|ujbx`oyRCim@9l#usT+Ap*@f(+78?e)4d{P^@F6?v7G0W>pzECQiDBo@D
+zd^@ydDEu~61@tv*g1@_^fqS;w$27nNcl#!d&6)9yo+(Q~i6v&xDb8fATQ0A&`V;{`
+zYR`T?%UomJ-0P$2L%U&Ynkr9Pb;?!~l#2`FMqWQ+!xukYQjutG>jCxcGyh=ePS*B*
+z7ec1E_P5Vg`935b999m|<8~^5<`5^$bH)wBuE9`zV<K$}$xs6A9<*;xn8}bEhGyge
+z@gM1lwMG7!mFqOG7+Y&@!Q0eW6{<9?X^_uB1iS0y(-%hgX|wfRWXAW$M%T2WDcCx{
+z0<GM>MsPZLJ@@a`qWY)d&zGHSk7{xkJfD*aCf$fQOIzw5J&$gAahi|uv{^Mx521nP
+z<%KoUpI4m))sL^M)sJ_sq;j=ai>ko1t{xnSS+I&{ou|v>zBn5kW1+{R#6#GnD%*zS
+zS&4m`oGY7bFfEQpu?-!j?Cl`!mee<{C7lS`oC{*f!$#!evMt+hiZD;TIf_PxAlPPZ
+z{^9Srmc@3(KZ>`g=vdoM*OY#$y#Zmpab{kg;xrpPFWqwlSLei;ct&jGL9Bo9eK*no
+zoVdh5h&X9Qs4PEXo**-Z{n=`uRsT};A?=j3js)id_9I`B*YnTgZqV(SJ2UQgEwY!v
+z@>U$sN9#L!x5leuOM?vsjNXdlWTQn4uE0y~odK;r)a(8cmh|tNt5Mjagr27tnFcOw
+zO^N3B@kaWfWBO#{baV{YH_pO8+2>DjwLF~8H)eI_2(5vFmN)cG_&4+cVAGlr4!mMy
+zE8+SWv6YyD(vnM742Dh7m*(Ek#l=pi+Y<Fy#%<c?9r2i7jFW>~B-tRsbwuv(sn38&
+zJ$P_!JXoz;#99x;nQs?M8I(o(=UzP7C-j@sw?T%i$}mu6jajuM%1@>mnDva2NZyju
+zM8RAvWb%66*E2#6BxuhnH1f09ls2D+CTc{2G()Py86c1;y(x2q=^)kBt-I9gL?tqA
+zAwp|~P^ws(3YBsSmir<mO6R3YiG+{ylq2;VvI~*0nUt0(<K{#2#E;}uE0(`@Zx%EP
+z(=CK5b4TbAkwVHVElL5Crw(Yu1a!)P_Hj8G^yMo5abZhqo6FRW%yLjD7M1(+E>l$U
+zV-^Orz_K|D@zpjj$zqNjt>$2@V<NwmCZ<TFa(F7b{t2r}<<NIr?lZ3kDqkkA;u`#*
+zQ91ORy%sf(R>`6KF7ahj!A2w9^c--+t7(eQAqg-b0TvATwl(Vhy}#Zf60w>sHN9nm
+zXy8Jbx`A~xGpbVTmod~}8q7t8$YIKUo5&>a*rl|-ofre?{CAO!zSOJgVgr)C%W0y4
+zVNH6Gxx@?+Kyf&WB8%AWw<60#ej;Ba4Qx4kHUiL@2jC2;XH>au-h|QyQWPAZsUbqB
+zxvEQiGJt0+cnB!`MnQp0x&E!z3SOB?-l)S0f=H#TrB6}(DtLlQ#We#m07cz({7tH$
+zDLqz(g43}uST#&}%U3Vu^&0fV8O~886z$jBr5&d9@}<fx7CI&I<w{!vHRvD4>TO;p
+zGnZ+)MgmJ_=gU=HBTZrw*|jRhQG8Dmdv-7!+8HP&=TgA*PNOkes*Gz<74mp^e;%Aj
+z<_tAthPO6yA<uij5OE>pX;t*S%bNy|q$Y1<7T6jHq?1Byu*s63lYeKU*o;##B{k4I
+zyO_2-MJYdLaezW;!gizZJy~5CW<e_Y#*nh+by$`{vij@y`*(>BnNMP)w-h4d7E)N%
+z4hCrx(Ki+^wy%RwuKrx&X54fv_J`-+mn>Nr7@?UBTbQ7}zGNeK%Usg(pOX+qUOs05
+zBj-$}V5BE7ow?xdmK0oK%M~3<FUl0DY)jQllTvMfVc89#h9;$6%GuslBzBS511Z-!
+z(O9OG{Y7iG$a<ROUNU>g0v>hNzEGq|I$4cHjCXb}#Sz}nTUf#zo`T-VdPry?h-{J|
+zw6wXoVmr=Uk+!m4?DcCSnei^NI1jW<MfwgF7%Mm~vrHtM2QuU|JS(i0j@;Lk8l&Xo
+zDS=iO&Ihpw6z^SqC;N(;iZ=sZnl;%eU)l%<Q`Trnb@|W;*H$ujhz^plH`Qc$osXp=
+zg<$%vM`^N?F_dv|jfypCgOGlbqCJr6_2_Itgu0}L$s4#N@PI1A8lmuY%3H+Acr-Yb
+zx&6!mhpx;npOHc4Ka+3|2HDoOvBH6j7@s0NotU9hJ|zmRhxXQO;~KY8j<W;Qwtkg#
+zHTm;~SPDErP~T$0tzCM~Qrd(=73#gOECY9cOsE@Hl0X`Vw>prc1I=rW3X;)q>Dd_H
+z_ac+m^LX=dl0Gc#>^!LZJ-|;24KC{BQI)U64jkwR>+C=rPE)-5nb5=OXpiXKY;TGZ
+zj6;)%%dM`_K{I1kwCXT~xg=#Vyc8p5!<AVM&--)s#5u8zlkEt#`as(Drh~TTK%E6f
+z-M;j(|Gjz*+=%BDk7ZKEZ-Y69cf51-Roi5?#-zIIDSJq=-~9gUb@IdOC1^o16|39L
+zsaOo#k4+(GtvELh4tG&oY=%-E{h(6AC`__(cNc$TcJk}C^&J76|4Pk8Qab<C^QVmH
+zhUhrkP<)?{t!qe0tL@TBh7FS8@30t;S3CEp`KCeLH@s3Y6kNKZ&iFf^54f-8N-Am9
+z=M~V=T22>s#FG(Y>Rsk$4?X#B*!*O(c0`uFUzX>Vs7dWeeg%`8lK%)9w3gzLJi*>C
+z6DeI4qqXF`)^jDh4bL~p!FB(B0&BJHtB7tB-36H2WO#b_R=Z{FBlNa$Kz@hAfMo*L
+zb^{jAXKillIoV(UzC-tiOVii?3z9^@Q|7war0VncF?@IA;J1&zt8z(F$<%YXV}1Hq
+z0>^y$k)?j!R6WklVW2^EKqsYKI)=R}CIPVafx&a@sqg}}UzOJOdi^!%UuF(=?&wZD
+zD$%z~Hm)?ZpBXmrFlvcr|AEd9!#8f0K7Rg|FaCJ$vRxkGa~L{>cEtCvHa?iiVlL9#
+zT&aOL4puGEaO#{+M2cvo-aJ5P_fw3E_RU%YZ#PiT5z9zrV#nd7<Yu0UipKleBqx_|
+z8;g>$S66*2(UuD?lih<vg2gr}c3gU0EAdeQefX7v#6#aB!tG&(R>s67i>}udzA3Ho
+ze`7{yS{I@JUdy=~DtCDECoS;B;LGHl%rf)ZdL)yV%<>n+%8!z2V3bXfhZ9O47W*eH
+z$^AI#kT7c5BOfVk$dIv~*YDU+#J9<w#2sN;2gN&zGzDfHQK?k#=z=+m5!WQ6Ki&x`
+zkLl(djlS5gbunSywyt4GHZ|Tv>|RM>prf}hqbG_fB7Ix=PTnKV79_~P?cjF)f4WcZ
+zdk5iMJaD_VqGyKY56DU3i<fWvHk8u7>;C_6pHg$R+sG@Yz0jBERmSNqv)S_)F8N!B
+zc1NU2>$g!d9RhoNT$0pl@CK-2>veQ+dE1a&lU<jwZ+bXSTfSr0M<a528Kb-H*{JMT
+zIPrdP*g5HwEL)B{cNv6<li#)={bm<jHrk#8BQGQJ(SAv_Ve2K$FLU)-07}6KmS7Fp
+zZei>#s$1g6)S{wH&7LYnF#0e?+&p(r464G;z}CD%o=qOSF03*5JC4)BsQKGub%@8r
+z2@s5XKi|EyRqD0}U9p-z(<06R_=xtJ+t0z4=vnHvK?mFO%70g37091>y}x3PGiDhI
+z4F<#|^Y#c;FC}0JREN-lk2A7<5E`75Mx-TH7pV^UXO_fx<+MDF)T*06V}&2Y{_9`q
+z!qB8fKU9kAU=-DF@~xuYEWd}o9m3*ACygzvYQ>`CtdtdFF0SU4%8}p9<#)V}ixv&m
+z<uU2xjYw^~%`2Np3|U>~l#@$Ta@yX_J_y5<SZxy-#wC~!CMF{-Vw(>q&Qi;dSskEK
+z?hQ#LLgb*<^>1`1UKgXN?G7lh_Wi)87*tn+DX}voTI|_Th_p)y@>PhmqC%1u?kE&x
+zM}^KOdM0<52vLaq?zg5$Vutl9Ekgfub6t_-uiu#PQHV4ctDM)Y4oRjU`pbu3Oyd6k
+z<J7mE8nV9@byarUu#O<?5RvXos?b(C!LuV%T8pYe5DDns+TU_36&8moQdTo&T157&
+z;6LtyEN`l^;PQUx6e;MLf2)?h4BV@}Svh&BSbelQt95m1P%kE{fD=>yZPxh+OH;{n
+zrnO~?hZ>)X9`oeO%Oy&@%jOOjUxS4AC6`4S*?mZ2d2)J`&JZIW+WJ6#@+t^Gw}?V>
+zB?dFr@Ta2<zgMH4YF}Eau3~mtn3tvI%n>E?xO<8}cGvTGAcTiqaBSk5ZG|;i9wYtr
+zDiN-u;zDM(7lGCM+iH&F8r}8@lq2UZzMz8`Cy`#2OcwTtAmOONTIc)3yQxG(^h!q2
+z0tts5B;R6>jpm7|it(`HTGlXoz)R~3xkaG~VykS>#k~AgoRC&Eo+n9cV9Z=awn-#}
+zHY@6U+}_VRa(O*T^$Jlf%bdP$51m;oN}GyJdMq|J{w=-Ha#Ua0MA1MCCG{NAF<h^n
+zFroJ~e>q&cgCi@UU+(rVLkg4~)v{niS}W6Q8i#rJ2pOPRja^DmY3bER+C*s{eWP%;
+zT@!?Iz5PFf+O8RsSA$av9=;m4jA4?R%^=WJ_-c8Vr(VyT#p{_fV)I|X>5_jECx}+t
+zWiY$`VUpO#x!FHW|4rf5bo!LmlMHtByReikc~!o}QaRyE1e(FiQkNfc(rQ$f9ZuD&
+z&gPDMHkE#(SR}W@quz}r@ti&6S{=j^2Z`old(gNC(a>V78e}30S65@++^kC^l}P-i
+z_FUUHIA(sqMT3You_dhT)0<7A!xD?gx2nfP!jNBTf>AKNrs?Fryy;;Xz)7um-3x`B
+z@5_Dv45#MpVHZM&mLiI{y5)bl^uEF51>vCP=0dI4AvRs5^d{Q%b}475##H<)mHa=K
+zvG}@VrZ&pDS5p|Y@OS0#*WN~Q^cix!nsCX)27V=wiJw`eLnINsWqsccI7aTeK`9o5
+z*DsTHmNivxNH%X)TxL2=q55hHP@J4QSy-Xo#R8`cjF=QlDu(z>Ol;rvSGEb7kUC7a
+z=voKN#BpKGuM7-glgVe*7Ne;xku2IkJtz~{Y~w+GkflU<o}!iiir@pehqBN~FiE){
+zm}3ufsyp`Tt6ede`HRn9XN^%cg9Kj9_o;4#Ni0WL<H3)@sY7feUE^-;R(8!Ijm-fb
+zIIIlo*B4Ce;pEDVb;ZcRG8`E!oBJ9BYL?9IvZ~Yz?FMM)Rd9^#@~$vU@eC`6#0|-o
+z9%NUZ*7Zr|4mI8nD6QP`HHaq?ZqFz>VA+kiwVS4i6lmV3<$t77`LPG|9f-Ab!OFCm
+zE>4roLFryfI`5+~UP?QkDwdyeI#8lC;l3_HVZlqh%~84y-|kT;9*C{#mXFPwGW7}y
+z&HvJ<N~~CxLLXP`2J=yFm<l4bk+MqA&Q!X^DE8a0i=Omyj9N?`&t{=YZo$7^G->E5
+z-W)T0B_k~#G256k6!L>B%uX1K;P$|5exf*Lqq@CXoPYdvkS0rR!AByMVf;a1*7q=R
+zDvqy(VR4i4t6h#TB+5mLQ_@_{B}xW=mUzyY3JMGojuXK=R&N*_Kp)DGpN$C{Dx!7A
+zK6R=W4g6kd66qIO`IbmUirDm<cqDtl>p__8OUh6%z*0lD3z8-ttga;`vIoAJ>Q`0C
+z?p3XRRZYJsj{^-7l@tA_lx|<MhX04Vw~CHq*|J3~w9sN^W+sa*W(JFynVHFAW@ct)
+z$)XaY#bhxv^DXavy8G-i?s%i$`+PquXJ*xiipq>!F=Ix?%pQ`f?R<k8T}+1gYWsQC
+zdU7)@wy3|jHpv+4XlFv@k{QhBZY@K{fXP04hQ%e^10``zCvB$6PF{Rx1io$^Pnt&m
+zZAx!4Rh~VAQP~He)|>vdI^iqE(N+(|PFRiwPw|M}fbjd)45{6a5ppnx4r4A8)*q@(
+z*+3W67Im-IA`0?FsY4XxShYhGiQo&cL9i~XdR78QA^#Rm#cA0qTY1p|CeD_>AjT97
+z^ct$})ha}l#(^!|EbK`vO&h%#_{`Ki<>8-T!6HXk9E;_svW6eAIk!l!2qgy`1s7DG
+zB^hNAJLl1_W}dNc@bZ7yb>EA^9!=XJLJD1IxS##-23)*jPD68F-~NZT3i!*~fHvid
+z6!cE0_{|g3TcukG)245Fwj>OB=4+-XSa~PHR6`74i`C9_<TUPqh}(?q3X-%ZO`5{z
+zu=Pp`)923`%^uvZ9V2G#6;wd!bre|SphT$MsC&C@F4W{v3sqDCt*vBw(dqUi7>AF&
+zO(t)JVHe@Y8MTZP#vdyDNpl9R3Z6sQ^9V3yaQ(Yw^eyOK+cbVW=qzzF7G}0$&T)4T
+z<+JDqYx{6@tG<u*!Fvjix6Ij6Oa&nc>c4T}+&g$P+=GdojR$osvwac^yZ*&ST60ad
+z0j2kCFX#M$w4woAP+PwzlAX%ZgPNkM%0ZUYpdJ5&(^>nR_KrZt{Eq*XIE(7iQ9lK>
+z>X(D%efp$V_Jaffi^?FbCia^k_-H;W{$-Zj7^kAiD2L<M4$KiF_-LWB*fWdjo&DFx
+z^dw%lYB~G#>8z0Dq{cS$2jnc?f<9!m8c~gBrRq3hN8DnOY|fT`#PA)ldSw<0b*wYg
+zjifey=NX<w7w@!Kgr9!dGn7*1ZDFWB88FitmQcOu^)9fSA=63Uz2sMT&Nt)l<sjLk
+zK7Pr7;p20HJ^q4+B*OWb$QE0V(?+j7Uz^4A=Au}-L+q~~fzp;kY|5NBLlEsNl&5Ud
+zSL0N2*-=SaIf`cF{XH)r_@chF0S07}70X}F2m<flBwE<&pN$ok2=20*LH71YYu<5b
+z!em5;@SX;hP6d?U{TV?s2LCsS_W!3O8MNf01kLf`tyuM^Pw{P@pzgI?H;R^NTh5rp
+z!qPbV4=(=(jITLZ!&SHps}qA`8%u4)S7WJM{ftho0NH^@@W1IX5|9boJY%BFI2c+0
+z>2Wh6kRG!l(iw6C`SSnJ<3Hb`7aOy3<qH$hTu^PE&?hES4fvZ1uBOQuEUQ8gi!@J^
+zX%<bl2epfY+hi!U$j(?h9xt>_Hgh^#YMZWRwl`HbSj(<!EH1N`*i@ZZW%M^nR;E?}
+zb%}>(=Wx_NN27>W_kUF>7`c<qshQT2)?0sB-EZ7bGrx;B01`k5(?RTr6jYWdWKYZQ
+zm34L!b$Qg~<H)XtI3#dDfw*O<Tm;>NfP6N23D(1tm@M6BkT@bnvJ^-SB%p!Zf|Jre
+zBJua<Sz?h%3E;tACTOjK0p^FZ<tSmRI^Msz#(#-PCLHP1NX36?iZWfqBGH;aq7vyZ
+zEUQ@oEKT21t8jqPUb9<E>EzT7+}pj27~<bT8@WG3vk6c{M{UBXniOa${i7fK`dd$$
+zz;aB<bD(eF6w2H_8v;@cID1K=h+>W(Wl13k9*zbZvu1w;MNMXhDCa)dnf7X>0yFK!
+zGKJqpY}IwL2PAg2*mIPQpvHgktr^@*U2HW>_+xljA=ZkbMw62AxIf-v3n<HJS?;m2
+zGAf-{0|$<UDPMSg6CV_dvs5WPBIOwZZgkg!WOK`0#9m(5UNo_Sb_|;ECMpH!oR#W;
+z6O!awUx+@n(|w=3;I-E^NB8d`m$e&vH@j(?nR}cc1oZcx4~j^<n*bneVtZ8e-}#1)
+zJXZH!CuDPftDkHl$4Jm87~9fUXge_u#i7JJ=b^Mk%-#>1A6_QonsOj>^f<a4*;Ok`
+z-8PeL6f{vcclO!jL?qfZoLPg9X&G5oz%z5OU1Yx{9wxX~bu<Z{ilgRhtA(b)C+5&3
+zplRDI6%A6%h%B#C^J%VHTnXTeOT}Q|N!U=JzTPh{A4xp?VLV?8wq4YY?M}I@MF>M`
+zv<vDyXu+|qn>eF8DyxBFk?JCFYOu;O>}sX?8AB7YLxr|JwH(-;1^ruKiE9^zqNh{z
+zD|d`S?kzRwpmP2OBz#W0!0^ddx?m>rQx&3xebmH})##fWkZ=4mK)kg+p>F5=;hIrT
+zsHgu$;{`hE(osGV4Q4$==)0;JqWmn-+E^RvSraQ&cH`F*+ecI#4RWtRTE+!hRU&Ae
+z6M!v94Oyc@)SoO5I38VzhoSb=NAN>1U4JOzBHJhZF29*VanX*E@^UeGectiS05HvM
+zEktKs-(&)k-v0xkWc}^I95UWa5~pkq)vDRqqA^=sy?KC8x(a*M08!M$J*{ylTCG>T
+zLew*gUH!yQQTz63r03&qGZ3lm9(S8thlPy6S*hUTQJ3`bq37MSZAGJi$6MkI_!a(P
+zy<38hjL0rMWy-dyQjILWZ+iRqKqfOJ--_7d5=BfzVD^iwc=bEpW=gmf;taheO0QA+
+zguABB3c2NcX~eP%kX4@*C-vN}j`9c`hs&anK0WQ%z)?b_h+fe|43O9|7lUZALa)lB
+z<0BAU>`AXGITso3b8;W!dwF#o4a~J=b`^x}aD^%H1)m_qko&Wktk`yb8i=#M&k&m~
+zwJn~xdb@n_;*|zt2phXq&p2V>m^+xwW4S|N&Q;ikZ&<H~PNb$oTi)n|ZsAMt#GaZ>
+zcI}nzPFqxGoM*EwG+@zIYEum~X-99ZmM#PrC{r`?Kapf>CS9|Hz{X&IpmpP&`xN(F
+z&ZJXbx8JsC0I{5`wykL|fDU&EOiowp_b`eE-6lXG_?s<r)B?LU*KLTXzZ^lx43|$A
+z$qYOej<b-r54+~LNu+81jjuq-6%;e~{1|P-1{d;}MdPvYhOSA%sMYknZP5^ELEX(^
+z2KlJvFMRI+m*Tpa2%kMRzF>znMbE~04_98K<B=kho$vC?F%0zqD?XrPROm&Enz05T
+zwTVOF54e<$an007n$-j)0#;>Hg0Scc)sfSM;MD}re&4Eu^(3ZA$n4$_uR;9Deil?o
+z(E3z|Kp~}&M<4LltDeL)CaZKts=ffX>T%=Q0%$0eimp@*+xu57Fe!^_R~|cxDfA7-
+z)5&H<z~4G)*D3(VE^n<KV`D#9D|5(*n{H*xa0h*#F`Lv3b%>hav@CAq9W`51^<*Wx
+zhhCvISq+ks99g3UUkSSYvn^i(&smw^qY=^BY0iv|9J0o0ozHE+loE)I9JcQIS<ylY
+zVXjgIK_y;c#Hy;t7Nfg7OAHa0PF6><C0b*-2qCzj>UjpAnj;Ney{T*4`)VX<S3r$U
+zXfXg>;&scI2{}UJZQrNnp<pTLh}f%klco^CT)-!2!fwF@`fArOo*G`XN78*Jvx1s~
+zICAUEzF1;ys7N(uW?OCFFHvMEy8<59KJdl=j81OF$RVT4+!*ML0b3Vwg=dzy4ABl6
+z1<LdtD9M9b71wRxDTBk-b5>-8i-F`S?60j>p&0>FgeZt~fiPT0w^WVZEV)@TX*-dl
+z)Gr0a{pQkwLTQ<GWEUeYvf?r;h!mzM<O^7Jbv{0vBvf;oz$oS@8PkGz>=xB%W+kbX
+zc|uL(1~h6)@w!PZ(Os9;g2G|y@)u~-B0Vi-%M4VwfRifgpF~qubnB`CP0maWg}w0G
+zInGSgg?)g}TZFZANP@?!nFf?)&J{`=WKA~ClBb;u@R@PlMWHgHJE|u1;udS8;}F2!
+z7F@wzJB4{HJ>`zCeW*&B!5EuN6j8GwtyqpT@mDL`2jvyLfhIQh#Bx|cW3@4>&6o+7
+zX3R2segZRd3tNBUNFvls3!Af}j!6Q1Cnuh3n?Fa%4n4=E2RAMgDk+HrH}L00Y)p}@
+z*2$=#DlO>51$0y@mZAD2($4f2E;=|q2{MBc_?i?J_5yNVN5Lhniso9O1DMm6OS|}1
+ze#wlCvsx%t6;l_}U43cTw$=_W8TJ>KN=jW;sT<CBEMbmwwux<cUMrI>97q>5kE@u<
+zvhW+8Kae#hCL<q_h|qFB2MQOK(d(!o%vy$7U&INms<d}T9XXVun7R4>YmD!ag~N_z
+z;6le@+<7e9aoHtsMtoO7IO_&OJOSJwqnfi)tkCg|5+#|l15#1|9l(Sg<!XsWg?%wf
+zi?XEAsaYZJ@AkcA-=u!AXVLOXFF7I+b6uIXeyO!hJZwg0P*V^c#}z1jM0NlNnnT(h
+z;sQI#oC*3kIGl^X`9we92+sc}?II;oiFFlFa-q~%bhbdn90$(S+~8H5H^P4Y@<%Zl
+zU!YesV$|#qkNar_EDN$hs}Ov>YRPUCi1w92U03CZHmXz#&HmJ8#;rv)j`+$(lSw5^
+z339o<P;6aAO!apN0Is^J;>%*Gb#+}+l(uuK_}S5EdH){!LGCj0XrD0q0qW8A7hKk3
+zna%z}mpD+R`_`diTRCOmZ(b44Q8N87_JmL`F^83&-o+-{51p^8_%dfDj*EB$C50JI
+zE;>5u6~qD=Vbbf6Ho-Yp)tEGDR_TT&R3;U_9BE~VO}61}TTwk>Lia$Oo-$#~{^rD^
+z9;c~}&?ho#CDK%6qbO=Pcp@Mfr3u_h?Ms5`r3I3(b9vch-4WJ<(r6<nqN@yN4%Rkl
+zBp<@G)aTZ?#0Bh#NUfXbw(cL3(#sntO-@9=Y*=k#RIBtga&QZHH+1=;H!gh8=QqkF
+z&a_4aCbtdk<CbenE&>yaR`eeBiIy-i@LYG(AT?n@uhnm%H)mKM4-Sq-qPNtMQJ_$<
+zNSSHUDTx}+L#SJ9N98mRu}XsXtXjrt^7eQb@+@0ebK|Z+$u*N^PA{bICD<iSs7I(A
+zQ?4TKWLckGcIP%^*Q4V6UZ7TtRUa{{>}@CLA#5?(Xi6?56iH&bxa-J-Kg@~jz3VuK
+zKipi9x~#jWC@X3tu=I^5{~A{EdlbCvAi2N~zV_fAjc=h?ECh1LD=bcT5D<tum9Rsc
+z;TR%ub$SXE#l|PAfn4=}VDG6_wSvLY_quh|q2MM<RLnBQs3!ad;#%xDORGtD^&)5O
+z3elPNWVZ$t;EliHEVXSdHlO7}r1Ym43t^zPc0p2)4P4klT!CbXK~;|(7iPr)Z2y{3
+z!^V8Ue;QW)RrR<#x@N@Rw*c@Dl5Vh}Y3>V0gir0z*5LpX=8ur%h{g=1_`w;{IZC85
+zmCCxW=|<RO0l7fk@HRX-zkGtTp|$b55i^eMS3<=EwJ<g3U<{|P3)$wB$>YMNhRwgf
+ziX??|WIv9IJzAPKF{!KB@dV>6d8$r%7p+rNq*d-)_2r`7GL?x-*&GkF8;h+s9=f%~
+z{S<=T-MvGr8RmD`R^WFcc2zL?Nz1~~qhuwbORm-@qWTun1SL>Hox%E2s#P@J0o_n*
+zZ-S=Qo$zge)Nz%*Vh=K^6Q7bVZC*U)qrL~4_`6~wc_^zYL@ZFf9r3_XgKfQDQ)?}X
+z-E|Sv)%N1y=H@-hPBBa5gtfMmQQXh1t70389<bB5l&PP~T@KpwnN5cJRj#Uz8qOiG
+zXCXKbo>YOPf}&h)qAVldhOB5GN0;UpP|lvs%&*)a&J?55Fr0K@tQ4maNFIxhm@91*
+zxMEZ$RHI&$`=23YnZ?p`NU26r;cqSNu&IymFPM9U36H&*EV!9GlM7O<ij6Q|;b6`#
+zWp1WkGfK8Y<(wiK7}8n<c9s0=UP7gU);Z;_T&po#(N?`iT!>b-#R6aYwa(Y)(S%>q
+z?0T#6r8`aVu4^p8bv<J2&DGTXyN>csR<w<!g?U2~XK7hH`qfsyx$B2_dLU`~tO*Po
+zM21ZjaaD<8Ivo?AQq6EPW=`36BQe@fN$Q`-7-n?}v=?xwDk3KNpMWgWlaY8aTgVGw
+zS-M~J#S%y|Bfvl27eB1ZwY(+H|H(Xy)lIA==ZW;pGc{_42cc@`rQ-sS^rTDx`{g9>
+zib>33C@NL;Zj$=N4FW~#EA%I5WfAIbz@b`H2}zyd9;D;Weu@o051UOh-a8GLWM7fO
+z>nJhsvF%9nPZ%=W5FA82eDq7WeJc$b;l<&yN1ds{@@_BELhXF72COn`m!6m8a6N*&
+z-|nABU4yA5zJ}l=F2=Fs_Lt>sx_n271&QU*Q?bul2Tz~tK)oKhLcT}SRK9>iz6gmA
+z{WCcmCV_mN#>l6vBjI8KXsH~PEqCCMbFG5w)KTqHOgaoA@)yK+%)+o*LF5hXt2zCZ
+z{ne%V2#3PX+l;AfD1tOo`nP&`KC77W^Za|%&Xers-wPz+@BXzw^2+cT$Njg&_wj8*
+zdh_Aa$3NoQ&?`Q0D!`}g_6Z@W;I=mZUnZy${3VMznZhl;9FWZ$&GYvM#2GaWlcky(
+z`YvqY-IOI;y;lhRg!Y|&qU(hI>23$$gp^#68L$PbKrh&F<u^u?p~rix9Mtt>8*dPs
+z&oF4x>DMGp!#Agir3YkKGa{}hx^YOgTzff_F$D7SBo`GZ?xQ&GQ%Kx>)S05W6dcR9
+z5e<yDu59&EChTYaItU(LTGnKp6b?QfEr7l8wD2jfkjnV7aI&(c=7m#uQ*_?`jgPtS
+z{klKPqa>IsJuHg^Mi`2H&+G5?xyB|xUX*o3Wf6+aE+gSd*=R*NZZS{a^Bz8a&aeEO
+z9_v{zt)A0wD2lDcBROE3VTRZVsYOuQ`X9--&T?{j<-=e-J_@SDZ8L?Yg(_;q2Xlma
+zZF`*3C)v1vd~4ta6<K#$UbkhWW|9J+C$(~m%41ZFQ%GR$N4|6!QnRAd!2NN;p5$8K
+zz5br#9?*j>F^9U|xEK#9JE=l!oSQiZ-3q@?&<lX;Ix!yz{<ESou&OTl(<t;>ZGT5;
+zXJ#sqogB(u&qFR&t;GfYg)dJR>CSXfFr97&H*AeV72r3C0XsC%IaYd`F6^`H3gWji
+zlVc-Xn%%FNg0E$(5zB4CnuMpgg13k%y9I_W3!?y93*eecSbszOPOWQSz8Ss<2KCQi
+z6aKoRJlPj-C=LS|=cJLyecLMa{e6pqLZJE!?R}YHESL%qvq8T=#jt{qRC=Sp&$X92
+z4mIkjW_GEQJbFwg6Dt>Kzf&GTB63WVQ2=)R3&;|E+r+BxpGfMNy~@hMi`5`v+0a^x
+zF(Cb?5kHUS#hYriZM$&(^~C%^nnccS5{D_f`#ehN87D_?yX!LvRYI$dHE>ZSyL`Q3
+zT2uK;8B@!!mR??BS4VRSSGl_DkPM&}t~QIf>o;%I-8gq94vNpenO!5kYxU&4ld?r{
+z*lv`TmsjlLb4Cc(N^b;btq-yi2;Ba$wn5|GcVOTLZK%B#IGUC1rb(iY)cw#Knbdlm
+zePmOyu;7A4tk;c2IJkhaoZ2OSF_$u@DlYO{ba+J$%W_^lfTH$Q4WbSD5=i?=8i&*?
+zJq5}<fNn+rv$cb-D~}J$?!>+;72?UJj<%nD!Noi8S|p9Kj0jalUDe@2h_AZ)KOC<6
+zC=u-3e+%S(hcSS%1h7&sm|N`s_p(X@CHf-clXyk)*kp$kTB?NlDPFi=X5T)qxgeMl
+z$VK0?Vp6&>#%6RJo+HUPTgzCtbtJE2ou-#pT)0ScEm>#S^ca?cX>&jtKWR*bl18|R
+zXjRdiO{UA-;3u~Kzjv+<%38uHY4h@7*yO&!^0|7wSrb}^GUzo!7_$03o15{MoefAN
+z%l`RDCycU*)c-hFWA6TM)>g8hYHH5G21XP}_H~7objoD141+p?!oFK?z`9zUt8VC=
+zCjd=t()8i#!QO*;dMrWL%D#5KCozN-?DD%$#-jgiY14V;j2(^+X;f@*asrRLfO(fQ
+z9vrF?^=jQbs?EZVmGecd<?CuPGA(=BP%J#VkDme8y-%%$x;?DZD$)-c(%UwIv2Nli
+zgpZk%qOlXb#+j4#+JjpUkJZ|k-1sr(dJ|SHV^K&X<K6)9+ZPAX^J{ySheVxmg1L?v
+zDF?&U6Skt*nC$M}$D`Fm(U#GRQ{RrC!~QOemIQ4b6JTgD2zzb>-1hM^o5LfqU(F+-
+zsy;Zb_aBr*_m|V}F0wBY_>5tfB6uA%>nfeW`q(Jf0=wv?JiByS6u*sb+}Z}ld{J4)
+zFP8<upBUA9)3eUHW~g~w@R(VA2HVZ#7WmxE!z%lEJkYALKb^__y?(m%o0(@9dOLjt
+z*dJ%=AxL5_?4Wj9#F&vuQoM~=O0e(afh}kqN=rW*4@}tqnj;VPUK`}#r&9{;`;181
+zc~c)v3qkt|ABzG`1ls}H8ufM}2LQ2u$&0rx`{QeI+EVG6Sse2;R^$8BRBC>+=nZtF
+zX6p)3!+)-f*p%zwhfHiS)lq{suIc}Rw|ODN`39f;)s-WyCo2V7%Maw^$oL^s>zp9d
+zWdw~f(B7^1j76e{`_=CGYTeTzN#ad90EYrQGSf_~r4nQJ4KO!1<-3Dm_?{9Ew4^@x
+z`43BK`K-@*6aP<^)Utmpsm+0w)FfvAvZOZi@h1mbQfGQ~2Fs;5jT=PKGVAA<7}qvj
+zzG2w$dZrsU>BfGzB=I?>@LF&Lr(b$Erue*ex~!bO9kS*@K&M-nb{wS@n|WAO+M9lo
+z<Zt3Z|1GqmGyjOTiS?j;fCay8E}UY^x7&opujH!A8xmoIBkdS6rh5)C2}U-H&@bHf
+z5I~#)W}i1@#~zif&i!y9sdO^_9ololX0**6sfd68vG?Z~B5e%+6><oDq-4Xi2@J`Z
+zY5F#t+RF?0m-}im`psnOqeDkQHM*L4c6{{s5lV@+B0inb24c!FXDRZt_~)LA$61RO
+zP3HM-_x7xNl0wg#F2GczB80WJGDwH6{?1;?D@u)7XnrY+YIJ|;37jYa`BlR*z?2~5
+zz$x|n!#ZACgN!AY-8t>E|AB50EvjBjk6srRPl`6kAcoGR3dmF=O9zQ}XI#6(Pr${)
+z@}og)raQ`Ue=XAM+U`B6cwd(1=4FY{FOr+vi#V2LgtdOOutFEgRB;7(%G;r<lHczP
+zOTXg%qFgQ(1C7Ot<L4X1HO`!mUv<iMsS*=YHtHALxWtQ*aAv3QnWg8?*FMPa!b7@W
+zAEUGcwEW4c;~0Z}8bf2ZH?4!S6%<)>i%6l#)RFGGn?2^$GX0zkbS-4QePJ5U>xX<V
+z^z8sB;d=&BM)vFH4{W}siiw!}ea>^nCY=y@LHj&wS&Y#3E*Vo`mw7Ws4}0edV<UZ5
+zKOt0Z4~HNdC=1_ikM?}cfHcplgT#`6oWP88M!Cr9j!^K+5xXDJx8!%o_*LQC>5iFQ
+zzYVs-6nzp*-ReTYk(*0gBueqF-RXuob<(W)GMYpiPrF_M9v)+|*Qx#WmL3=GzJPXz
+zwQBZRM+)Qr+K*ai|3CbwA!h!^kGe$p|EnLhw>wsz<)YZ(YzmAV$aIn9#Z?<Z$_Yz*
+z?FYoG$@46wR8>lk&JmW&LFwF?%UD6gt?d8!P(OUMxVns4lSp*;Y<R<D^5QVL1i_<_
+zeu`fy2#qsttIECyh&#AiIekS%gbu?@0EhQGUg-SUwo%cwim^1-mEN&Vk;bu1eJMm7
+zjEpjFV9b<>!_9&$lEAO5Vq*N(KpmmNrFx`RWSA7K(taUVG>0wOAPeBaJ8`O<s{?|p
+zV6OGI5CuoBbq9u8Pcpf^A$K3D3-~(8T21C^DHodIm86c(t6gIZ?VYzcRRxpwFHu|@
+zYD5MQF=#xhmuf!^{~dH*X#Si-S8Rv}NaEADSMJsUL3Wg6wp`inL=DIW3DE`76}@xk
+zwHT6<+eE@*)M6gjp&QfyGya$x?M_`J;6K1oXsP<3AzF+IkLr~g5KM`p)d-bsuk%$;
+zv=JESKzwaKUJpDpG`v$ZhElxpS-4kQHMEXt;{6ABsc!1Z5?-vlshb3F5uAAa0j7DA
+zi_m3G-5p~_sOtl5n(r}HIQQs@CxV;2x6${fVGP}w-Vb|47aTgCwt{kaerr3m<$!Yh
+z3XjU;x_<{7u2sk8;U($-L%bMgo`owlAea)xtC1?$f!~{0QPpv_moq(Vj@ZMPjJOT|
+zO2T9A8jTI`T8FT7sa&oz0i@&o16a?V+SRe1I9D##=>R<N{s8sTMQ7d{4{iQ#YWjkA
+z-C}p5jIXX2zRk8T>s+Vpp)Etz+7p^SAA6C4!h|(3(VDgy+RothLj(2rV;;08b(MgB
+zfX$Z55~flU@0dH@g$K1w!#@D$t}EHyn*nRHSVAtlH0#ZdGdsF^dz@O`_UGdv&lya;
+zD%-_PPRPcE0Au@PL5B;2wNaJAgN;{)^z%=Y&!1G?)J6=+Vv=}Num1rqUR17GA%9hF
+z*M$S9@hjZ^0MmkSF?l@OvTb#@V%4IJvqRyt?Gt(oHaCVr92{HkkFbvBM`1cx7uuyd
+zJwO27zk$sTy%LIKld9+@u7zW@3d27Dr->^7$8vCN%rnPfv7M!n#_c41T~>Bt!*|EH
+zO;cAGOMvF<aR{Ar;!iPS^%}#j=sT{36SaQ_UvMNEGyoQO70#6lbwH5iZK2&U!&<XY
+zq^>()!G2zm5r?&+!tql7*}eCCwcvN*+;3jz%9%P*05+bb(?7sNqUevPLiGZ}sAx8>
+zg+nzUm=ukoXRMi#sc+;zLu-4X>!4Mk%`j?*SZkN(F!e6{HLr4njKuIte`2}2EVD4)
+zwYso)U-+?lJNZF(Cfm6+{9O#)5fc4Kt<W$oT7>H#;N@MIE6ShsA9YwRooSk|blUVt
+zQK!|&&FN6*Y*8bdU7xEOb7E0DdpSzhb#qtu>EAP6I_>1W=Fa9CPR*-T0~p{%IMXiF
+z{X1BHpjbGHD*DGcn-uJtv`k$*sXwt*&Gtyr3YqL2t!dvZA!r8UKXj3M9H2RItemRj
+z13csY1Mn72ZEc$^?5kxMT1Pi={s9dN8J1~_`_}@@an_ba-&%rL3TNqhZ1D|3p>~!|
+z*kyHkOp2nDxKxkT$_)PlWGfzD*0KKA<@)QoEtf7JDVLzkIVN``2yiu5Flvu9(a$EO
+zYOu9W`5wy!t`bhYF38w9^S(=MZ|XQhatOQ+6e*KI{-c)vU2pH6XI#E$lmDvfUv<W5
+zYWtGJo>J7$8@o?hbieMn$Dyq=I@R3?C$|B4wy6IoybO26m%OKzY^WY>%=r)S;$zHd
+zggB9oYw1uqQb!K>1JErTWMU)}8ZM12i>O-)l&WrG4b)k8&Lmo1nqQJ*8td5sE4Y@9
+zl@oRU0N*lJ*<($-qwhEu4%BiC{{Wo3wtc}I?zhYP0$Fd_QPqYATJW!?jczH9S&<1|
+zh(IRgR=gRu%#}KoJ9T|9UyH|3iO@k^{py|`PJaQvt<Xs5OltMi?udrg_0xFPb!cvj
+zu^pR_6uqG<)cVDhy78X<>}w!b$NN3s<jvteQ`$Ff&lgiu)|UpQM0sk|9wLQ+Ua<V}
+zo?GW+pQwhE4Gaor#|Mt9oa`4VFX!y=WE#~Ck}BdH1-eZ;`VGRBgT;`!43jjtU>{E3
+z1-JKWZ3XGcvAy2y7P%ukN*|vs)=Xl${JhsZ4r$|DbnU1)D^j@2N%w`=`07l}%o9p1
+z*#@<41`O{*I25MTF<*K#K$u$MWYF}1uFhBYxM=c&IhrljaOKDXT?+LT6tnIA7=E8e
+zI|nZ!rhWeG&bXdVPTro6xor{?1P^qCf)3q1O2it9oeC#v)x<z?y)Xpy^RbaZ$z@I_
+zYzEvqWl0;6DLA8)-G;>hVr%N|*3j#ko9{sivLW_Ymm*gqM~zGKVh8z-KI40C$8taH
+zo3Ced2E{z5V|-W-xrjksx#>y?utMW59Wo0UxT8!i6+OCA=s2&5nT|cq>t0SoxRAHr
+zFdi25snJ~mSyT9Xp0{aFx12JEA?&WdZ^36R&kndJ?4p==7=*&aki=&3-!AGt2ZnbB
+zlVY%==(atbYOVn&VXmKZ<uL*wd3EkR>%V1l|E!yH5N!jkU0uen?Yay@W;hzOAx2zt
+zJ)-2x>9V8t(FJ`^6!l&X1-o(;;}Osx7kBx&XFcT%y#MvkF9N97vZ)!iN9bcUR!Pw8
+zbx4U#kie`dw3n7(&K|diM@kHS#_?vGUCFOkrGiJMI^b>H4y>sbV~;^*hGJ<9F0q*>
+z^cjAVLH1YiErhN__bMftKK6w5-|t_80IlfmpzObzcn6(RzN=Cka>$6R$01HV#xdrs
+zSFNlEt-xy62g6Pb?6@$~fGe-vJz*9jWK-N?F7!GI6%k?Pq0Lu&^{v=q>k>VP;kah2
+z1IJQ9X}Oz{`(!YaO=ib;HgfppL7f6FH=A<7e@5V;k5w(Y!~G-$NGq%TagY-eBR4r!
+zkyAG(I^dHvYWkWvwOw{+>V*>_Z@EnH-Bp%24oz)+&^ZdjR183ISNqCPbj&DTy=_Iy
+z23}X2ZvN$an3_=4>!v@6Zh~@x_$Wm1H_v^%PQJIT+x|hvgO4!V+rIM9o*=m9AE%fB
+zr|h}m{@Gu2;5K(>+?21JPmhkG%aJmmQdTOh26oiPDw}q|Xwo>=`{b1;TC_T>XS`&T
+zCKd%Ff6}GPMg9~yNs>80bxnA@ygTsa<y89g{EiRTH;q4Rq68gw8D=)TPhDtAW@L$0
+zuP8_S<MuniXi;)l4}w{qsd?2?kE1YFzJn+@XhkN2IoEFmo{DtZ#wz^hd~7zG%g&Rk
+zVD*Yj8$lU%y?M;Ka>q#Xs+oK<>2Qja_-HctlY@nLEJI1iUm%nLBeI*<r9kbsxVT2g
+z)6?PU<NC~UWc|3;>hSUkitNX4KtWCnJ%9K6)$U`T!$K}Oji94ILx|_V$_B}TEbjvQ
+zUZ3lHo~oErJX0h27X?}A!pI7Japy;ROeU_L{cal?tg|CaXYQ4`Me2+z9?$0$rQpHF
+z*ov&G@NnL#>`7IK%*IH*;aYR7@82<!IERuCno}$mG7=VZe3v{hf-+hUl-ygXCN}^g
+zzhc70vj|=|!y@ci9mv%^G9vd(a%WyQDG8YzR2O?AwV8>N&CNvpFepr|tfQ$VMF%WE
+zC!iRuelGnKR}UE?p(C;4abdiU$h#6BgTjr$C+@0r=TVhiA|oNboZ-QrKNBAT9xjaJ
+z8?R>aM@VP#djb^mvKvy6O#k3`=rs|?^5?@Pxv|8L$;OU%V73BvKtg7&1=P>eNx&?F
+zOE2fG_F7f3)Jv!eLWVZw*@zoUL9X-q!69h|u?neD9F7nXL3=oeiwATE37;AY3JD_L
+z?#B9ocNq=r3PdggFW)a4#thV`zmYhRzssD!Zltpu@G0<7OsIN^I9%j<iMpUd9tVi!
+zLP{d0;|3<(jUrauQih8a7V`P-OjP9KF$p65?lnubMrCC>yH3cW&!9GnqzB-CLS>yq
+zol#MwucehDscBW6L|kUm5V?rM0(J%}nI#I*XG@pT^3X|3MMx<>neg36V2H0XjtNq)
+z`mV$xsHpJk&k?c$5y@I=+TvjFKZO88VkF<5U(haI85T$e>Raz!3hV|QJJmDfJtfT0
+zrv^|MIO(O`$WIiqlTb@?^325Oe87vNEhRdh&8W14)Q~dr%Z=0+JX%aq^tamptr=?!
+zVDzcoNSGF#HAc*tTag(QKte^L7emYm3<e{i!`o@sTQb5S8;J-M#z8A^WWejvf(V+v
+zf2G#d5Dh#%VhVx=lTtXA5{lxz_#!=L9&|y=ZshlrlH%i{lIyXf$#95WRUnFp*{^mE
+z_sT=fg@sm<vCdNB!aUI-;N+LXoNv5am2sUUrd9t6H0nrmT<J}s*U_0xnlWs`hllM4
+z<VA}V!QiB%!&o5D&<>)*#6pbCNYK#mlRl1ug3O9svcr8^j4qU`GhnpiWF*$(ZSMN?
+zSSjBnULBn7^Vkhlb@=Y4a`H1Cy{T(hUJi8gt!U+aByDX5K0+}PPJ}OUhc%m$Ijlw=
+zQq0SYGBFg={KBtOB<L@ua7uy`<S4Gcw6%WpVGYK;@|0i-2S3()jWD%!uqocw2Z-Qu
+z&!}+GeURHGw@QXc*dG)w?!l_N3sk=X4F-K*3E#72Jg=!!K5k+@F4-qCOJ6bi-Og$l
+zGDjGruhlj%YdZn7)cO3oWbV2=Dm+fv>u_@w*9M)dqz><H%*i>do-JMtogudOm{YrC
+z-y#4EIMP0Tj)$*a9!^jD+dDVFDF*~llXsDeXnI*b{4DOc!~O6JzK9#A^e}Yp(Hl3?
+zZUr8Z^V_)%<&7})4cPtR?okAtF65g18!7sAQg61NV#VSoor&uFab4pG&7MKI1Xj6l
+zR;lgRq)u=pCkLdMJ@|k&Zc5Sq56z88stc-wDG~y9SAunIsvjzg)@<l28|a)9)55Y!
+zj0O(k)+jcz%*0wu=}7tflA=M;5hg*0G4V)5g}GQndH#A<#Ko|{2Iy$A`QHuj(5<l1
+zQd~A69Vvb;F*33HGZ+5ZRg6VPu~E=2D+I~@0*Mk|XVYiC%tRzJmcqzy1kn<N=J+w;
+z(ztA-lqW=lOoRH7O{7$$ge6!(t<z$zAQ_U-l|hA-R}drS$+1vfN?^c`sHm6@&?A*q
+zh<||Zvr5U1a%uEtl5?6y0fXhgg2{-ax@?uGY(i#}sBD9gNTs{;l#E49Oz07-=i4ao
+zizI|45|dDBM!-tiLjjA#lCb0kMc*eY;0@7kV@!!m4G2odqQTe~SghtAEdN{>)Og4j
+zV{tJzn3Ti%+5CmAeK$6?T$GG-Z?6Wp{c8u9g~~<anF>35AuRs8Q~4_&{gs7^JK^oD
+z6_tS<%x?OzD&D1{P_>FnWwcuv(c-BnCpq_hP^X3NM%~-9xr2Bq14VGqvxA~|E(1lE
+zCjNgE#|U8uzZ@mz(ezrrPFdvOf3(a(r%G`qCGI({NmcKLFSx^IU)5-2rC6@w7bOEs
+zLQyhgBt>o@XO@zpX1c2+B~)1mCMX$UGy_tio?bDt{08L`W+uuI==kJ4M!#XM&IS4%
+z``L|)QYS_-ut-hXs&MKJ#3zZ)%4(FGn$rXfMn5tF8%?FDiB{nw!q1h1&>e@p%_L?6
+z0_DXcsK2Pz^zNtLHyY2wjDrqO(9~j)?wf_}Cs&5L9YltTTR)J!nE-i^O1qemGwN=K
+z_V}_9Sa8pNZ0M){Z(B83q(gGpfdf`2Z+wJ{MrJfvi}zQ)Tu+z#xBUpJ`PJ5Y{O^xj
+zXGhB~2^^|@kQKED7qa}`9_9LU<xhpI<l}?j#gSo&b<TG7&+ogh+lOx@BC4j*huW;z
+z0i%)@J?UI);xZb_@LXn08JIHg8j3?zpXsRX76RFYjjAKzS7Pg7Fzlucs+BnwV-p8M
+z^WY^$TG2neQ9<;`Ob^+a!t>SG($#(k+f?|cN;>DbZ$cN|7gw_5OPI^m)lm>K*$k^G
+z8Qe>GF(e|oQV}sZl3>>ld8B1FEd-=xHcy6g4ya(Unkl4`#WO_^2d~+@2}F0TgOUy;
+zIkSGXlc352OF?yb@s|qkdg~Q2OC0JG7}pV*m@iDEGO-w6@X-s9d{FDfI)yfEwRv2K
+zZ?=php5-x{o!p3Zk%>!>P!M08v;0OwxIA6h>lfZE!s|#E{=@nl#mX{A?=8KyP(=2p
+z^UHp%XP(BiqM$b#6)BHx05w~&`+DJ0x)gldQ|CDxa)XTEO?laIXEj7@#?;9q5z<Q9
+zKGRcT$H1>^X8B%^FXnQZ<!2eF$QGMG%Jed1<;i5SnF>$Z(KDw%X*QMhW!}`c6zjW~
+z(H%(0^c~YoyZ`nri}<WZMQ`gOU_5-Ekcy@{0L?~2y0%Xy0{VNaIp-D(2c0Qia7J=t
+zbf1irhS=7<H_#&A8P!H(HhrZ|PP4Z?oA%^$p~~3FNWG6=Xu?(Posl~KH%cA1C6D^b
+z81=C&{Xd_GuhiF)@z9alLCe8HYxT_uf~H*hm`#NrQO*5KOrP&EQIv4<S<P-%UgZF?
+zgKi0;yn7iK=%$NkURRiMQm!7usl<Z#Lo+NQWbIXJ*V8iD(%3`rLJ{X+wBwYZ#sg3&
+zGNTfGIq2`f6e+Rj+WQ5}nbD>*#(Wmyo))~+f`lMpZG8)=Td{)dAaqA;YbIb@0g=j{
+ziLt2#UZUl^lEdWIO#n0n&EMIX-d~@Ou3v9T<oL6)GqvBHJbd!L`iXwoRPKdMMmP`y
+zV3ZKhw2(;HNZ)BqkO*-yieu&Z5Ejy|fZl->CXwd)__Zd2Pa?$jk-UDgUk>9C!=ONz
+z%6S5n4-PM@sdPuA0WeaLOdCUB>XWkW)`O1Y@w5}Etm8Q$N%6qPQl_BksXm)Mo@t}g
+zxzeSeIUzL!><d)l_a{bvO9`%EHYq%gEfgLM5S?^ROkBv}118xfMm8nYG1GYDgooLU
+z<fK_;33CO_aw;a4ZWqZSisRS?9DfZ2I<nykPaD5wQlmmi9Q4`Yp=0FPY}R}Od19g{
+z;F|)8kZ4*jz>u3?GH_A;3au|VW5Bm$QpLoAwv;9~1^`3Ce+4PUamfiSBy@*aF3n#@
+z`j%D-B|oa_M6&RkhtQopmazYIkU{@}Xc9;se!&x&2Bjd7i&ZJ{rs6h>Uj2@rzmJDk
+z6L&<n_0)#GP7Z1(TeZ}U<=9odbCI%GrE$?CVtah1vj9!`^+G5en_U=?&VSaHZcP_)
+zpF7bUxR4!SB`5M~9dX=FX&r%zY^G@)5ic_uspd(r;CjXjRmd1QWZ*d)0=`g9%Sk0f
+zVdf?W0}Y=AY)=Aafa`jDV5Vg$`zr)6SrH08MCYx;6YXOr*oe<pVj9qQfAA6h#Q7{Z
+z-lStDeK`c8A^ivpvTm~3$qll=(D<*wcZ*nul>YagiEK7zv(EoD@C|73=5t;uNy6)+
+z)S=JdK2oJzHpce;eIpRCpQ$hK8gtPF*;IN?6wVs;qZ@-mG}$VOmwG1%3jTc;rwTr&
+z0}3Vc3ygy#oEjq$!>W&(84tE26QgK|=*me{t9&HHBP5-uh^lI=#lApGfGDyoENx3f
+zX;?;3uvul%Wyd=+&}JheTSzBHuAWI-wEG0s+wHn=Cy+LYpmbYI&kFWI($VeQ2ci=(
+zB7Rxnh5F<zJtJ!v=z>s8s{!mX#1GHQlW`0zhFPO3FGxxII-P}7V<e%&<awh643cls
+ziO?MKg9>pI2sz`hkx3~Og#vbkp~IHYgF@gwDP|c7?}AS(!;_IN*-#SwbP<AvZpM)m
+z&t2CWH9pQpO>&uQGVQ)9N5TFTTj5ernlA?5X2NmI)P~UADTO5?=*<aC1u4K&@du2j
+zv@iuEQ+4D8gRj8T0mpx4z+r<BEOZl2(0R$SP2y@EIQf1y&3c~3oeQPKFuAmmx#47+
+znT>?XSBbIKmDqB#_~beW7MpPseM4{S82a3EOHU(^q8oE!_DG9!OSS@D#Wr9sd;i(e
+zL>Ur2b>e5cY5yo<6;|un9z5gZ(T^5_69Guw%xs*t?>6|REfNesLnEWZZYi;=r_*4i
+zs~6<!5>{%W&)XN1gp-OC4Ee;HAm1%Lt53dC7pr%|mOodaJycoI`tS8?RJ8FXw|Eom
+zi|{BAH%SwRCBuA@e!rJquS!4qON}T{NL)Yjqgv}e3IECvufQdnzeTT6!IyUUGZ~51
+z-Fy(eioE^OQtNAibSIH(^_&$XcbJU<jcA5hPgG#l9OJ5uaZWX>7Q}bNcK?`5-80F`
+z0&}L)zW5rz4)Kvl@acTnqnIpDc>LCuHFi{&Xv@yqmFWBV{j37pS=YO1ylSH{bcUQ~
+zKHkmAk)2x!Im4#s3jZyr*eiS3kn44d3ulYWP5;dl06=kYFh8|;-_fr9V0xuFf72Be
+zv7xt&@R#hsp>K_}chsHU=nzIl1Qrp5#a1Zt5=xCBMrNevgi3!(<8H)C%@>r!n&M@%
+zoh?U^ppR^7o9|_pB&zP4bmapxdSL7H9N|i@%e65c(YCy(R>Dw`ZUOspK-aKvfuJ?j
+zS%I-3w(JFUQScJrWPH=qRFj@<#i!2_u|ShCNp((swY9CPfL6d8P%$eIf36Q6YPTC%
+zHDOR}bh<<`PWh6ah_tj=7&+bDOyOAU607Z*Dd((_iHjVMPVpnCa8OEIk^ovFB0&gr
+zb{m)~#<4g_rsEQrL77c~dzFcLr+UX;>DN1rvETS*VWDsT0vlJ97)y-&8&{_z`+WKw
+zp+(J{9eF|EtN&{Iz!7ev=|QaG!da}%yxOX5Nw^=EjOS_b^D89hZu&aqI%)B1Y8iwp
+zpoK!dVk2EiaK*7${D@2fOS85V*HNH6WD+u~fPvGTj9;ZGCh7d#Nn=9R843Pc46%P}
+z2aqEh%{PvpJ6v3sl*wneq{s~EIh#x*9+YQn6)23UG4zG@H>vUI`AF(5b_HM0<ICpz
+zhuiNp(m0k#WHM%R@p^U{`1b?;%&X0h`-|jR_C>Rg_ZDAAkHC*7In%_*&yq%?hgh|D
+z*_rliyA_p%Bv`A7Td0h?{aQ*Ug|X2=jg)L<T)!xo=#V#(3}^F6BW9bKjK$!WWfp}_
+z2da8JY0rf?VmK3M&*VHse3p>mXJQ&&8SQ`)Io6=zRsIF(&Z_eHF7ItccI8X%-DYOz
+z`>W8IfkjNtskfH!TWRPo%~l`TZ3EmW(idyy<d+7q8{Y=7p#_)7w@0q@FR&#TrXmj7
+z=lrsO=-lcJ)Tp4_=D^61{@a!xfyP|2)Kh(lUZL=@SqzgTopKFv4_wHM2uL*S-{>K!
+z+&&B!&kSU9aM}d&gM?e@Ct~NTr5FvawXiWEevcqf-1s$e@e091w<_iu6?UbAEXCfh
+zO~`lUVnhx+Q2)e^N3DmJw<RSZrY^gf9orFz@owkQROzp2LDU@DODm?^&!c&wKr+@^
+zrz^$yp!r4<Q$xt<{gxVjSryTC0DMyV{Na?Ci0wO{DpwIYG0*Yw#YHkGO2T)+O<IKI
+zWeTjbwnO3Nbxcu1mmQK{*h*PZoB}0z4f+Y3kcvV=pg`W&xj%a%+3=IK@Jqw8w^V)y
+z4rYfw<`o^Z)-`x&IpQ6K2$CLq3ea7FhC}WLX795?`lnk|zw$>ouvU@Q7w|mlX?P(E
+z?cpPUNFp4_dXzrA>p**i3%tufId%~d@$|HphAQWs9;T2G2u{e%z*$y2QbI9nk-7mU
+z+rynKCfjOc`V79e1}{ERWbr9>0z1bZ0n_4Cs)ZO_LD^NPKI_8bkYRJx05#mc3(>SH
+zHZ`PUN2vpiNPFN{1_LWSV$3M4uK_cO1p{km`FS<^%&?HNYWN6_)-dg4{^i&q3jLwr
+z?4<btL1jUdAxP`7-(;$QM!u@Pife-PeV-O`zO=|!GWuy2b)A&Q4|QPXzJ48{Y!8c>
+zJ8J!ERc&LL(RH}YjQa`re#Rf>%DmG3$$4PYTqpd}(_hV4*Io4FJZcRh)^O{ippb!T
+zRU)I>H${_qj%3DK5C=nOFdRZ4RQpEU2hO@%j0_1YIzVlF(B_MS$uYP9+}R+RP%XHP
+zORWf!xntWW*H`kE8ErjMEZ{Uuaj@+hLQ#ViAC>UjQPE@n)_e~#yZL$e6O8#(keWNS
+zUC6TelHum4TT39PmLc^<Q84&W2apZ8rJy4tUU>N9up=_X?#uMgM=T>FZv_IYhQq;0
+zI?xIf(}rZeKr`7mi09fH!UR|}XN*F80SZO_N<a-pqSv6=NH`IfabYo$LOIu4W&}!Y
+zTylu~Y%690_OpZdut73VE=nc)5kzYOED2clEIvh<#&~k-3*tq*px}<SbeM+W6+IOx
+z>jqhH&_IWE3l^b)#CnMoT7|kq*f7CKv2rR0C)sfK2$cY&tSofBorHwO+$Xc`RKb|`
+zs1lDXp)b(thp|F}s!hnV`5qw0=j6dbE<hG<q)$W0)REjM_j|qq%0Y5^HaQa+xGcT|
+zoX!SVRE4HQnA-YrGydMSs>8X+Cuu2Yct0l3pW_g{jfvBrQj?JpKXLH3G_0}Ki*(IR
+zR>J};^x#}|zN&)l%EAKZ9}xj0tB^oohcq<DPSgc8OmET>Xfiyi-f1K}&W(-9ktx{#
+z;xHFh!&&fSSRB(*94M5{))@&4_v~ZG&o**oC1^1cM+?lm9u4=^Ihsh<trq(mfMPSc
+z%HRB+!5W1iHwY_kOZA(z1-5wI+B_$T)C|$6rUKrS?$TAHyr+xq-~N!|@bJ)qRth>o
+z;F-frk?9f4lvTxh))&Jvs6je<>@t%a&ax+#pDOun7t360zli%92w~Og(<87CiF<zg
+ze290(Szm4=E==`&R*k=uKUxO4Kv(0qls{euxwM|lk`4BJe_En48G$LfE`eg~x0Rr}
+z2nl0_DL&CvWzu+{mh2%+j5!e{?nyr=&rvAyB=0OlOux^hTI2O|g^4%8mJITV{k!$A
+z>BNp!4oNh_$HtZc|4go{EILA6VedJpVGR9y_lx&y9QatsbE}ze=A)lynn~p~N$?WB
+zSx;nZDk$5mrAHVmJG%G{vsf<%aZ@puZJ9S)oM)k?Y4N}bR<i7m($*06^sWUCqdNNN
+zKN#0q`+*;4=N+9`os2pTfw;=^Haky4eF^Bb4uSvGKi+~jS-LK)*Kskc(Aj)Yi;Dz{
+zz=-JU3TdCr<&IQk%h7otxVyfx>ZlD+V47IqFt^An-_*!IvHqJh!6NapwOsTQPevFe
+zMkkn+k_s7-be)Y{6K9|1*BOzvK+IhY#$D3=;Z9|_j9Yu`U^JgtQJHtE5FpGb*5K1L
+zZ?pWKu*a6DjwUFo>$k`a&};j!$JTx19Zw0{8+~q)%xKOYplEo^oV9Ag>?-uh7G@eT
+zmG$uuwl}^nSE+j??252+(<82jtMj%0r8o|dT#e=N0CuGzkG^KVsR{QGl)OFG&Re@x
+z$#$%pQDsA*Je@r|AaN6BeC8*}!t3Eq7uskkjYp3Y+c0no)$h=E(h}C)x!P)~ZE#~3
+z#qVY$phD0+CKI_{bn{yAy)?LM*hmp^^x@=sk-t#aM35~RF6m5-drd6XElCh7QQAGq
+z=Fj2mzpj~Va-+Ta9rL5jEP_%F@WZF!M60muh7Ws_)AXvP?2`S-|3>b*Db9;7qvyUa
+z4Q`Mh2|jL}b4DgHGAj?0JncmeEe6+V-2}Fdz1l^Rb%7xVBB5&Yt{9h_&{Ex3B4QP@
+zm11F&?-E~?X7eP>?wvL<MaY^R0+!G+wJ-C&BNb|}p;-$d0ZEO%$@8dncy>#EoX>Xf
+z_1>KsRsZPfdT_a6Qb*hS*OQUU?_s%6z~JCIDIc!P4-w+$8aJ|Jkb;!!@q?bP-;bQu
+zFkq8~Kpw7B9*^ZDu2f&|?q2t5T8^T8eXfo?u%)9{bbB}#19rSwIWf-c4wHJkkzqZr
+z&~C_&OS+E4U)$Z9fb7RH<95es&%0bz2>cO24jT_)t_-t!8{~Y|T7@~I>wY+J_%pIe
+z+*+tF&nuzmvpz$6`1Nqsa2DQm-XQUSWsuK2nA1AszQeRN{<p|0WX_!XfoIYlboz7I
+z5e6>8ER(KQT=*hHO7x(9pG>@sxh{_-T!uZ<gGnO~HffKNx020!$@ho7T&QmEF2~~K
+zOL;y6pG(P3HdoKF1EfHY+j8H#6kFZTo9T1k$%ZP-pBQUwx?D7+iKApIZeU)uuV)rK
+z`z>)BS8P5lbZkU4qu|yw+*)Qzh!CT7U1mJWO`);dXTz8(R(2j}m0PjAXm)RDbqXN9
+zuh@Ca(V_^gKkdD$?>vpU=HpGmBK?R)2cDsQn*W)47HE{G_h4zqhP{a};^4Cszrh1^
+z<-^&QsMBszSe0JDB`7E+e(*#LJ&{hpP)ydddcN-kCtw_zIq-EoCl-mUNd4%MtyhkQ
+zr;_)2z1-S;6f_w3<#8wRb$9ge`6w9_8^^z;#TRvLsK;c;G}3C1*byMD9r#>wRLcr;
+zFm2vxm#-7I2Ghfd7_%~ES_93&O1E?Udh&`k^G4iDkKawn$C-uR@qDP|G#T^cZj1O(
+z(q~@n<<ziUz`G>IpPc}F>B_QOEBI{Dn-6-A%7nuh*t60VWEz#!^ADZU-ag!zxlEiJ
+zL6uc~LSCg<y76uR9)_m}oVf`qOh4skeNIp*%e0)SGs;I$;a!VLB!#AZ7p+Ucmtpuj
+zpK~InjA~b{^FMp@KBs<O?MqYfby3Sv=A$+%sX_$Br;v^hg-jg+Xm%{d9M;lA5<)I>
+zKb5a%d8nw*LQoy5!gmeJMj(fqh~rN@Z7+zJk|Nkvqb#JGaXf#It)^PuN<Uq*@9VHB
+zb!Va@AC8#=XRSKV6uwB5uEzq$_#r^0?q51I_=?ONen%N4q*si2oMMv>$2ESuV%duP
+zr6+V)SzTTm(07fLZfB07?NraJUH(0usTR<h<Q>J;Y+70a=DEvSbOQ~Xdn7Z=sK?9U
+z^XUQ(bqW$`z#^*edHZjWbB^<W-Qe~UpA`+WG<Kj*%$5JH3sj#nqi-wCEaCn?0VV_4
+z{0&4#X^TFN`^zpa``0Ptu7%g1|Mlc-9ncq8;e%QV+O`+r60dVCj2NzABiV+WrUppO
+zg-M@)M0i5okdMt|0f{J<yu~PlCtl}#9eYa9DjKovHZXdgX2=ThWC2N86nUd~vVcUS
+zJ<yOF#S<GKH;N}VKyDIG=8PU<19odSaoB>)9^b9DXi`Y1MUz58E!v~>jZljwg@jr(
+z!t1n5P1j9Caeyt{PR*r(1Vk*bbO$|3??Vc?F|lp~<i^Ch4UiiX>vKp<A#r0fA}J(v
+zMkIxV&WNOt&>69X&_hkli2goAlKwud4KYQAjoA$;B-Cz5A%S*-$!lr0o65xc0+aS?
+zpACt18z46(*5{C+JxZT4oFrx3lx$rvA`<JG-K5gE+xA$EvadUoqAswnJNAT<O6SwH
+zCs(6pq?`~pCDvz*9%g5=W=2(D;bCt6)jb<lhG<^+V4K;dqCfAFuThqKO4H#>?_iKl
+z^Z08VPvY#0)N|awM!)|aXM$J0$(6@+-TQxV5Bl&!oR`i;d2m;jJ<M)rXZX`h9;WVn
+zb%t>?ku@;mo;<kw?7<g`SBFJ(*lLdaR^DzkMtR_M{`<f3pwSrT&)xOs4E%#eOE?Ey
+z*<tMo<~ddu;rlh$=dZ}!YJk+e#X$w>VQw|v{XUEZBqGPN#VCX)m=}B&^|Z1Pn~2RU
+z)meIUqHIBiXg=NBMbyn_PajukFg8GL)L`b2r1!6G)L?9Y+^E6W0J%wnSui4MgKXh;
+zY9z`Qfc9MetTt>?NU&j3LV^t&A#Ip5Y)VL=VPo`u-9eAiZZImfX1l3KFxvpRF~MvD
+z<i-T^91<h=8}sF)kWgPv3JLY)q>xZwP6`S1<(TA-IlI}1#Z9;miyKl%sNIl40_`TW
+zCkCoaFwZeDM_qJ>YLD|LHb8DnFfSkxJ8?9(q%xc&W!#i>Trg4^&ZY$OoUvn%)hPR#
+zlo8n1m?XI7zE(OP%n>ooeXV5dQnur!1oMIsk-XK+s0=JHiF)0$VP%Ns`EIbx%k5o)
+ec@(tsw(pJdu<8Hzf93unzx==W`XRw)>k9x}vu4!*
+
+diff --git a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/config/NotificationTypeConstraintFix.java b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/config/NotificationTypeConstraintFix.java
+index 465328e..0ecfdfa 100644
+--- a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/config/NotificationTypeConstraintFix.java
++++ b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/config/NotificationTypeConstraintFix.java
+@@ -67,6 +67,7 @@ public class NotificationTypeConstraintFix {
+                 ADD CONSTRAINT CK_notifications_type_v2
+                 CHECK ([type] IN (
+                     'DEBT_REMINDER',
++                    'PAYMENT_DUE',
+                     'DEBT_OVERDUE',
+                     'DEBT_PAYMENT_CONFIRMED',
+                     'PRICE_ALERT',
+diff --git a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/dto/BuyerDeliveryDtos.java b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/dto/BuyerDeliveryDtos.java
+index 1764aeb..158fe65 100644
+--- a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/dto/BuyerDeliveryDtos.java
++++ b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/dto/BuyerDeliveryDtos.java
+@@ -52,7 +52,27 @@ public final class BuyerDeliveryDtos {
+             List<ProductItem> products,
+             List<TimelineEvent> timeline,
+             List<Incident> incidents,
+-            List<Complaint> complaints
++            List<Complaint> complaints,
++            PaymentDueInfo paymentDue
++    ) {
++    }
++
++    public record PaymentDueInfo(
++            Long invoiceId,
++            String invoiceCode,
++            String displayInvoiceCode,
++            Long orderId,
++            String orderCode,
++            String supplierName,
++            String productName,
++            BigDecimal quantity,
++            String unit,
++            BigDecimal totalAmount,
++            BigDecimal paidAmount,
++            BigDecimal remainingAmount,
++            LocalDate dueDate,
++            String transferContent,
++            String paymentMethod
+     ) {
+     }
+ 
+diff --git a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/dto/SupplierDebtDtos.java b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/dto/SupplierDebtDtos.java
+index bc046c7..7299413 100644
+--- a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/dto/SupplierDebtDtos.java
++++ b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/dto/SupplierDebtDtos.java
+@@ -73,7 +73,10 @@ public final class SupplierDebtDtos {
+             Integer paymentTermDays,
+             String status,
+             String statusLabel,
+-            Long overdueDays
++            Long overdueDays,
++            Boolean buyerConfirmedReceived,
++            Boolean canSendReminder,
++            String reminderBlockedReason
+     ) {
+     }
+ 
+diff --git a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/entity/enums/NotificationTypeEnum.java b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/entity/enums/NotificationTypeEnum.java
+index fbb7edf..e09aa5b 100644
+--- a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/entity/enums/NotificationTypeEnum.java
++++ b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/entity/enums/NotificationTypeEnum.java
+@@ -2,6 +2,7 @@ package com.agribridge.backend.entity.enums;
+ 
+ public enum NotificationTypeEnum {
+     DEBT_REMINDER,
++    PAYMENT_DUE,
+     DEBT_OVERDUE,
+     DEBT_PAYMENT_CONFIRMED,
+     PRICE_ALERT,
+diff --git a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/repository/NotificationRepository.java b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/repository/NotificationRepository.java
+index ae4474c..b6db0e4 100644
+--- a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/repository/NotificationRepository.java
++++ b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/repository/NotificationRepository.java
+@@ -20,5 +20,12 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
+             String refTable,
+             java.util.Collection<Long> refIds
+     );
++
++    List<NotificationEntity> findByCompanyIdAndTypeAndRefTableAndRefId(
++            Long companyId,
++            NotificationTypeEnum type,
++            String refTable,
++            Long refId
++    );
+ }
+ 
+diff --git a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/DebtInvoiceOverdueScheduler.java b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/DebtInvoiceOverdueScheduler.java
+index 4ae55ed..610d6b9 100644
+--- a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/DebtInvoiceOverdueScheduler.java
++++ b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/DebtInvoiceOverdueScheduler.java
+@@ -1,9 +1,20 @@
+ package com.agribridge.backend.service;
+ 
+ import com.agribridge.backend.entity.InvoiceEntity;
++import com.agribridge.backend.entity.NotificationEntity;
++import com.agribridge.backend.entity.OrderEntity;
++import com.agribridge.backend.entity.ShipmentEntity;
+ import com.agribridge.backend.entity.enums.InvoiceStatusEnum;
++import com.agribridge.backend.entity.enums.NotificationTypeEnum;
++import com.agribridge.backend.entity.enums.OrderStatusEnum;
++import com.agribridge.backend.entity.enums.UserRoleEnum;
++import com.agribridge.backend.repository.NotificationRepository;
+ import com.agribridge.backend.repository.InvoiceRepository;
++import com.agribridge.backend.repository.OrderRepository;
++import com.agribridge.backend.repository.ShipmentRepository;
++import com.agribridge.backend.repository.UserRepository;
+ import java.time.LocalDate;
++import java.time.LocalDateTime;
+ import java.util.List;
+ import lombok.RequiredArgsConstructor;
+ import org.springframework.scheduling.annotation.Scheduled;
+@@ -15,6 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
+ public class DebtInvoiceOverdueScheduler {
+ 
+     private final InvoiceRepository invoiceRepository;
++    private final OrderRepository orderRepository;
++    private final ShipmentRepository shipmentRepository;
++    private final NotificationRepository notificationRepository;
++    private final UserRepository userRepository;
+ 
+     @Scheduled(cron = "0 10 0 * * *")
+     @Transactional
+@@ -22,7 +37,94 @@ public class DebtInvoiceOverdueScheduler {
+         List<InvoiceEntity> invoices = invoiceRepository.findByStatusInAndDueDateBefore(
+                 List.of(InvoiceStatusEnum.UNPAID, InvoiceStatusEnum.PARTIAL, InvoiceStatusEnum.CREDIT_PENDING),
+                 LocalDate.now());
+-        invoices.forEach(invoice -> invoice.setStatus(InvoiceStatusEnum.OVERDUE));
++        invoices.forEach(invoice -> {
++            OrderEntity order = orderRepository.findById(invoice.getOrderId()).orElse(null);
++            ShipmentEntity shipment = invoice.getOrderId() == null ? null : shipmentRepository.findTopByOrderIdOrderByCreatedAtDesc(invoice.getOrderId()).orElse(null);
++            if (!canMarkOverdue(invoice, order, shipment)) {
++                return;
++            }
++            invoice.setStatus(InvoiceStatusEnum.OVERDUE);
++            createBuyerPaymentDueReminder(invoice, order);
++            createSupplierOverdueNotification(invoice, order);
++        });
+         invoiceRepository.saveAll(invoices);
+     }
++
++    private boolean canMarkOverdue(InvoiceEntity invoice, OrderEntity order, ShipmentEntity shipment) {
++        if (order == null || OrderStatusEnum.CANCELLED.equals(order.getStatus())) return false;
++        if (invoice.getDueDate() == null || !invoice.getDueDate().isBefore(LocalDate.now())) return false;
++        if ("DEPOSIT_50".equalsIgnoreCase(invoice.getPaymentMethod())) {
++            return shipment != null && shipment.getConfirmedReceivedAt() != null
++                    && shipment.getStatus() != null && "DELIVERED".equals(shipment.getStatus().name());
++        }
++        return true;
++    }
++
++    private void createBuyerPaymentDueReminder(InvoiceEntity invoice, OrderEntity order) {
++        String orderCode = "ORD-" + order.getId();
++        String dueLabel = invoice.getDueDate() == null ? "chưa xác định" : invoice.getDueDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
++        String body = "Đơn " + orderCode + " đã quá hạn thanh toán phần còn lại. Vui lòng thanh toán công nợ trước khi tiếp tục.";
++        String metadata = "{"
++                + "\"role\":\"buyer\""
++                + ",\"invoiceId\":" + invoice.getId()
++                + ",\"orderId\":" + order.getId()
++                + ",\"orderCode\":\"" + orderCode + "\""
++                + ",\"buyerCompanyId\":" + order.getBuyerCompanyId()
++                + ",\"supplierCompanyId\":" + order.getSupplierCompanyId()
++                + ",\"dueDate\":\"" + (invoice.getDueDate() == null ? "" : invoice.getDueDate()) + "\""
++                + ",\"route\":\"/buyer/debt?supplierId=" + order.getSupplierCompanyId() + "&invoiceId=" + invoice.getId() + "&pay=1\""
++                + ",\"type\":\"PAYMENT_DUE\""
++                + "}";
++        userRepository.findFirstByCompanyIdAndRole(order.getBuyerCompanyId(), UserRoleEnum.OWNER)
++                .ifPresent(owner -> {
++                    var existing = notificationRepository.findByCompanyIdAndTypeAndRefTableAndRefId(
++                            order.getBuyerCompanyId(), NotificationTypeEnum.PAYMENT_DUE, "invoices", invoice.getId()).stream().findFirst();
++                    NotificationEntity notification = existing.orElseGet(NotificationEntity::new);
++                    notification.setUserId(owner.getId());
++                    notification.setCompanyId(order.getBuyerCompanyId());
++                    notification.setType(NotificationTypeEnum.PAYMENT_DUE);
++                    notification.setTitle("Nhắc thanh toán công nợ");
++                    notification.setBody(body + " Hạn thanh toán: " + dueLabel + ".");
++                    notification.setMetadata(metadata);
++                    notification.setRefTable("invoices");
++                    notification.setRefId(invoice.getId());
++                    notification.setIsRead(Boolean.FALSE);
++                    notification.setCreatedAt(LocalDateTime.now());
++                    notificationRepository.save(notification);
++                });
++    }
++
++    private void createSupplierOverdueNotification(InvoiceEntity invoice, OrderEntity order) {
++        if (notificationRepository.findByCompanyIdAndTypeAndRefTableAndRefId(
++                order.getSupplierCompanyId(), NotificationTypeEnum.DEBT_OVERDUE, "invoices", invoice.getId()).stream().findAny().isPresent()) {
++            return;
++        }
++        String orderCode = "ORD-" + order.getId();
++        String dueLabel = invoice.getDueDate() == null ? "chưa xác định" : invoice.getDueDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
++        String body = "Đơn " + orderCode + " đã được Buyer xác nhận nhận hàng nhưng chưa thanh toán phần còn lại. Hạn thanh toán: " + dueLabel + ".";
++        String metadata = "{"
++                + "\"role\":\"supplier\""
++                + ",\"invoiceId\":" + invoice.getId()
++                + ",\"orderId\":" + order.getId()
++                + ",\"orderCode\":\"" + orderCode + "\""
++                + ",\"buyerCompanyId\":" + order.getBuyerCompanyId()
++                + ",\"supplierCompanyId\":" + order.getSupplierCompanyId()
++                + ",\"dueDate\":\"" + (invoice.getDueDate() == null ? "" : invoice.getDueDate()) + "\""
++                + ",\"route\":\"/supplier/debt?buyerId=" + order.getBuyerCompanyId() + "&invoiceId=" + invoice.getId() + "\""
++                + ",\"type\":\"DEBT_OVERDUE\""
++                + "}";
++        userRepository.findFirstByCompanyIdAndRole(order.getSupplierCompanyId(), UserRoleEnum.OWNER)
++                .ifPresent(owner -> notificationRepository.save(NotificationEntity.builder()
++                        .userId(owner.getId())
++                        .companyId(order.getSupplierCompanyId())
++                        .type(NotificationTypeEnum.DEBT_OVERDUE)
++                        .title("Công nợ quá hạn")
++                        .body(body)
++                        .metadata(metadata)
++                        .refTable("invoices")
++                        .refId(invoice.getId())
++                        .isRead(Boolean.FALSE)
++                        .createdAt(LocalDateTime.now())
++                        .build()));
++    }
+ }
+diff --git a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/ShipmentStatusTransitionService.java b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/ShipmentStatusTransitionService.java
+index c6b17c1..5ebb47b 100644
+--- a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/ShipmentStatusTransitionService.java
++++ b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/ShipmentStatusTransitionService.java
+@@ -74,7 +74,9 @@ public class ShipmentStatusTransitionService {
+         ShipmentEntity saved = shipmentRepository.save(shipment);
+         saveEvent(saved, note == null || note.isBlank() ? "Người mua xác nhận đã nhận hàng" : note, now);
+         orderRepository.findById(saved.getOrderId()).ifPresent(order -> {
+-            order.setStatus(OrderStatusEnum.COMPLETED);
++            if (order.getStatus() != OrderStatusEnum.CANCELLED && order.getStatus() != OrderStatusEnum.COMPLETED) {
++                order.setStatus(OrderStatusEnum.DELIVERED);
++            }
+             order.setUpdatedAt(now);
+             orderRepository.save(order);
+         });
+@@ -114,7 +116,10 @@ public class ShipmentStatusTransitionService {
+             return;
+         }
+         if (status == ShipmentStatusEnum.WAITING_CONFIRMATION && order.getStatus() != OrderStatusEnum.CANCELLED) {
+-            order.setStatus(OrderStatusEnum.WAITING_BUYER_CONFIRM);
++            order.setStatus("DEPOSIT_50".equals(order.getPaymentOption()) && order.getRemainingAmount() != null
++                    && order.getRemainingAmount().signum() > 0
++                    ? OrderStatusEnum.WAITING_FINAL_PAYMENT
++                    : OrderStatusEnum.WAITING_BUYER_CONFIRM);
+             order.setUpdatedAt(now);
+             orderRepository.save(order);
+         }
+diff --git a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/BuyerDebtServiceImpl.java b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/BuyerDebtServiceImpl.java
+index ed69663..1e89895 100644
+--- a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/BuyerDebtServiceImpl.java
++++ b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/BuyerDebtServiceImpl.java
+@@ -185,6 +185,17 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
+         BigDecimal remainingAfter = invoiceAmount(invoice).subtract(paidAfter);
+         invoice.setStatus(resolveInvoiceStatus(invoice, paidAfter, remainingAfter));
+         invoiceRepository.save(invoice);
++        if (remainingAfter.compareTo(BigDecimal.ZERO) <= 0) {
++            notificationRepository.findByCompanyIdAndTypeAndRefTableAndRefId(
++                            buyerCompanyId,
++                            NotificationTypeEnum.PAYMENT_DUE,
++                            "invoices",
++                            invoice.getId())
++                    .forEach(notification -> {
++                        notification.setIsRead(Boolean.TRUE);
++                        notificationRepository.save(notification);
++                    });
++        }
+         createSupplierPaymentNotification(invoice, order, request.amount(), paymentDate);
+         return new BuyerDebtDtos.PaymentResponse(toInvoiceItem(invoice, paidAfter), toPaymentItem(savedPayment, user));
+     }
+@@ -453,7 +464,13 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
+         LocalDate today = LocalDate.now();
+         String plan = paymentPlanType(invoice);
+         LocalDate effectiveDueDate = invoice.getDueDate();
+-        if ("DEPOSIT_50".equals(plan) && confirmedReceivedAt != null) effectiveDueDate = confirmedReceivedAt.toLocalDate();
++        if ("DEPOSIT_50".equals(plan)) {
++            if (confirmedReceivedAt == null) {
++                effectiveDueDate = null;
++            } else if (effectiveDueDate == null) {
++                effectiveDueDate = confirmedReceivedAt.toLocalDate();
++            }
++        }
+         boolean overdue = remaining.compareTo(BigDecimal.ZERO) > 0 && effectiveDueDate != null && effectiveDueDate.isBefore(today);
+         boolean dueSoon = remaining.compareTo(BigDecimal.ZERO) > 0 && effectiveDueDate != null && !effectiveDueDate.isBefore(today) && !effectiveDueDate.isAfter(today.plusDays(7));
+         long overdueDays = overdue ? ChronoUnit.DAYS.between(effectiveDueDate, today) : 0;
+@@ -470,7 +487,7 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
+     }
+ 
+     private BigDecimal paymentAmount(PaymentEntity payment) {
+-        if (payment == null || payment.getStatus() == null || !"PAID".equalsIgnoreCase(payment.getStatus())) {
++        if (payment == null || payment.getStatus() == null || !List.of("PAID", "PARTIALLY_PAID", "COMPLETED", "CONFIRMED", "SUCCESS").contains(payment.getStatus().trim().toUpperCase(Locale.ROOT))) {
+             return BigDecimal.ZERO;
+         }
+         BigDecimal paidAmount = nullToZero(payment.getPaidAmount());
+@@ -601,12 +618,12 @@ private Integer paymentTermDays(InvoiceEntity invoice) {
+         allocations.stream()
+                 .filter(allocation -> {
+                     PaymentEntity payment = paymentsById.get(allocation.getPaymentId());
+-                    return payment != null && payment.getStatus() != null && "PAID".equalsIgnoreCase(payment.getStatus());
++                    return payment != null && payment.getStatus() != null && List.of("PAID", "PARTIALLY_PAID", "COMPLETED", "CONFIRMED", "SUCCESS").contains(payment.getStatus().trim().toUpperCase(Locale.ROOT));
+                 })
+                 .forEach(allocation -> paidByInvoice.merge(allocation.getInvoiceId(), nullToZero(allocation.getAmount()), BigDecimal::add));
+ 
+         payments.stream()
+-                .filter(payment -> payment.getStatus() != null && "PAID".equalsIgnoreCase(payment.getStatus()))
++                .filter(payment -> payment.getStatus() != null && List.of("PAID", "PARTIALLY_PAID", "COMPLETED", "CONFIRMED", "SUCCESS").contains(payment.getStatus().trim().toUpperCase(Locale.ROOT)))
+                 .filter(payment -> payment.getInvoiceId() != null)
+                 .filter(payment -> nullToZero(allocatedByPaymentId.get(payment.getId())).compareTo(BigDecimal.ZERO) <= 0)
+                 .forEach(payment -> paidByInvoice.merge(payment.getInvoiceId(), paymentAmount(payment), BigDecimal::add));
+diff --git a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/BuyerDeliveryServiceImpl.java b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/BuyerDeliveryServiceImpl.java
+index 08a48b0..5f8b1f4 100644
+--- a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/BuyerDeliveryServiceImpl.java
++++ b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/BuyerDeliveryServiceImpl.java
+@@ -5,8 +5,11 @@ import com.agribridge.backend.entity.BatchEntity;
+ import com.agribridge.backend.entity.BranchEntity;
+ import com.agribridge.backend.entity.ComplaintEntity;
+ import com.agribridge.backend.entity.CompanyEntity;
++import com.agribridge.backend.entity.InvoiceEntity;
+ import com.agribridge.backend.entity.OrderEntity;
+ import com.agribridge.backend.entity.OrderItemEntity;
++import com.agribridge.backend.entity.PaymentAllocationEntity;
++import com.agribridge.backend.entity.PaymentEntity;
+ import com.agribridge.backend.entity.ProductEntity;
+ import com.agribridge.backend.entity.ShipmentEntity;
+ import com.agribridge.backend.entity.ShipmentEventEntity;
+@@ -17,8 +20,11 @@ import com.agribridge.backend.repository.BatchRepository;
+ import com.agribridge.backend.repository.BranchRepository;
+ import com.agribridge.backend.repository.ComplaintRepository;
+ import com.agribridge.backend.repository.CompanyRepository;
++import com.agribridge.backend.repository.InvoiceRepository;
+ import com.agribridge.backend.repository.OrderItemRepository;
+ import com.agribridge.backend.repository.OrderRepository;
++import com.agribridge.backend.repository.PaymentAllocationRepository;
++import com.agribridge.backend.repository.PaymentRepository;
+ import com.agribridge.backend.repository.ProductRepository;
+ import com.agribridge.backend.repository.ShipmentEventRepository;
+ import com.agribridge.backend.repository.ShipmentIncidentRepository;
+@@ -57,6 +63,9 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
+     private final BatchRepository batchRepository;
+     private final BranchRepository branchRepository;
+     private final CompanyRepository companyRepository;
++    private final InvoiceRepository invoiceRepository;
++    private final PaymentRepository paymentRepository;
++    private final PaymentAllocationRepository paymentAllocationRepository;
+     private final ComplaintRepository complaintRepository;
+     private final MarketPriceAggregationService marketPriceAggregationService;
+     private final BuyerOrderService buyerOrderService;
+@@ -258,7 +267,79 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
+                 orderItems.stream().map(item -> toProductItem(item, products.get(item.getProductId()), batches.get(item.getBatchId()))).toList(),
+                 shipmentEventRepository.findByShipmentIdOrderByEventTimeAsc(shipment.getId()).stream().map(this::toTimeline).toList(),
+                 shipmentIncidentRepository.findByShipmentIdOrderByCreatedAtDesc(shipment.getId()).stream().map(this::toIncident).toList(),
+-                complaintRepository.findByOrderIdOrderByCreatedAtDesc(order.getId()).stream().map(this::toComplaint).toList());
++                complaintRepository.findByOrderIdOrderByCreatedAtDesc(order.getId()).stream().map(this::toComplaint).toList(),
++                paymentDueInfo(order, orderItems, products, shipment));
++    }
++
++    private BuyerDeliveryDtos.PaymentDueInfo paymentDueInfo(
++            OrderEntity order,
++            List<OrderItemEntity> orderItems,
++            Map<Long, ProductEntity> products,
++            ShipmentEntity shipment) {
++        if (order == null || shipment == null || shipment.getConfirmedReceivedAt() == null) {
++            return null;
++        }
++        InvoiceEntity invoice = invoiceRepository.findByOrderIdInOrderByCreatedAtDesc(List.of(order.getId())).stream()
++                .findFirst()
++                .orElse(null);
++        if (invoice == null || invoice.getStatus() == null || "PAID".equals(invoice.getStatus().name())) {
++            return null;
++        }
++        BigDecimal total = nullToZero(invoice.getAdjustedAmount()).compareTo(BigDecimal.ZERO) > 0
++                ? invoice.getAdjustedAmount()
++                : invoice.getTotalAmount();
++        BigDecimal paid = paidAmount(invoice.getId());
++        BigDecimal remaining = nullToZero(total).subtract(paid).max(BigDecimal.ZERO);
++        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
++            return null;
++        }
++        OrderItemEntity firstItem = orderItems.isEmpty() ? null : orderItems.get(0);
++        ProductEntity product = firstItem == null ? null : products.get(firstItem.getProductId());
++        String invoiceCode = invoice.getInvoiceNumber();
++        return new BuyerDeliveryDtos.PaymentDueInfo(
++                invoice.getId(),
++                invoiceCode,
++                "INV-" + order.getId(),
++                order.getId(),
++                "ORD-" + order.getId(),
++                companyRepository.findById(order.getSupplierCompanyId()).map(CompanyEntity::getName).orElse(null),
++                product == null ? null : product.getName(),
++                firstItem == null ? null : firstItem.getQuantity(),
++                firstItem == null ? null : firstText(firstItem.getUnit(), product == null ? null : product.getUnit()),
++                total,
++                paid,
++                remaining,
++                invoice.getDueDate() == null ? shipment.getConfirmedReceivedAt().toLocalDate() : invoice.getDueDate(),
++                "AGRI-DEBT-" + invoiceCode,
++                firstText(invoice.getPaymentMethod(), "DEPOSIT_50"));
++    }
++
++    private BigDecimal paidAmount(Long invoiceId) {
++        List<PaymentEntity> payments = paymentRepository.findByInvoiceIdOrderByPaymentDateDesc(invoiceId);
++        List<Long> paymentIds = payments.stream().map(PaymentEntity::getId).toList();
++        List<PaymentAllocationEntity> allocations = paymentIds.isEmpty() ? List.of() : paymentAllocationRepository.findByPaymentIdIn(paymentIds);
++        BigDecimal allocated = allocations.stream()
++                .filter(allocation -> payments.stream().anyMatch(payment -> payment.getId().equals(allocation.getPaymentId()) && isPaidPayment(payment)))
++                .map(PaymentAllocationEntity::getAmount)
++                .reduce(BigDecimal.ZERO, BigDecimal::add);
++        if (allocated.compareTo(BigDecimal.ZERO) > 0) {
++            return allocated;
++        }
++        return payments.stream()
++                .filter(this::isPaidPayment)
++                .map(payment -> nullToZero(payment.getPaidAmount()).compareTo(BigDecimal.ZERO) > 0 ? payment.getPaidAmount() : payment.getAmount())
++                .reduce(BigDecimal.ZERO, BigDecimal::add);
++    }
++
++    private boolean isPaidPayment(PaymentEntity payment) {
++        if (payment == null || payment.getStatus() == null) {
++            return false;
++        }
++        return List.of("PAID", "PARTIALLY_PAID", "COMPLETED", "CONFIRMED", "SUCCESS").contains(payment.getStatus().trim().toUpperCase(Locale.ROOT));
++    }
++
++    private BigDecimal nullToZero(BigDecimal value) {
++        return value == null ? BigDecimal.ZERO : value;
+     }
+ 
+     private BuyerDeliveryDtos.ListItem toListItem(
+diff --git a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/BuyerOrderServiceImpl.java b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/BuyerOrderServiceImpl.java
+index bfb9482..c8d0ad7 100644
+--- a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/BuyerOrderServiceImpl.java
++++ b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/BuyerOrderServiceImpl.java
+@@ -11,6 +11,7 @@ import com.agribridge.backend.entity.CompanyEntity;
+ import com.agribridge.backend.entity.CreditLimitEntity;
+ import com.agribridge.backend.entity.EscrowTransactionEntity;
+ import com.agribridge.backend.entity.InvoiceEntity;
++import com.agribridge.backend.entity.NotificationEntity;
+ import com.agribridge.backend.entity.OrderEntity;
+ import com.agribridge.backend.entity.OrderItemEntity;
+ import com.agribridge.backend.entity.PaymentAllocationEntity;
+@@ -23,8 +24,10 @@ import com.agribridge.backend.entity.enums.BatchStatusEnum;
+ import com.agribridge.backend.entity.enums.ComplaintStatusEnum;
+ import com.agribridge.backend.entity.enums.CreditLimitStatusEnum;
+ import com.agribridge.backend.entity.enums.InvoiceStatusEnum;
++import com.agribridge.backend.entity.enums.NotificationTypeEnum;
+ import com.agribridge.backend.entity.enums.OrderStatusEnum;
+ import com.agribridge.backend.entity.enums.ShipmentStatusEnum;
++import com.agribridge.backend.entity.enums.UserRoleEnum;
+ import com.agribridge.backend.repository.BatchRepository;
+ import com.agribridge.backend.repository.BranchRepository;
+ import com.agribridge.backend.repository.ComplaintRepository;
+@@ -32,6 +35,7 @@ import com.agribridge.backend.repository.CompanyRepository;
+ import com.agribridge.backend.repository.CreditLimitRepository;
+ import com.agribridge.backend.repository.EscrowTransactionRepository;
+ import com.agribridge.backend.repository.InvoiceRepository;
++import com.agribridge.backend.repository.NotificationRepository;
+ import com.agribridge.backend.repository.OrderItemRepository;
+ import com.agribridge.backend.repository.OrderRepository;
+ import com.agribridge.backend.repository.PaymentAllocationRepository;
+@@ -40,6 +44,7 @@ import com.agribridge.backend.repository.ProductRepository;
+ import com.agribridge.backend.repository.ShipmentEventRepository;
+ import com.agribridge.backend.repository.ShipmentRepository;
+ import com.agribridge.backend.repository.SupplierPayoutRepository;
++import com.agribridge.backend.repository.UserRepository;
+ import com.agribridge.backend.service.BatchAvailabilityService;
+ import com.agribridge.backend.service.BuyerOrderService;
+ import com.agribridge.backend.service.CurrentUserService;
+@@ -78,6 +83,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
+     private final OrderRepository orderRepository;
+     private final OrderItemRepository orderItemRepository;
+     private final InvoiceRepository invoiceRepository;
++    private final NotificationRepository notificationRepository;
+     private final PaymentAllocationRepository paymentAllocationRepository;
+     private final PaymentRepository paymentRepository;
+     private final ShipmentRepository shipmentRepository;
+@@ -90,6 +96,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
+     private final ComplaintRepository complaintRepository;
+     private final EscrowTransactionRepository escrowTransactionRepository;
+     private final SupplierPayoutRepository supplierPayoutRepository;
++    private final UserRepository userRepository;
+     private final CurrentUserService currentUserService;
+     private final BatchAvailabilityService batchAvailabilityService;
+     private final ShipmentStatusTransitionService shipmentStatusTransitionService;
+@@ -370,7 +377,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
+         if (!buyerCompanyId.equals(order.getBuyerCompanyId())) {
+             throw new IllegalArgumentException("Order does not belong to this buyer");
+         }
+-        if (!OrderStatusEnum.WAITING_BUYER_CONFIRM.equals(order.getStatus())) {
++        if (!List.of(OrderStatusEnum.WAITING_BUYER_CONFIRM, OrderStatusEnum.WAITING_FINAL_PAYMENT, OrderStatusEnum.DELIVERED).contains(order.getStatus())) {
+             throw new IllegalArgumentException("Order is not waiting for buyer confirmation");
+         }
+ 
+@@ -384,6 +391,22 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
+                 shipment,
+                 currentUserService.requireCurrentUser().getId(),
+                 "Người mua xác nhận đã nhận hàng");
++        InvoiceEntity invoice = latestInvoice(orderId);
++        BigDecimal paid = paidAmountForInvoice(invoice.getId(), paymentRepository.findByInvoiceIdOrderByPaymentDateDesc(invoice.getId()));
++        BigDecimal remaining = safeAmount(invoice.getAdjustedAmount()).subtract(paid).max(BigDecimal.ZERO);
++        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
++            LocalDate dueDate = invoice.getDueDate() == null ? LocalDate.now() : invoice.getDueDate();
++            invoice.setDueDate(dueDate);
++            invoice.setStatus(InvoiceStatusEnum.PARTIAL);
++            invoiceRepository.save(invoice);
++            order.setStatus(OrderStatusEnum.WAITING_FINAL_PAYMENT);
++            order.setPaymentStatus("PARTIALLY_PAID");
++            order.setRemainingAmount(remaining);
++            order.setUpdatedAt(LocalDateTime.now());
++            orderRepository.save(order);
++            createBuyerPaymentDueNotification(order, invoice, remaining, dueDate);
++            return;
++        }
+         releaseEscrowAndComplete(order);
+     }
+ 
+@@ -775,12 +798,55 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
+     private BigDecimal paidAmountForInvoice(Long invoiceId, List<PaymentEntity> payments) {
+         return payments.stream()
+                 .filter(payment -> Objects.equals(invoiceId, payment.getInvoiceId()))
+-                .filter(payment -> payment.getStatus() != null && "PAID".equalsIgnoreCase(payment.getStatus()))
++                .filter(payment -> payment.getStatus() != null && List.of("PAID", "PARTIALLY_PAID", "COMPLETED", "CONFIRMED", "SUCCESS").contains(payment.getStatus().trim().toUpperCase(Locale.ROOT)))
+                 .map(payment -> payment.getPaidAmount() == null ? safeAmount(payment.getAmount())
+                         : safeAmount(payment.getPaidAmount()))
+                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+     }
+ 
++    private void createBuyerPaymentDueNotification(OrderEntity order, InvoiceEntity invoice, BigDecimal remaining, LocalDate dueDate) {
++        List<OrderItemEntity> items = orderItemRepository.findByOrderIdOrderByIdAsc(order.getId());
++        OrderItemEntity firstItem = items.isEmpty() ? null : items.get(0);
++        ProductEntity product = firstItem == null || firstItem.getProductId() == null ? null : productRepository.findById(firstItem.getProductId()).orElse(null);
++        String productName = product == null ? "sản phẩm" : firstText(product.getName(), "sản phẩm");
++        String orderCode = orderCode(order.getId());
++        String dueLabel = dueDate == null ? "chưa xác định" : dueDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
++        String message = "Đơn " + orderCode + " đã được giao thành công. Vui lòng thanh toán phần còn lại "
++                + formatMoney(remaining) + " trước ngày " + dueLabel + ".";
++        String metadata = "{"
++                + "\"role\":\"buyer\""
++                + ",\"invoiceId\":" + invoice.getId()
++                + ",\"invoiceCode\":\"" + json(firstText(invoice.getInvoiceNumber(), "INV-" + order.getId())) + "\""
++                + ",\"displayInvoiceCode\":\"INV-" + order.getId() + "\""
++                + ",\"orderId\":" + order.getId()
++                + ",\"orderCode\":\"" + orderCode + "\""
++                + ",\"supplierCompanyId\":" + order.getSupplierCompanyId()
++                + ",\"buyerCompanyId\":" + order.getBuyerCompanyId()
++                + ",\"productName\":\"" + json(productName) + "\""
++                + ",\"amount\":" + remaining
++                + ",\"dueDate\":\"" + (dueDate == null ? "" : dueDate) + "\""
++                + ",\"route\":\"/buyer/debt?supplierId=" + order.getSupplierCompanyId() + "&invoiceId=" + invoice.getId() + "&pay=1\""
++                + ",\"type\":\"PAYMENT_DUE\""
++                + "}";
++        userRepository.findFirstByCompanyIdAndRole(order.getBuyerCompanyId(), UserRoleEnum.OWNER)
++                .ifPresent(owner -> notificationRepository.save(NotificationEntity.builder()
++                        .userId(owner.getId())
++                        .companyId(order.getBuyerCompanyId())
++                        .type(NotificationTypeEnum.PAYMENT_DUE)
++                        .title("Cần thanh toán phần còn lại")
++                        .body(message)
++                        .metadata(metadata)
++                        .refTable("invoices")
++                        .refId(invoice.getId())
++                        .isRead(Boolean.FALSE)
++                        .createdAt(LocalDateTime.now())
++                        .build()));
++    }
++
++    private String json(String value) {
++        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
++    }
++
+     private OrderEntity requireBuyerOrder(Long buyerCompanyId, Long orderId) {
+         OrderEntity order = orderRepository.findById(orderId)
+                 .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+diff --git a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/SupplierDebtServiceImpl.java b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/SupplierDebtServiceImpl.java
+index 6d31de7..ee6f052 100644
+--- a/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/SupplierDebtServiceImpl.java
++++ b/AGRIBRIDGE-BE/src/main/java/com/agribridge/backend/service/impl/SupplierDebtServiceImpl.java
+@@ -42,6 +42,8 @@ import com.agribridge.backend.service.CurrentUserService;
+ import com.agribridge.backend.service.SupplierDebtService;
+ import java.math.BigDecimal;
+ import java.math.RoundingMode;
++import java.nio.charset.Charset;
++import java.nio.charset.StandardCharsets;
+ import java.text.NumberFormat;
+ import java.time.LocalDate;
+ import java.time.LocalDateTime;
+@@ -96,6 +98,7 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
+         List<Long> invoiceIds = invoices.stream().map(InvoiceEntity::getId).toList();
+         List<SupplierDebtDtos.PaymentItem> payments = context.payments().stream()
+                 .filter(payment -> invoiceIds.contains(payment.getInvoiceId()))
++                .filter(payment -> isDebtPaymentHistory(payment, context))
+                 .sorted(Comparator.comparing(PaymentEntity::getPaymentDate, Comparator.nullsLast(Comparator.reverseOrder())))
+                 .map(payment -> {
+                     Long confirmedByUserId = payment.getConfirmedByUserId();
+@@ -240,15 +243,19 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
+         if (request == null || request.buyerId() == null) throw new IllegalArgumentException("buyerId is required");
+         if (request.invoiceId() == null) throw new IllegalArgumentException("invoiceId is required");
+         InvoiceEntity invoice = requireSupplierInvoice(supplierCompanyId, request.invoiceId());
++        OrderEntity order = orderRepository.findById(invoice.getOrderId()).orElse(null);
+         BigDecimal remaining = invoiceAmount(invoice).subtract(paidAmount(invoice.getId())).max(BigDecimal.ZERO);
+         if (remaining.compareTo(BigDecimal.ZERO) <= 0 || InvoiceStatusEnum.PAID.equals(invoice.getStatus())) {
+             throw new IllegalArgumentException("Hóa đơn đã thanh toán, không thể nhắc nợ.");
+         }
++        String reminderBlockedReason = reminderBlockedReason(invoice, order, remaining, shipmentRepository.findTopByOrderIdOrderByCreatedAtDesc(invoice.getOrderId()).orElse(null));
++        if (reminderBlockedReason != null) {
++            throw new IllegalArgumentException(reminderBlockedReason);
++        }
+         BigDecimal amount = request.amount() == null && invoice != null
+                 ? remaining
+                 : nullToZero(request.amount());
+         LocalDateTime now = LocalDateTime.now();
+-        OrderEntity order = orderRepository.findById(invoice.getOrderId()).orElse(null);
+         CompanyEntity supplierCompany = companyRepository.findById(supplierCompanyId).orElse(null);
+         String supplierName = supplierCompany == null ? "Nhà cung cấp" : firstText(supplierCompany.getName(), "Nhà cung cấp");
+         String invoiceCode = firstText(invoice.getInvoiceNumber(), "N/A");
+@@ -346,6 +353,12 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
+                         (a, b) -> a));
+         invoices.forEach(invoice -> invoiceMainItemByInvoiceId.putIfAbsent(invoice.getId(), orderLineByOrderId.get(invoice.getOrderId())));
+         List<ShipmentEntity> shipments = orderIds.isEmpty() ? List.of() : shipmentRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds);
++        Map<Long, ShipmentEntity> shipmentByOrderId = shipments.stream()
++                .collect(Collectors.toMap(ShipmentEntity::getOrderId, Function.identity(), (a, b) -> {
++                    if (a.getCreatedAt() == null) return b;
++                    if (b.getCreatedAt() == null) return a;
++                    return a.getCreatedAt().isAfter(b.getCreatedAt()) ? a : b;
++                }));
+         Map<Long, LocalDateTime> confirmedReceivedAtByOrderId = shipments.stream()
+                 .filter(item -> item.getConfirmedReceivedAt() != null)
+                 .collect(Collectors.toMap(ShipmentEntity::getOrderId, ShipmentEntity::getConfirmedReceivedAt, (a, b) -> a.isAfter(b) ? a : b));
+@@ -378,7 +391,7 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
+                 .toList();
+         Map<Long, UserEntity> usersById = userRepository.findAllById(userIds).stream().collect(Collectors.toMap(UserEntity::getId, Function.identity()));
+         Map<Long, OrderEntity> ordersById = orders.stream().collect(Collectors.toMap(OrderEntity::getId, Function.identity()));
+-        return new DebtContext(supplierCompanyId, orders, invoices, payments, adjustments, reminders, paidByInvoice, buyersById, creditByBuyer, usersById, ordersById, invoiceMainItemByInvoiceId, confirmedReceivedAtByOrderId, expectedDeliveryAtByOrderId);
++        return new DebtContext(supplierCompanyId, orders, invoices, payments, adjustments, reminders, paidByInvoice, buyersById, creditByBuyer, usersById, ordersById, invoiceMainItemByInvoiceId, confirmedReceivedAtByOrderId, expectedDeliveryAtByOrderId, shipmentByOrderId);
+     }
+ 
+     private List<SupplierDebtDtos.Kpi> buildKpis(DebtContext context) {
+@@ -390,6 +403,7 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
+         BigDecimal dueSoon = calcs.stream().filter(InvoiceCalc::dueSoon).map(InvoiceCalc::remaining).reduce(BigDecimal.ZERO, BigDecimal::add);
+         LocalDate today = LocalDate.now();
+         BigDecimal paidThisMonth = context.payments().stream()
++                .filter(payment -> isDebtPaymentHistory(payment, context))
+                 .filter(payment -> payment.getPaymentDate() != null && payment.getPaymentDate().getYear() == today.getYear() && payment.getPaymentDate().getMonth() == today.getMonth())
+                 .map(this::paymentAmount)
+                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+@@ -469,7 +483,10 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
+         InvoiceLine mainItem = context.invoiceMainItemByInvoiceId().get(invoice.getId());
+         LocalDateTime confirmedReceivedAt = context.confirmedReceivedAtByOrderId().get(invoice.getOrderId());
+         LocalDateTime expectedDueAt = context.expectedDeliveryAtByOrderId().get(invoice.getOrderId());
++        OrderEntity order = context.ordersById().get(invoice.getOrderId());
++        ShipmentEntity shipment = context.shipmentByOrderId().get(invoice.getOrderId());
+         String paymentPlan = paymentPlanType(invoice);
++        String reminderBlockedReason = reminderBlockedReason(invoice, order, calc.remaining(), shipment);
+         return new SupplierDebtDtos.InvoiceItem(
+                 invoice.getId(),
+                 invoice.getInvoiceNumber(),
+@@ -497,11 +514,14 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
+                 paymentTermDays(invoice),
+                 invoiceStatus(calc),
+                 invoiceStatusLabel(calc),
+-                calc.overdueDays());
++                calc.overdueDays(),
++                confirmedReceivedAt != null,
++                reminderBlockedReason == null,
++                reminderBlockedReason);
+     }
+ 
+     private SupplierDebtDtos.PaymentItem toPaymentItem(PaymentEntity payment, UserEntity user) {
+-        return new SupplierDebtDtos.PaymentItem(payment.getId(), payment.getInvoiceId(), paymentAmount(payment), payment.getPaymentDate(), payment.getPaymentMethod(), payment.getNote(), user == null ? null : firstText(user.getFullName(), user.getEmail()));
++        return new SupplierDebtDtos.PaymentItem(payment.getId(), payment.getInvoiceId(), paymentAmount(payment), payment.getPaymentDate(), payment.getPaymentMethod(), fixVietnameseMojibake(payment.getNote()), user == null ? null : firstText(user.getFullName(), user.getEmail()));
+     }
+ 
+     private SupplierDebtDtos.AdjustmentItem toAdjustmentItem(DebtAdjustmentEntity item) {
+@@ -549,7 +569,13 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
+         LocalDate today = LocalDate.now();
+         String plan = paymentPlanType(invoice);
+         LocalDate effectiveDueDate = invoice.getDueDate();
+-        if ("DEPOSIT_50".equals(plan) && confirmedReceivedAt != null) effectiveDueDate = confirmedReceivedAt.toLocalDate();
++        if ("DEPOSIT_50".equals(plan)) {
++            if (confirmedReceivedAt == null) {
++                effectiveDueDate = null;
++            } else if (effectiveDueDate == null) {
++                effectiveDueDate = confirmedReceivedAt.toLocalDate();
++            }
++        }
+         boolean overdue = remaining.compareTo(BigDecimal.ZERO) > 0 && effectiveDueDate != null && effectiveDueDate.isBefore(today);
+         boolean dueSoon = remaining.compareTo(BigDecimal.ZERO) > 0 && effectiveDueDate != null && !effectiveDueDate.isBefore(today) && !effectiveDueDate.isAfter(today.plusDays(7));
+         return new InvoiceCalc(amount, paid, remaining, overdue, dueSoon, overdue ? ChronoUnit.DAYS.between(effectiveDueDate, today) : 0, plan);
+@@ -596,11 +622,33 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
+         if (calc.remaining().compareTo(BigDecimal.ZERO) <= 0) return "Đã thanh toán";
+         if (calc.overdue()) return "Quá hạn";
+         if (calc.dueSoon()) return "Đến hạn thanh toán";
+-        if ("DEPOSIT_50".equals(calc.paymentPlanType()) && calc.paid().compareTo(BigDecimal.ZERO) > 0) return "Đã cọc 50%";
++        if ("DEPOSIT_50".equals(calc.paymentPlanType()) && calc.paid().compareTo(BigDecimal.ZERO) > 0) return "Chờ nhận hàng";
+         if (calc.paid().compareTo(BigDecimal.ZERO) > 0) return "Thanh toán một phần";
+         return "Chưa thanh toán";
+     }
+ 
++    private String reminderBlockedReason(InvoiceEntity invoice, OrderEntity order, BigDecimal remaining, ShipmentEntity shipment) {
++        if (order == null) return "Không tìm thấy đơn hàng.";
++        if (OrderStatusEnum.CANCELLED.equals(order.getStatus())) return "Đơn hàng đã hủy, không thể nhắc nợ.";
++        if (remaining == null || remaining.compareTo(BigDecimal.ZERO) <= 0 || InvoiceStatusEnum.PAID.equals(invoice.getStatus())) {
++            return "Hóa đơn đã thanh toán, không thể nhắc nợ.";
++        }
++        if (InvoiceStatusEnum.CANCELLED.equals(invoice.getStatus()) || InvoiceStatusEnum.VOIDED.equals(invoice.getStatus())) {
++            return "Hóa đơn không còn hiệu lực.";
++        }
++        if (shipment == null || shipment.getConfirmedReceivedAt() == null) {
++            return "Chưa đến kỳ thanh toán: Buyer chưa xác nhận nhận hàng.";
++        }
++        if (shipment.getStatus() == null || !"DELIVERED".equals(shipment.getStatus().name())) {
++            return "Chưa đến kỳ thanh toán: đơn chưa giao thành công.";
++        }
++        LocalDate dueDate = invoice.getDueDate() == null ? shipment.getConfirmedReceivedAt().toLocalDate() : invoice.getDueDate();
++        if (!dueDate.isBefore(LocalDate.now())) {
++            return "Chưa quá hạn thanh toán.";
++        }
++        return null;
++    }
++
+     private CreditLimitStatusEnum parseCreditStatus(String value) {
+         if (value == null || value.isBlank()) return CreditLimitStatusEnum.ACTIVE;
+         return CreditLimitStatusEnum.valueOf(value.trim().toUpperCase(Locale.ROOT));
+@@ -656,6 +704,56 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
+         return "PREPAID";
+     }
+ 
++    private boolean isDebtPaymentHistory(PaymentEntity payment, DebtContext context) {
++        if (!isPaidPaymentStatus(payment) || payment.getInvoiceId() == null) return false;
++        InvoiceEntity invoice = context.invoices().stream()
++                .filter(item -> Objects.equals(item.getId(), payment.getInvoiceId()))
++                .findFirst()
++                .orElse(null);
++        if (invoice == null || InvoiceStatusEnum.CANCELLED.equals(invoice.getStatus()) || InvoiceStatusEnum.VOIDED.equals(invoice.getStatus())) return false;
++        OrderEntity order = context.ordersById().get(invoice.getOrderId());
++        if (order == null || OrderStatusEnum.CANCELLED.equals(order.getStatus())) return false;
++        if (isFullPlatformPaymentOption(firstText(order.getPaymentOption(), invoice.getPaymentMethod()))) return false;
++        if (containsFullPlatformPaymentText(payment.getNote()) || containsFullPlatformPaymentText(payment.getTransferContent())) return false;
++
++        String paymentType = normalizeCode(payment.getPaymentType());
++        if (List.of("FULL", "ESCROW", "FULL_PAYMENT", "PLATFORM_FULL_PAYMENT", "PAY_100_PERCENT").contains(paymentType)) return false;
++        if (List.of("REMAINING", "PAY_REMAINING_BALANCE", "DEBT_PAYMENT", "PARTIAL_DEBT_PAYMENT", "BUYER_DEBT_PAYMENT", "SUPPLIER_DEBT_PAYMENT").contains(paymentType)) return true;
++        if ("DEPOSIT".equals(paymentType)) return false;
++
++        String plan = paymentPlanType(invoice);
++        return "CREDIT_TERM".equals(plan);
++    }
++
++    private boolean isFullPlatformPaymentOption(String value) {
++        String normalized = normalizeCode(value);
++        return List.of("FULL_PAYMENT", "PAY_100_PERCENT", "PLATFORM_FULL_PAYMENT", "ESCROW_TRANSFER", "ESCROW").contains(normalized);
++    }
++
++    private boolean containsFullPlatformPaymentText(String value) {
++        String text = firstText(fixVietnameseMojibake(value), "").toLowerCase(Locale.ROOT);
++        String normalized = normalizeCode(text);
++        return normalized.contains("100") && (text.contains("qua sàn") || normalized.contains("QUA_SAN") || normalized.contains("PLATFORM") || normalized.contains("FULL"));
++    }
++
++    private String normalizeCode(String value) {
++        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
++    }
++
++    private String fixVietnameseMojibake(String value) {
++        if (value == null || value.isBlank()) return value;
++        if (!looksLikeVietnameseMojibake(value)) return value;
++        try {
++            return new String(value.getBytes(Charset.forName("windows-1252")), StandardCharsets.UTF_8);
++        } catch (RuntimeException ignored) {
++            return value;
++        }
++    }
++
++    private boolean looksLikeVietnameseMojibake(String value) {
++        return value != null && (value.contains("\u00C3") || value.contains("\u00C4") || value.contains("\u00E1\u00BB"));
++    }
++
+     private Integer paymentTermDays(InvoiceEntity invoice) {
+         if (invoice.getDueDate() == null || invoice.getCreatedAt() == null) return null;
+         return (int) ChronoUnit.DAYS.between(invoice.getCreatedAt().toLocalDate(), invoice.getDueDate());
+@@ -746,7 +844,8 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
+             Map<Long, OrderEntity> ordersById,
+             Map<Long, InvoiceLine> invoiceMainItemByInvoiceId,
+             Map<Long, LocalDateTime> confirmedReceivedAtByOrderId,
+-            Map<Long, LocalDateTime> expectedDeliveryAtByOrderId
++            Map<Long, LocalDateTime> expectedDeliveryAtByOrderId,
++            Map<Long, ShipmentEntity> shipmentByOrderId
+     ) {
+     }
+ 
+diff --git a/AGRIBRIDGE-BE/src/main/resources/db/migration/V20260513_02__fix_notification_type_constraint.sql b/AGRIBRIDGE-BE/src/main/resources/db/migration/V20260513_02__fix_notification_type_constraint.sql
+index 0b49f9b..dcdcca9 100644
+--- a/AGRIBRIDGE-BE/src/main/resources/db/migration/V20260513_02__fix_notification_type_constraint.sql
++++ b/AGRIBRIDGE-BE/src/main/resources/db/migration/V20260513_02__fix_notification_type_constraint.sql
+@@ -29,6 +29,7 @@ DEALLOCATE notification_type_constraints;
+ ALTER TABLE dbo.notifications WITH CHECK ADD CONSTRAINT CK_notifications_type_v2
+     CHECK ([type] IN (
+         'DEBT_REMINDER',
++        'PAYMENT_DUE',
+         'DEBT_OVERDUE',
+         'DEBT_PAYMENT_CONFIRMED',
+         'PRICE_ALERT',
+diff --git a/AGRIBRIDGE-FE/src/pages/buyer/BuyerDebtPage.tsx b/AGRIBRIDGE-FE/src/pages/buyer/BuyerDebtPage.tsx
+index 17e6963..d3aee36 100644
+--- a/AGRIBRIDGE-FE/src/pages/buyer/BuyerDebtPage.tsx
++++ b/AGRIBRIDGE-FE/src/pages/buyer/BuyerDebtPage.tsx
+@@ -156,13 +156,20 @@ export function BuyerDebtPage() {
+   useEffect(() => {
+     const supplierId = Number(searchParams.get('supplierId') || '')
+     const invoiceId = Number(searchParams.get('invoiceId') || '')
++    const shouldPay = searchParams.get('pay') === '1'
+     if (!Number.isFinite(supplierId) || supplierId <= 0) return
+     setFocusInvoiceId(Number.isFinite(invoiceId) && invoiceId > 0 ? invoiceId : null)
+-    void openDetail(supplierId, 'invoices')
++    void (async () => {
++      const data = await openDetail(supplierId, 'invoices')
++      if (!shouldPay || !data) return
++      const invoice = data.invoices.find((item) => item.invoiceId === invoiceId)
++      if (invoice && canPayInvoice(invoice)) setPayment({ supplier: data.summary, invoice })
++    })()
+     setSearchParams((prev) => {
+       const next = new URLSearchParams(prev)
+       next.delete('supplierId')
+       next.delete('invoiceId')
++      next.delete('pay')
+       return next
+     }, { replace: true })
+   }, [searchParams, setSearchParams])
+diff --git a/AGRIBRIDGE-FE/src/pages/buyer/BuyerDeliveryPage.tsx b/AGRIBRIDGE-FE/src/pages/buyer/BuyerDeliveryPage.tsx
+index d64d386..1329a0d 100644
+--- a/AGRIBRIDGE-FE/src/pages/buyer/BuyerDeliveryPage.tsx
++++ b/AGRIBRIDGE-FE/src/pages/buyer/BuyerDeliveryPage.tsx
+@@ -2,6 +2,7 @@ import type React from 'react'
+ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+ import { AlertTriangle, Clock, MapPin, Package, PhoneCall, Truck, X, CheckCircle, CheckCircle2, UploadCloud } from 'lucide-react'
+ import { SearchInput } from '../../components/buyer/BuyerCommon'
++import { BuyerPaymentInstructionModal } from '../../components/buyer/BuyerPaymentInstructionModal'
+ import { BuyerShell } from '../../components/buyer/BuyerShell'
+ import { useToast } from '../../hooks/useToast'
+ import {
+@@ -17,6 +18,7 @@ import {
+   type DeliveryTimelineEvent,
+ } from '../../services/buyerDeliveryService'
+ import { fetchBuyerBranches, type BuyerBranchSummary } from '../../services/buyerBranchService'
++import { createBuyerDebtPayment } from '../../services/buyerDebtApi'
+ import { uploadRegistrationFile } from '../../services/uploadService'
+ import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
+ 
+@@ -228,6 +230,8 @@ export function BuyerDeliveryPage() {
+   const [mapShipment, setMapShipment] = useState<BuyerDeliveryItem | null>(null)
+   const [incidentShipment, setIncidentShipment] = useState<BuyerDeliveryItem | null>(null)
+   const [confirmShipment, setConfirmShipment] = useState<BuyerDeliveryItem | null>(null)
++  const [paymentDue, setPaymentDue] = useState<BuyerDeliveryDetail['paymentDue'] | null>(null)
++  const [submittingPaymentDue, setSubmittingPaymentDue] = useState(false)
+   const [updateIncidentTarget, setUpdateIncidentTarget] = useState<{
+     shipment: BuyerDeliveryItem
+     incident: BuyerDeliveryDetail['incidents'][number]
+@@ -391,7 +395,47 @@ export function BuyerDeliveryPage() {
+           }}
+         />
+       ) : null}
+-      {confirmShipment ? <ConfirmReceivedModal shipment={confirmShipment} onClose={() => setConfirmShipment(null)} onDone={(updated) => void refreshAfterAction(updated)} /> : null}
++      {confirmShipment ? <ConfirmReceivedModal shipment={confirmShipment} onClose={() => setConfirmShipment(null)} onDone={(updated) => { if (updated?.paymentDue) setPaymentDue(updated.paymentDue); void refreshAfterAction(updated) }} /> : null}
++      <BuyerPaymentInstructionModal
++        open={Boolean(paymentDue)}
++        mode="debt"
++        title="Thanh toán phần còn lại"
++        description={paymentDue?.dueDate ? `Hạn thanh toán: ${formatDate(paymentDue.dueDate)}` : 'Thanh toán qua tài khoản sàn'}
++        invoiceCode={paymentDue?.displayInvoiceCode || paymentDue?.invoiceCode}
++        orderCode={paymentDue?.orderCode}
++        supplierName={paymentDue?.supplierName}
++        productName={paymentDue?.productName}
++        quantity={paymentDue?.quantity}
++        unit={paymentDue?.unit}
++        paymentMethod={paymentDue?.paymentMethod === 'DEPOSIT_50' ? 'DEPOSIT_50' : 'ESCROW_TRANSFER'}
++        totalAmount={paymentDue?.totalAmount}
++        paidAmount={paymentDue?.paidAmount}
++        balanceAmount={paymentDue?.remainingAmount}
++        payableAmount={paymentDue?.remainingAmount}
++        transferContent={paymentDue?.transferContent}
++        onClose={() => setPaymentDue(null)}
++        onDemoPaid={async () => {
++          if (!paymentDue) return
++          setSubmittingPaymentDue(true)
++          try {
++            await createBuyerDebtPayment({
++              invoiceId: paymentDue.invoiceId,
++              amount: paymentDue.remainingAmount,
++              paymentMethod: 'BANK_TRANSFER_DEMO',
++              paymentDate: new Date().toISOString(),
++              note: `Demo thanh toán phần còn lại ${paymentDue.invoiceCode || paymentDue.orderCode}`,
++            })
++            showToast('Thanh toán phần còn lại thành công.', 'success')
++            setPaymentDue(null)
++            await loadDeliveries()
++          } catch (requestError) {
++            showToast(readApiErrorMessage(requestError) || 'Không thể thanh toán phần còn lại.', 'error')
++          } finally {
++            setSubmittingPaymentDue(false)
++          }
++        }}
++        submitting={submittingPaymentDue}
++      />
+     </>
+   )
+ }
+diff --git a/AGRIBRIDGE-FE/src/pages/supplier/SupplierDebtPage.tsx b/AGRIBRIDGE-FE/src/pages/supplier/SupplierDebtPage.tsx
+index aa59e37..488a6f5 100644
+--- a/AGRIBRIDGE-FE/src/pages/supplier/SupplierDebtPage.tsx
++++ b/AGRIBRIDGE-FE/src/pages/supplier/SupplierDebtPage.tsx
+@@ -37,6 +37,26 @@ function formatDate(value?: string | null) {
+   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN')
+ }
+ 
++function paymentMethodLabel(method?: string | null) {
++  const normalized = String(method || '').toUpperCase()
++  if (!normalized) return emptyText
++  if (normalized.includes('BANK_TRANSFER') || normalized.includes('TRANSFER')) return 'Chuyển khoản'
++  if (normalized === 'CASH') return 'Tiền mặt'
++  if (normalized === 'CREDIT') return 'Công nợ'
++  if (normalized === 'OTHER') return 'Khác'
++  return method || emptyText
++}
++
++function cleanVietnameseText(value?: string | null) {
++  if (!value) return ''
++  if (!/[\u00C3\u00C4]|\u00E1\u00BB/.test(value)) return value
++  try {
++    return decodeURIComponent(escape(value))
++  } catch {
++    return value
++  }
++}
++
+ function paymentPlanLabel(plan?: string | null, termDays?: number | null, creditLimit?: number | null) {
+   if (plan === 'DEPOSIT_50') return 'Cọc 50%'
+   if (plan === 'CREDIT_TERM') return termDays ? `Công nợ ${termDays} ngày` : 'Công nợ'
+@@ -67,6 +87,20 @@ function isOutstandingDebtInvoice(invoice: SupplierDebtInvoice) {
+   return ['UNPAID', 'PARTIAL', 'PARTIALLY_PAID', 'DUE_NOW', 'OVERDUE'].includes(status)
+ }
+ 
++function canSendReminder(invoice: SupplierDebtInvoice) {
++  if (invoice.canSendReminder != null) return Boolean(invoice.canSendReminder)
++  const status = (invoice.status || '').toUpperCase()
++  return invoiceOutstandingAmount(invoice) > 0 && Boolean(invoice.confirmedReceivedAt) && status === 'OVERDUE'
++}
++
++function reminderBlockedLabel(invoice?: SupplierDebtInvoice | null) {
++  if (!invoice) return 'Không có khoản cần nhắc'
++  if (invoice.reminderBlockedReason) return invoice.reminderBlockedReason
++  if (!invoice.confirmedReceivedAt) return 'Chờ nhận hàng'
++  if ((invoice.status || '').toUpperCase() !== 'OVERDUE') return 'Chưa đến kỳ thanh toán'
++  return 'Không đủ điều kiện nhắc nợ'
++}
++
+ function debtTypeLabelFromInvoices(invoices: SupplierDebtInvoice[], remainingAmount?: number) {
+   const outstanding = invoices.filter(isOutstandingDebtInvoice)
+   if (!outstanding.length) return Number(remainingAmount || 0) > 0 ? 'Nhiều loại' : 'Không còn nợ'
+@@ -224,10 +258,10 @@ export function SupplierDebtPage() {
+       const matchesText = !text || item.buyerName.toLowerCase().includes(text)
+       const matchesStatus = status === 'all'
+         ? Number(item.remainingAmount || 0) > 0
+-        : (status === 'REMINDER' ? Number(item.overdueAmount || 0) > 0 || Number(item.dueSoonAmount || 0) > 0 : item.status === status)
++        : (status === 'REMINDER' ? (buyerDetailMap[item.buyerId]?.invoices || []).some(canSendReminder) : item.status === status)
+       return matchesText && matchesStatus
+     })
+-  }, [keyword, overview.buyers, status])
++  }, [buyerDetailMap, keyword, overview.buyers, status])
+ 
+   useEffect(() => {
+     const missingIds = buyers.map((item) => item.buyerId).filter((id) => !buyerDetailMap[id])
+@@ -249,8 +283,8 @@ export function SupplierDebtPage() {
+   }, [buyers, buyerDetailMap])
+ 
+   const customerNeedReminderCount = useMemo(
+-    () => buyers.filter((item) => Number(item.overdueAmount || 0) > 0 || Number(item.dueSoonAmount || 0) > 0).length,
+-    [buyers],
++    () => buyers.filter((item) => (buyerDetailMap[item.buyerId]?.invoices || []).some(canSendReminder)).length,
++    [buyerDetailMap, buyers],
+   )
+ 
+   const tabs = [
+@@ -363,7 +397,7 @@ export function SupplierDebtPage() {
+                         <div className="flex flex-wrap gap-1.5">
+                           <ActionButton icon={<FileText />} text="Chi tiết" onClick={() => void openDetail(item.buyerId)} />
+                           {item.remainingAmount > 0 ? <ActionButton icon={<CreditCard />} text="Ghi nhận thủ công" onClick={() => setModal({ type: 'payment', buyer: item })} /> : null}
+-                          {item.remainingAmount > 0 ? <ActionButton icon={<Bell />} text="Nhắc nợ" onClick={() => setModal({ type: 'reminder', buyer: item })} /> : null}
++                          {(detailByBuyer?.invoices || []).some(canSendReminder) ? <ActionButton icon={<Bell />} text="Nhắc nợ" onClick={() => setModal({ type: 'reminder', buyer: item })} /> : null}
+                           <ActionButton icon={<Settings />} text="Thiết lập hạn mức" onClick={() => setModal({ type: 'limit', buyer: item })} />
+                         </div>
+                       </td>
+@@ -430,28 +464,22 @@ function DetailDrawer({
+   focusInvoiceId?: number | null
+ }) {
+   const outstandingInvoices = detail.invoices.filter(isOutstandingDebtInvoice)
+-  const paidInvoices = detail.invoices.filter((invoice) => (invoice.status || '').toUpperCase() === 'PAID')
+   const invoiceMap = new Map(detail.invoices.map((item) => [item.invoiceId, item]))
+   const outstandingAmount = outstandingInvoices.reduce((sum, invoice) => sum + invoiceOutstandingAmount(invoice), 0)
+   const overdueAmount = outstandingInvoices
+     .filter((invoice) => (invoice.status || '').toUpperCase() === 'OVERDUE')
+     .reduce((sum, invoice) => sum + invoiceOutstandingAmount(invoice), 0)
+-  const paymentHistoryItems: string[][] = [
+-    ...paidInvoices.map((invoice) => [
+-      `${formatMoney(invoice.paidAmount || invoice.totalAmount)} - Đã thanh toán`,
+-      `Đơn ${invoice.orderCode || invoice.orderRef || emptyText} · ${productLabel(invoice)} · Hóa đơn ${displayInvoiceCode(invoice)} · ${formatDate(invoice.dueDate || invoice.createdAt)} · Đã thanh toán`,
+-    ]),
+-    ...detail.payments.map((item) => {
+-      const invoice = item.invoiceId ? invoiceMap.get(item.invoiceId) : undefined
+-      return [
+-        `${formatMoney(item.amount)} - Đã thanh toán`,
+-        `Đơn ${invoice?.orderCode || invoice?.orderRef || emptyText} · ${invoice ? productLabel(invoice) : emptyText} · Hóa đơn ${invoice ? displayInvoiceCode(invoice) : item.invoiceId || emptyText} · ${item.paymentMethod || emptyText} · ${formatDate(item.paymentDate)} · Đã thanh toán${item.note ? ` · ${item.note}` : ''}`,
+-      ]
+-    }),
+-  ]
++  const paymentHistoryItems: string[][] = detail.payments.map((item) => {
++    const invoice = item.invoiceId ? invoiceMap.get(item.invoiceId) : undefined
++    const note = cleanVietnameseText(item.note)
++    return [
++      `${formatMoney(item.amount)} - Đã thanh toán`,
++      `Đơn ${invoice?.orderCode || invoice?.orderRef || emptyText} · Hóa đơn ${invoice ? displayInvoiceCode(invoice) : item.invoiceId ? `INV-${item.invoiceId}` : emptyText} · ${formatDate(item.paymentDate)} · ${paymentMethodLabel(item.paymentMethod)}${note ? ` · ${note}` : ''}`,
++    ]
++  })
+   const tabs = [
+     ['invoices', 'Hóa đơn'],
+-    ['payments', 'Lịch sử thanh toán'],
++    ['payments', 'Thanh toán công nợ'],
+     ['adjustments', 'Điều chỉnh'],
+     ['reminders', 'Nhắc nợ'],
+     ['limit', 'Hạn mức'],
+@@ -528,7 +556,7 @@ function InvoiceTab({ invoices, onPayment, onReminder, onAdjustment, focusInvoic
+               <td className="px-3 py-2 text-emerald-700">{formatMoney(invoice.paidAmount)}</td>
+               <td className="px-3 py-2 font-bold">{formatMoney(invoiceOutstandingAmount(invoice))}</td>
+               <td className="px-3 py-2">{invoiceStatusLabel(invoice)}</td>
+-              <td className="px-3 py-2"><div className="flex gap-1.5">{invoiceOutstandingAmount(invoice) > 0 ? <button className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-bold text-white disabled:opacity-50"  onClick={() => onPayment(invoice)}>Ghi nhận thu</button> : null}{invoiceOutstandingAmount(invoice) > 0 ? <button className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700" onClick={() => onReminder(invoice)}>Nhắc</button> : null}{!['PAID', 'CANCELLED', 'VOIDED'].includes((invoice.status || '').toUpperCase()) ? <button className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700" onClick={() => onAdjustment(invoice)}>Điều chỉnh</button> : null}</div></td>
++              <td className="px-3 py-2"><div className="flex gap-1.5">{invoiceOutstandingAmount(invoice) > 0 ? <button className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-bold text-white disabled:opacity-50"  onClick={() => onPayment(invoice)}>Ghi nhận thu</button> : null}{invoiceOutstandingAmount(invoice) > 0 ? <button className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => onReminder(invoice)} disabled={!canSendReminder(invoice)} title={!canSendReminder(invoice) ? reminderBlockedLabel(invoice) : undefined}>Nhắc</button> : null}{!['PAID', 'CANCELLED', 'VOIDED'].includes((invoice.status || '').toUpperCase()) ? <button className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700" onClick={() => onAdjustment(invoice)}>Điều chỉnh</button> : null}</div></td>
+             </tr>
+           ))}
+         </tbody>
+@@ -540,7 +568,7 @@ function InvoiceTab({ invoices, onPayment, onReminder, onAdjustment, focusInvoic
+ function DebtActionModal({ modal, detail, saving, setSaving, onClose, onDone }: { modal: NonNullable<ModalState>; detail: SupplierDebtBuyerDetail | null; saving: boolean; setSaving: (value: boolean) => void; onClose: () => void; onDone: (buyerId: number, detail?: SupplierDebtBuyerDetail) => Promise<void> }) {
+   const { showToast } = useToast()
+   const [buyerInvoices, setBuyerInvoices] = useState<SupplierDebtInvoice[]>(detail?.summary.buyerId === modal.buyer.buyerId ? detail.invoices : [])
+-  const invoices = buyerInvoices.filter(isOutstandingDebtInvoice)
++  const invoices = buyerInvoices.filter(modal.type === 'reminder' ? canSendReminder : isOutstandingDebtInvoice)
+   const firstInvoice = 'invoice' in modal ? modal.invoice ?? invoices[0] : invoices[0]
+   const [invoiceId, setInvoiceId] = useState(firstInvoice ? String(firstInvoice.invoiceId) : '')
+   const selectedInvoice = invoices.find((item) => String(item.invoiceId) === invoiceId) ?? firstInvoice
+@@ -555,7 +583,7 @@ function DebtActionModal({ modal, detail, saving, setSaving, onClose, onDone }:
+   const [sendSystemNotification, setSendSystemNotification] = useState(true)
+   const [markOnBuyerDebtPage, setMarkOnBuyerDebtPage] = useState(true)
+   const selectedOutstandingAmount = selectedInvoice ? invoiceOutstandingAmount(selectedInvoice) : 0
+-  const isReminderAmountInvalid = modal.type === 'reminder' && selectedOutstandingAmount <= 0
++  const isReminderAmountInvalid = modal.type === 'reminder' && (!selectedInvoice || selectedOutstandingAmount <= 0 || !canSendReminder(selectedInvoice))
+ 
+   useEffect(() => {
+     let cancelled = false
+@@ -612,7 +640,7 @@ function DebtActionModal({ modal, detail, saving, setSaving, onClose, onDone }:
+         await onDone(modal.buyer.buyerId, next)
+       } else {
+         if (!selectedInvoice) throw new Error('Vui lòng chọn hóa đơn cần nhắc nợ.')
+-        if (isReminderAmountInvalid) throw new Error('Khoản này không còn số tiền cần nhắc.')
++        if (isReminderAmountInvalid) throw new Error(reminderBlockedLabel(selectedInvoice))
+         const next = await createSupplierDebtReminder({
+           buyerId: modal.buyer.buyerId,
+           invoiceId: selectedInvoice.invoiceId,
+diff --git a/AGRIBRIDGE-FE/src/services/buyerDeliveryService.ts b/AGRIBRIDGE-FE/src/services/buyerDeliveryService.ts
+index c50fdf0..0535bdd 100644
+--- a/AGRIBRIDGE-FE/src/services/buyerDeliveryService.ts
++++ b/AGRIBRIDGE-FE/src/services/buyerDeliveryService.ts
+@@ -100,6 +100,23 @@ export type BuyerDeliveryDetail = {
+     createdAt: string
+     resolvedAt?: string | null
+   }>
++  paymentDue?: {
++    invoiceId: number
++    invoiceCode?: string | null
++    displayInvoiceCode?: string | null
++    orderId: number
++    orderCode?: string | null
++    supplierName?: string | null
++    productName?: string | null
++    quantity?: number | null
++    unit?: string | null
++    totalAmount?: number | null
++    paidAmount?: number | null
++    remainingAmount: number
++    dueDate?: string | null
++    transferContent?: string | null
++    paymentMethod?: 'DEPOSIT_50' | 'CREDIT' | 'ESCROW_TRANSFER' | string | null
++  } | null
+ }
+ 
+ export type DeliveryFilters = {
+diff --git a/AGRIBRIDGE-FE/src/services/notificationService.ts b/AGRIBRIDGE-FE/src/services/notificationService.ts
+index 3ef61aa..647c65c 100644
+--- a/AGRIBRIDGE-FE/src/services/notificationService.ts
++++ b/AGRIBRIDGE-FE/src/services/notificationService.ts
+@@ -59,10 +59,12 @@ export function resolveNotificationRoute(item: AppNotification): string {
+     }
+     return `/supplier/debt?buyerId=${buyerId}&invoiceId=${invoiceId}`
+   }
+-  if (item.type === 'DEBT_REMINDER') {
++  if (item.type === 'DEBT_REMINDER' || item.type === 'PAYMENT_DUE' || item.type === 'DEBT_OVERDUE') {
+     const invoiceId = asPositiveInt(metadata.invoiceId)
+     const supplierId = asPositiveInt(metadata.supplierCompanyId)
+     const buyerId = asPositiveInt(metadata.buyerCompanyId)
++    if (item.type === 'PAYMENT_DUE') return `/buyer/debt?supplierId=${supplierId}&invoiceId=${invoiceId}&pay=1`
++    if (item.type === 'DEBT_OVERDUE') return `/supplier/debt?buyerId=${buyerId}&invoiceId=${invoiceId}`
+     if (role === 'supplier') return `/supplier/debt?buyerId=${buyerId}&invoiceId=${invoiceId}`
+     return `/buyer/debt?supplierId=${supplierId}&invoiceId=${invoiceId}`
+   }
+diff --git a/AGRIBRIDGE-FE/src/services/supplierDebtApi.ts b/AGRIBRIDGE-FE/src/services/supplierDebtApi.ts
+index a0b36dd..46a17cf 100644
+--- a/AGRIBRIDGE-FE/src/services/supplierDebtApi.ts
++++ b/AGRIBRIDGE-FE/src/services/supplierDebtApi.ts
+@@ -57,6 +57,9 @@ export type SupplierDebtInvoice = {
+   status?: string | null
+   statusLabel: string
+   overdueDays: number
++  buyerConfirmedReceived?: boolean | null
++  canSendReminder?: boolean | null
++  reminderBlockedReason?: string | null
+ }
+ 
+ export type SupplierDebtPayment = {

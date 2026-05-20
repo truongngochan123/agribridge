@@ -42,11 +42,20 @@ export type BuyerCreditLimit = {
   paymentTermDays: number
   creditLimit?: number | null
   remainingCredit?: number | null
+  status?: 'ACTIVE' | 'SUSPENDED' | 'CLOSED' | string | null
   isBlocked?: boolean
   blockedReason?: string | null
 }
 
 export type BuyerPaymentMethod = 'ESCROW_TRANSFER' | 'DEPOSIT_50' | 'CREDIT'
+
+export type BuyerQuickOrderPaymentSummary = {
+  supplierName?: string | null
+  creditLimit?: number | null
+  remainingCreditBeforeOrder?: number | null
+  remainingCreditAfterOrder?: number | null
+  orderStatus?: string | null
+}
 
 // ─── Payload sent on submit ───────────────────────────────────────────────────
 

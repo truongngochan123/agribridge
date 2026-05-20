@@ -2,6 +2,7 @@ import { ExternalLink, Loader2, Plus, Upload, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { SupplierPanel, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
+import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   createBatchForExistingProduct,
@@ -140,6 +141,7 @@ export function SupplierProductsLotsPage() {
   const [submitLoading, setSubmitLoading] = useState(false)
   const [flowMessage, setFlowMessage] = useState('')
   const [createdResult, setCreatedResult] = useState<SupplierCreateFlowResponse | null>(null)
+  const [productReloadToken, setProductReloadToken] = useState(0)
 
   const companyId = Number(localStorage.getItem('agribridge.auth.companyId') ?? 0)
   const userId = Number(localStorage.getItem('agribridge.auth.userId') ?? 0)
@@ -189,7 +191,9 @@ export function SupplierProductsLotsPage() {
     }
 
     void loadProducts()
-  }, [companyId])
+  }, [companyId, productReloadToken])
+
+  useNotificationModuleRefresh(['INVENTORY', 'SOURCING'], () => setProductReloadToken((value) => value + 1))
 
   const resetCreateProductFlow = () => {
     setAddStep(1)

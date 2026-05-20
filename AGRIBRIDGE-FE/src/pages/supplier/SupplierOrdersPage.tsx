@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { SearchInput, SupplierPanel, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
+import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { useToast } from '../../hooks/useToast'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import {
@@ -147,11 +148,20 @@ export function SupplierOrdersPage() {
     setOrders((prev) => prev.map((item) => (item.rawId === updated.rawId ? updated : item)))
   }
 
-  const reloadSelectedOrder = async (orderId: number) => {
+  const reloadSelectedOrder = useCallback(async (orderId: number) => {
     const companyId = getSessionCompanyId()
     if (!companyId) return
     setSelectedOrder(await getSupplierOrderDetail(companyId, orderId))
-  }
+  }, [])
+
+  const refreshOrderState = useCallback(async () => {
+    await loadOrders()
+    if (selectedOrder?.rawId) {
+      await reloadSelectedOrder(selectedOrder.rawId)
+    }
+  }, [loadOrders, reloadSelectedOrder, selectedOrder?.rawId])
+
+  useNotificationModuleRefresh(['ORDER', 'PAYMENT', 'DELIVERY', 'DEBT', 'COMPLAINT'], refreshOrderState)
 
   const openOrderDetail = async (orderId: number) => {
     const companyId = getSessionCompanyId()
@@ -179,7 +189,7 @@ export function SupplierOrdersPage() {
 
     const confirmed = await showConfirm(
       status === 'CONFIRMED' ? `Xác nhận đơn ${order.id}?` : `Hủy đơn ${order.id}?`,
-      { title: 'Xác nhận thao tác', confirmText: status === 'CONFIRMED' ? 'Xác nhận' : 'Hủy đơn', cancelText: 'Đóng' },
+      { title: 'Xác nhận thao tác', confirmText: status === 'CONFIRMED' ? 'Xác nhận' : 'Hủy đơn', cancelText: 'Hủy' },
     )
     if (!confirmed) return
 
@@ -206,7 +216,7 @@ export function SupplierOrdersPage() {
     const confirmed = await showConfirm(`Cập nhật vận đơn của ${order.id}?`, {
       title: 'Cập nhật vận đơn',
       confirmText: 'Cập nhật',
-      cancelText: 'Đóng',
+      cancelText: 'Hủy',
     })
     if (!confirmed) return
 
@@ -602,7 +612,6 @@ function ShipmentModal({
           <ShipmentInput label="Ghi chú" value={form.note ?? ''} onChange={(value) => update('note', value)} />
         </div>
         <div className="flex justify-end gap-2 border-t border-slate-200 p-4">
-          <button className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700" onClick={onClose} disabled={updating}>Đóng</button>
           <button className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" onClick={onSubmit} disabled={updating}>
             {updating ? 'Đang tạo...' : 'Tạo vận đơn'}
           </button>

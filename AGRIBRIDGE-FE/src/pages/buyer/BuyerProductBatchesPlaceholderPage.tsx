@@ -17,7 +17,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { BuyerQuickOrderModal } from '../../components/buyer/BuyerQuickOrderModal'
 import { BuyerOrderPaymentModal } from '../../components/buyer/BuyerOrderPaymentModal'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
-import type { BuyerPaymentMethod, BuyerQuickOrderPayload, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
+import type { BuyerPaymentMethod, BuyerQuickOrderPayload, BuyerQuickOrderPaymentSummary, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
 import { useBuyerOrderPayment } from '../../hooks/useBuyerOrderPayment'
 import { useToast } from '../../hooks/useToast'
 import { usePageTitle } from '../../hooks/usePageTitle'
@@ -65,6 +65,10 @@ type QuickOrderPaymentModalData = {
   transferContent?: string | null
   paymentMethod: BuyerPaymentMethod
   creditTermDays?: number | null
+  supplierName?: string | null
+  creditLimit?: number | null
+  remainingCreditAfterOrder?: number | null
+  orderStatus?: string | null
 }
 
 const placeholderImage = '/images/seafood-market.jpg'
@@ -359,12 +363,12 @@ export function BuyerProductBatchesPage() {
     setQuickOrderTarget(toQuickOrderTarget(product, batch, unit))
   }
 
-  const submitQuickOrder = async (payload: BuyerQuickOrderPayload) => {
+  const submitQuickOrder = async (payload: BuyerQuickOrderPayload, summary?: BuyerQuickOrderPaymentSummary) => {
     setSubmittingQuickOrder(true)
     const currentTarget = quickOrderTarget
     try {
       const result = await createQuickOrder(payload)
-      showToast('Tạo đơn hàng thành công. Vui lòng hoàn tất thanh toán.', 'success')
+      showToast(payload.paymentMethod === 'CREDIT' ? 'Đã tạo đơn hàng công nợ.' : 'Tạo đơn hàng thành công. Vui lòng hoàn tất thanh toán.', 'success')
       setQuickOrderTarget(null)
       if (currentTarget) {
         setPaymentModalData({
@@ -379,6 +383,10 @@ export function BuyerProductBatchesPage() {
           transferContent: result.transferContent ?? null,
           paymentMethod: payload.paymentMethod,
           creditTermDays: payload.creditTermDays ?? null,
+          supplierName: summary?.supplierName ?? currentTarget.supplierName ?? null,
+          creditLimit: summary?.creditLimit ?? null,
+          remainingCreditAfterOrder: summary?.remainingCreditAfterOrder ?? null,
+          orderStatus: result.orderStatus ?? summary?.orderStatus ?? null,
         })
       }
     } catch (requestError) {
@@ -606,8 +614,8 @@ export function BuyerProductBatchesPage() {
           target={quickOrderTarget}
           submitting={submittingQuickOrder}
           onClose={() => setQuickOrderTarget(null)}
-          onSubmit={(payload) => {
-            void submitQuickOrder(payload)
+          onSubmit={(payload, summary) => {
+            void submitQuickOrder(payload, summary)
           }}
         />
       ) : null}
@@ -624,9 +632,14 @@ export function BuyerProductBatchesPage() {
           totalAmount={paymentModalData.totalAmount}
           paymentMethod={paymentModalData.paymentMethod}
           creditTermDays={paymentModalData.creditTermDays}
+          supplierName={paymentModalData.supplierName}
+          creditLimit={paymentModalData.creditLimit}
+          remainingCreditAfterOrder={paymentModalData.remainingCreditAfterOrder}
+          orderStatus={paymentModalData.orderStatus}
           transferContent={paymentModalData.transferContent}
           confirming={confirming}
           onClose={() => setPaymentModalData(null)}
+          onViewOrder={() => navigate(`/buyer/orders?orderId=${paymentModalData.orderId}`)}
           onConfirmPaid={() => void handleConfirmPayment()}
         />
       ) : null}

@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient'
+import { dispatchStateSync } from './stateSyncService'
 
 export type BuyerBranchSummary = {
   rawId: number
@@ -65,6 +66,29 @@ export type BuyerBranchDetail = {
   }>
 }
 
+export type BranchStaffMember = BuyerBranchDetail['staff'][number]
+
+export type BranchEmployeePayload = {
+  fullName: string
+  email: string
+  phone: string
+  temporaryPassword: string
+  role: string
+  status: string
+  inviteOnly?: boolean
+}
+
+export type BranchEmployeeAssignPayload = {
+  userId: number
+  role: string
+  status: string
+}
+
+export type BranchEmployeeAvailability = {
+  phoneTaken: boolean
+  emailTaken: boolean
+}
+
 export async function fetchBuyerBranches(): Promise<BuyerBranchSummary[]> {
   const response = await apiClient.get('/api/buyer/branches')
   return response.data?.data ?? response.data
@@ -75,21 +99,74 @@ export async function fetchBuyerBranch(id: number): Promise<BuyerBranchDetail> {
   return response.data?.data ?? response.data
 }
 
+export async function fetchBranchEmployeeCandidates(branchId: number, search = ''): Promise<BranchStaffMember[]> {
+  const response = await apiClient.get(`/api/buyer/branches/${branchId}/employees/candidates`, {
+    params: { search },
+  })
+  return response.data?.data ?? response.data
+}
+
+export async function checkBranchEmployeeAvailability(email?: string, phone?: string): Promise<BranchEmployeeAvailability> {
+  const response = await apiClient.get('/api/buyer/branches/employees/availability', {
+    params: { email, phone },
+  })
+  return response.data?.data ?? response.data
+}
+
+export async function createBranchEmployee(branchId: number, payload: BranchEmployeePayload): Promise<BranchStaffMember> {
+  const response = await apiClient.post(`/api/buyer/branches/${branchId}/employees`, payload)
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['BRANCH', 'ORDER', 'RFQ', 'DELIVERY', 'DASHBOARD'], {
+    source: 'buyer-branch:employee-create',
+    entityId: branchId,
+  })
+  return data
+}
+
+export async function assignBranchEmployee(branchId: number, payload: BranchEmployeeAssignPayload): Promise<BranchStaffMember> {
+  const response = await apiClient.post(`/api/buyer/branches/${branchId}/employees/assign`, payload)
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['BRANCH', 'ORDER', 'RFQ', 'DELIVERY', 'DASHBOARD'], {
+    source: 'buyer-branch:employee-assign',
+    entityId: branchId,
+  })
+  return data
+}
+
 export async function createBuyerBranch(payload: BuyerBranchPayload): Promise<BuyerBranchSummary> {
   const response = await apiClient.post('/api/buyer/branches', payload)
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['BRANCH', 'DELIVERY', 'ORDER', 'RFQ', 'DASHBOARD'], {
+    source: 'buyer-branch:create',
+    entityId: data?.rawId,
+  })
+  return data
 }
 
 export async function updateBuyerBranch(id: number, payload: BuyerBranchPayload): Promise<BuyerBranchSummary> {
   const response = await apiClient.put(`/api/buyer/branches/${id}`, payload)
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['BRANCH', 'DELIVERY', 'ORDER', 'RFQ', 'DASHBOARD'], {
+    source: 'buyer-branch:update',
+    entityId: id,
+  })
+  return data
 }
 
 export async function updateBuyerBranchStatus(id: number, isActive: boolean): Promise<BuyerBranchSummary> {
   const response = await apiClient.patch(`/api/buyer/branches/${id}/status`, { isActive })
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['BRANCH', 'DELIVERY', 'ORDER', 'RFQ', 'DASHBOARD'], {
+    source: 'buyer-branch:update-status',
+    entityId: id,
+  })
+  return data
 }
 
 export async function deleteBuyerBranch(id: number): Promise<void> {
   await apiClient.delete(`/api/buyer/branches/${id}`)
+  dispatchStateSync(['BRANCH', 'DELIVERY', 'ORDER', 'RFQ', 'DASHBOARD'], {
+    source: 'buyer-branch:delete',
+    entityId: id,
+  })
 }

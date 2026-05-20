@@ -1,4 +1,4 @@
-﻿import axios from 'axios'
+import axios from 'axios'
 import type {
   AdminActivityItem,
   AdminActivityUpsertRequest,
@@ -16,6 +16,7 @@ import type {
   AdminUserRow,
 } from '../types/admin'
 import { apiClient } from './apiClient'
+import { dispatchStateSync } from './stateSyncService'
 
 export async function fetchAdminOverview(filter: AdminTimeFilter): Promise<AdminOverviewPayload> {
   try {
@@ -42,6 +43,7 @@ export async function fetchAdminUsers(search?: string): Promise<AdminUserRow[]> 
 export async function lockAdminUser(userId: number): Promise<AdminUserRow> {
   try {
     const response = await apiClient.patch<AdminUserRow>(`/api/admin/users/${userId}/lock`, {})
+    dispatchStateSync(['ADMIN', 'PROFILE', 'DASHBOARD'], { source: 'admin-user:lock', entityId: userId })
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không khóa được tài khoản người dùng.'))
@@ -51,6 +53,7 @@ export async function lockAdminUser(userId: number): Promise<AdminUserRow> {
 export async function unlockAdminUser(userId: number): Promise<AdminUserRow> {
   try {
     const response = await apiClient.patch<AdminUserRow>(`/api/admin/users/${userId}/unlock`, {})
+    dispatchStateSync(['ADMIN', 'PROFILE', 'DASHBOARD'], { source: 'admin-user:unlock', entityId: userId })
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không mở khóa được tài khoản người dùng.'))
@@ -83,6 +86,7 @@ export async function approveRegistrationProfile(
       `/api/admin/registrations/${companyId}/approve`,
       sanitizeActionPayload(payload),
     )
+    dispatchStateSync(['ADMIN', 'PROFILE', 'DASHBOARD', 'NOTIFICATION'], { source: 'admin-registration:approve', entityId: companyId })
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không phê duyệt được hồ sơ đăng ký.'))
@@ -98,6 +102,7 @@ export async function requestMoreInfoForRegistration(
       `/api/admin/registrations/${companyId}/request-more-info`,
       sanitizeActionPayload(payload),
     )
+    dispatchStateSync(['ADMIN', 'PROFILE', 'DASHBOARD', 'NOTIFICATION'], { source: 'admin-registration:request-more-info', entityId: companyId })
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không gửi được yêu cầu bổ sung hồ sơ.'))
@@ -113,6 +118,7 @@ export async function rejectRegistrationProfile(
       `/api/admin/registrations/${companyId}/reject`,
       sanitizeActionPayload(payload),
     )
+    dispatchStateSync(['ADMIN', 'PROFILE', 'DASHBOARD', 'NOTIFICATION'], { source: 'admin-registration:reject', entityId: companyId })
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không từ chối được hồ sơ đăng ký.'))
@@ -128,6 +134,7 @@ export async function reopenRegistrationProfile(
       `/api/admin/registrations/${companyId}/reopen`,
       sanitizeActionPayload(payload),
     )
+    dispatchStateSync(['ADMIN', 'PROFILE', 'DASHBOARD', 'NOTIFICATION'], { source: 'admin-registration:reopen', entityId: companyId })
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không mở lại được hồ sơ đăng ký.'))
@@ -160,6 +167,7 @@ export async function fetchAdminDisputeById(disputeId: number): Promise<AdminDis
 export async function createAdminDispute(payload: AdminDisputeUpsertRequest): Promise<AdminDisputeItem> {
   try {
     const response = await apiClient.post<AdminDisputeItem>('/api/admin/disputes', sanitizeDisputePayload(payload))
+    dispatchStateSync(['ADMIN', 'COMPLAINT', 'ORDER', 'DELIVERY', 'DASHBOARD', 'NOTIFICATION'], { source: 'admin-dispute:create', entityId: response.data?.id })
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không tạo được tranh chấp.'))
@@ -169,6 +177,7 @@ export async function createAdminDispute(payload: AdminDisputeUpsertRequest): Pr
 export async function updateAdminDispute(disputeId: number, payload: AdminDisputeUpsertRequest): Promise<AdminDisputeItem> {
   try {
     const response = await apiClient.put<AdminDisputeItem>(`/api/admin/disputes/${disputeId}`, sanitizeDisputePayload(payload))
+    dispatchStateSync(['ADMIN', 'COMPLAINT', 'ORDER', 'DELIVERY', 'DASHBOARD', 'NOTIFICATION'], { source: 'admin-dispute:update', entityId: disputeId })
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không cập nhật được tranh chấp.'))
@@ -184,6 +193,7 @@ export async function updateAdminDisputeStatus(
       `/api/admin/disputes/${disputeId}/status`,
       sanitizeDisputeStatusPayload(payload),
     )
+    dispatchStateSync(['ADMIN', 'COMPLAINT', 'ORDER', 'DELIVERY', 'DASHBOARD', 'NOTIFICATION'], { source: 'admin-dispute:update-status', entityId: disputeId })
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không cập nhật được trạng thái tranh chấp.'))
@@ -193,6 +203,7 @@ export async function updateAdminDisputeStatus(
 export async function deleteAdminDispute(disputeId: number): Promise<void> {
   try {
     await apiClient.delete(`/api/admin/disputes/${disputeId}`)
+    dispatchStateSync(['ADMIN', 'COMPLAINT', 'ORDER', 'DELIVERY', 'DASHBOARD', 'NOTIFICATION'], { source: 'admin-dispute:delete', entityId: disputeId })
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không xóa được tranh chấp.'))
   }
@@ -201,6 +212,7 @@ export async function deleteAdminDispute(disputeId: number): Promise<void> {
 export async function createAdminOverviewActivity(payload: AdminActivityUpsertRequest): Promise<AdminActivityItem> {
   try {
     const response = await apiClient.post<AdminActivityItem>('/api/admin/overview/activities', sanitizeOverviewActivityPayload(payload))
+    dispatchStateSync(['ADMIN', 'DASHBOARD'], { source: 'admin-overview:create-activity', entityId: response.data?.id })
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không tạo được hoạt động dashboard.'))
@@ -213,6 +225,7 @@ export async function updateAdminOverviewActivity(activityId: number, payload: A
       `/api/admin/overview/activities/${activityId}`,
       sanitizeOverviewActivityPayload(payload),
     )
+    dispatchStateSync(['ADMIN', 'DASHBOARD'], { source: 'admin-overview:update-activity', entityId: activityId })
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không cập nhật được hoạt động dashboard.'))
@@ -222,6 +235,7 @@ export async function updateAdminOverviewActivity(activityId: number, payload: A
 export async function deleteAdminOverviewActivity(activityId: number): Promise<void> {
   try {
     await apiClient.delete(`/api/admin/overview/activities/${activityId}`)
+    dispatchStateSync(['ADMIN', 'DASHBOARD'], { source: 'admin-overview:delete-activity', entityId: activityId })
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không xóa được hoạt động dashboard.'))
   }
@@ -230,6 +244,7 @@ export async function deleteAdminOverviewActivity(activityId: number): Promise<v
 export async function createAdminQuickStat(payload: AdminQuickStatUpsertRequest): Promise<AdminQuickStat> {
   try {
     const response = await apiClient.post<AdminQuickStat>('/api/admin/overview/quick-stats', sanitizeQuickStatPayload(payload))
+    dispatchStateSync(['ADMIN', 'DASHBOARD'], { source: 'admin-overview:create-quick-stat', entityId: response.data?.id })
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không tạo được thống kê nhanh.'))
@@ -242,6 +257,7 @@ export async function updateAdminQuickStat(statId: number, payload: AdminQuickSt
       `/api/admin/overview/quick-stats/${statId}`,
       sanitizeQuickStatPayload(payload),
     )
+    dispatchStateSync(['ADMIN', 'DASHBOARD'], { source: 'admin-overview:update-quick-stat', entityId: statId })
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không cập nhật được thống kê nhanh.'))
@@ -251,6 +267,7 @@ export async function updateAdminQuickStat(statId: number, payload: AdminQuickSt
 export async function deleteAdminQuickStat(statId: number): Promise<void> {
   try {
     await apiClient.delete(`/api/admin/overview/quick-stats/${statId}`)
+    dispatchStateSync(['ADMIN', 'DASHBOARD'], { source: 'admin-overview:delete-quick-stat', entityId: statId })
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không xóa được thống kê nhanh.'))
   }

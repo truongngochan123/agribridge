@@ -31,11 +31,13 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error?.response?.status === 401) {
-      // Token hết hạn hoặc không hợp lệ — xóa session và redirect về login
+      // Token hết hạn hoặc không hợp lệ — xóa session và redirect về login.
+      // Tài khoản đã ghi nhớ được giữ lại để lần sau người dùng chỉ cần nhập mật khẩu.
+      const rememberedKeys = new Set(['agribridge.auth.rememberEmail', 'agribridge.auth.rememberEnabled'])
       const keysToDelete: string[] = []
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)
-        if (key?.startsWith('agribridge.')) keysToDelete.push(key)
+        if (key?.startsWith('agribridge.') && !rememberedKeys.has(key)) keysToDelete.push(key)
       }
       keysToDelete.forEach((key) => localStorage.removeItem(key))
       window.location.href = '/auth/login'

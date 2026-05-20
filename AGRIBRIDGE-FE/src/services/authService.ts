@@ -103,6 +103,15 @@ export type RegistrationOtpResponse = {
   expiresInSeconds: number
 }
 
+export type ForgotPasswordResponse = {
+  success: boolean
+  verified: boolean
+  email: string
+  message: string
+  expiresInSeconds: number
+  resendAfterSeconds: number
+}
+
 export async function registerAccount(draft: RegistrationDraft, contact: ContactVerificationPayload): Promise<AuthResponse> {
   const resolvedOwnerName = draft.ownerName?.trim() || contact.fullName.trim()
   const normalizedTaxCode = normalizeDigitsOnly(draft.taxCode)
@@ -162,6 +171,21 @@ export async function registerAccount(draft: RegistrationDraft, contact: Contact
 
 export async function login(request: LoginRequest): Promise<AuthResponse> {
   const response = await apiClient.post<AuthResponse>('/api/auth/login', request)
+  return response.data
+}
+
+export async function sendForgotPasswordOtp(email: string): Promise<ForgotPasswordResponse> {
+  const response = await apiClient.post<ForgotPasswordResponse>('/api/auth/password/forgot', { email })
+  return response.data
+}
+
+export async function verifyForgotPasswordOtp(email: string, otp: string): Promise<ForgotPasswordResponse> {
+  const response = await apiClient.post<ForgotPasswordResponse>('/api/auth/password/otp/verify', { email, otp })
+  return response.data
+}
+
+export async function resetForgotPassword(email: string, otp: string, newPassword: string): Promise<ForgotPasswordResponse> {
+  const response = await apiClient.post<ForgotPasswordResponse>('/api/auth/password/reset', { email, otp, newPassword })
   return response.data
 }
 

@@ -15,13 +15,14 @@ import {
   Weight,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { BuyerQuickOrderModal } from '../../components/buyer/BuyerQuickOrderModal'
 import { BuyerOrderPaymentModal } from '../../components/buyer/BuyerOrderPaymentModal'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
-import type { BuyerPaymentMethod, BuyerQuickOrderPayload, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
+import type { BuyerPaymentMethod, BuyerQuickOrderPayload, BuyerQuickOrderPaymentSummary, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
 import { useBuyerOrderPayment } from '../../hooks/useBuyerOrderPayment'
+import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { useToast } from '../../hooks/useToast'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { createQuickOrder } from '../../services/buyerOrderService'
@@ -47,6 +48,10 @@ type QuickOrderPaymentModalData = {
   transferContent?: string | null
   paymentMethod: BuyerPaymentMethod
   creditTermDays?: number | null
+  supplierName?: string | null
+  creditLimit?: number | null
+  remainingCreditAfterOrder?: number | null
+  orderStatus?: string | null
 }
 
 type RfqFormState = {
@@ -279,6 +284,16 @@ export function BuyerLotDetailPage() {
 
   const parsedLotId = Number(lotId)
 
+  const refreshLot = useCallback(async () => {
+    if (!parsedLotId) return
+    try {
+      const detail = await fetchBuyerLotDetail(parsedLotId)
+      setLot(detail)
+    } catch {
+      // The visible load state handles first-load errors; background sync stays quiet.
+    }
+  }, [parsedLotId])
+
   useEffect(() => {
     let ignore = false
     async function loadLot() {
@@ -308,6 +323,8 @@ export function BuyerLotDetailPage() {
       ignore = true
     }
   }, [parsedLotId])
+
+  useNotificationModuleRefresh(['INVENTORY', 'SOURCING', 'ORDER'], refreshLot)
 
   const images = useMemo(() => (lot ? getLotImages(lot) : []), [lot])
   const galleryImages = images.length > 0 ? images : [placeholderImage]
@@ -342,12 +359,12 @@ export function BuyerLotDetailPage() {
     setQuickOrderTarget(toQuickOrderTarget(lot, lotCode))
   }
 
-  const submitQuickOrder = async (payload: BuyerQuickOrderPayload) => {
+  const submitQuickOrder = async (payload: BuyerQuickOrderPayload, summary?: BuyerQuickOrderPaymentSummary) => {
     setSubmittingQuickOrder(true)
     const currentTarget = quickOrderTarget
     try {
       const result = await createQuickOrder(payload)
-      showToast('Tạo đơn hàng thành công. Vui lòng hoàn tất thanh toán.', 'success')
+      showToast(payload.paymentMethod === 'CREDIT' ? 'Đã tạo đơn hàng công nợ.' : 'Tạo đơn hàng thành công. Vui lòng hoàn tất thanh toán.', 'success')
       setQuickOrderTarget(null)
       if (currentTarget) {
         setPaymentModalData({
@@ -362,6 +379,10 @@ export function BuyerLotDetailPage() {
           transferContent: result.transferContent ?? null,
           paymentMethod: payload.paymentMethod,
           creditTermDays: payload.creditTermDays ?? null,
+          supplierName: summary?.supplierName ?? currentTarget.supplierName ?? null,
+          creditLimit: summary?.creditLimit ?? null,
+          remainingCreditAfterOrder: summary?.remainingCreditAfterOrder ?? null,
+          orderStatus: result.orderStatus ?? summary?.orderStatus ?? null,
         })
       }
     } catch (requestError) {
@@ -633,8 +654,8 @@ export function BuyerLotDetailPage() {
           target={quickOrderTarget}
           submitting={submittingQuickOrder}
           onClose={() => setQuickOrderTarget(null)}
-          onSubmit={(payload) => {
-            void submitQuickOrder(payload)
+          onSubmit={(payload, summary) => {
+            void submitQuickOrder(payload, summary)
           }}
         />
       ) : null}
@@ -651,9 +672,14 @@ export function BuyerLotDetailPage() {
           totalAmount={paymentModalData.totalAmount}
           paymentMethod={paymentModalData.paymentMethod}
           creditTermDays={paymentModalData.creditTermDays}
+          supplierName={paymentModalData.supplierName}
+          creditLimit={paymentModalData.creditLimit}
+          remainingCreditAfterOrder={paymentModalData.remainingCreditAfterOrder}
+          orderStatus={paymentModalData.orderStatus}
           transferContent={paymentModalData.transferContent}
           confirming={confirming}
           onClose={() => setPaymentModalData(null)}
+          onViewOrder={() => navigate(`/buyer/orders?orderId=${paymentModalData.orderId}`)}
           onConfirmPaid={() => void handleConfirmPayment()}
         />
       ) : null}
@@ -783,7 +809,7 @@ function HistoryTab({ lot, unit }: { lot: BuyerLotDetail; unit: string }) {
     <div className="space-y-3">
       {rows.map((item, index) => (
         <article key={item.id ?? index} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-          <p className="font-semibold text-slate-800">{item.buyerName || item.buyer || 'Buyer'}</p>
+          <p className="font-semibold text-slate-800">{item.buyerName || item.buyer || 'Bên mua'}</p>
           <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-600">
             <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> {formatDateLabel(item.date)}</span>
             <span className="inline-flex items-center gap-1"><Weight className="h-3.5 w-3.5" /> {typeof item.quantity === 'number' ? formatQuantity(item.quantity, item.unit || unit) : item.quantity || '--'}</span>

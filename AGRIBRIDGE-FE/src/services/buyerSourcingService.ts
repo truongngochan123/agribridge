@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient'
+import { dispatchStateSync } from './stateSyncService'
 import { resolveUploadedFileUrl } from './uploadService'
 
 export type BuyerSourcingProduct = {
@@ -565,6 +566,10 @@ export async function createBuyerSourcingRfq(payload: CreateBuyerRfqRequest) {
     province: payload.province,
     description: payload.description,
     expired_at: payload.expiredAt,
+  })
+  dispatchStateSync(['RFQ', 'QUOTE', 'SOURCING', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-sourcing:create-rfq',
+    entityId: response.data?.rfqId,
   })
   return response.data
 }

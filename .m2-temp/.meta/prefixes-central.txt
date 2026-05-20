@@ -225,6 +225,7 @@
 /com/aallam
 /com/aamend
 /com/aapbd
+/com/aardarch
 /com/aarkaystudio
 /com/aaronbedra
 /com/aaronicsubstances
@@ -522,6 +523,7 @@
 /com/aixoft
 /com/aiyaapp
 /com/aizuda
+/com/ajanuary
 /com/ajaxjs
 /com/ajayinnovations
 /com/ajjpj
@@ -627,6 +629,7 @@
 /com/alkashier
 /com/alkimiapps
 /com/allanditzel
+/com/allanvital
 /com/allenru
 /com/allen-sauer
 /com/allensean
@@ -1089,6 +1092,7 @@
 /com/astralanguage
 /com/astrapay
 /com/astrepid
+/com/astrologyapi
 /com/astuetz
 /com/astutebits
 /com/asual
@@ -1100,6 +1104,8 @@
 /com/ataraxer
 /com/atatctech
 /com/atatus
+/com/atchurey
+/com/atharly
 /com/athaydes
 /com/atilika
 /com/atina-connection
@@ -1284,6 +1290,7 @@
 /com/badoo
 /com/baerbak
 /com/baffalotech
+/com/bagid
 /com/bagridb
 /com/bagsvaerd-crypto
 /com/bagtag
@@ -1341,6 +1348,7 @@
 /com/barista-v
 /com/barrybecker4
 /com/barryzhang
+/com/barter-ads
 /com/bartoszgajda
 /com/bartoszlipinski
 /com/basarsoft
@@ -1563,6 +1571,7 @@
 /com/bivektor
 /com/bizmda
 /com/bizo
+/com/bizowie
 /com/bizrateinsights
 /com/bjiaolong
 /com/bjitgroup
@@ -1712,6 +1721,7 @@
 /com/bqc0n
 /com/braango
 /com/bradcypert
+/com/bradenkennedy
 /com/bradleydwyer
 /com/bradneighbors
 /com/bradrydzewski
@@ -1891,6 +1901,7 @@
 /com/ca
 /com/cabinj
 /com/cactuscompute
+/com/cactuslab
 /com/cadenzauk
 /com/caesarealabs
 /com/caffeineowl
@@ -2245,6 +2256,7 @@
 /com/clicktale
 /com/clickterm
 /com/clickzetta
+/com/clidey
 /com/clientoutlook
 /com/clinia
 /com/clivern
@@ -2440,6 +2452,7 @@
 /com/coedotzmagic
 /com/coekie
 /com/coeuy
+/com/coffrify
 /com/cognifide
 /com/cognite
 /com/cognitect
@@ -3433,6 +3446,7 @@
 /com/echoclsaa
 /com/echsylon
 /com/eclecticlogic
+/com/eclipse30618
 /com/eclipsesource
 /com/eclypses
 /com/ecomid
@@ -3587,6 +3601,7 @@
 /com/end2endlogic
 /com/endava
 /com/endercrest
+/com/enderdash
 /com/end-points
 /com/eneco
 /com/enegate
@@ -3654,6 +3669,7 @@
 /com/eqixiac
 /com/equinix
 /com/equinor
+/com/erfangholami
 /com/ergonlabs
 /com/ericchee
 /com/ericktijerou
@@ -3818,6 +3834,7 @@
 /com/eyougo
 /com/eyousefi
 /com/ezhiyang
+/com/ezoic
 /com/ezoky
 /com/ezormnow
 /com/eztier
@@ -4074,6 +4091,7 @@
 /com/flipkart
 /com/flipthebird
 /com/fliptoo
+/com/flision
 /com/flitt
 /com/flixmedia
 /com/flockinger
@@ -4516,6 +4534,7 @@
 /com/globallypaid
 /com/globalmentor
 /com/globalpay
+/com/globalpayments
 /com/globalreachtech
 /com/globo
 /com/globus-ltd
@@ -4676,6 +4695,7 @@
 /com/growingintech
 /com/growingio
 /com/growse
+/com/growsurf
 /com/growthbeat
 /com/grtsinry43
 /com/gruchalski
@@ -4798,6 +4818,7 @@
 /com/happinesea
 /com/happy3w
 /com/happyblueduck
+/com/happycodelucky
 /com/happy-dev
 /com/happypathprogramming
 /com/hapsunday
@@ -4905,6 +4926,7 @@
 /com/hexagonkt
 /com/hexagontk
 /com/hexaid
+/com/hexaly
 /com/hexascribe
 /com/hexdroid
 /com/hextremelabs
@@ -4963,12 +4985,14 @@
 /com/himetrica
 /com/hinadt
 /com/hindog
+/com/hioas
 /com/hipay
 /com/hipoom
 /com/hippocp
 /com/hiskasoft
 /com/hitherejoe
 /com/hit-pay
+/com/hivehook
 /com/hivemc
 /com/hivemq
 /com/hiwork
@@ -5217,6 +5241,7 @@
 /com/ilbluesky
 /com/ileler
 /com/iletimerkezi
+/com/iletiniz
 /com/ilkeiapps
 /com/illicitonion
 /com/illposed
@@ -5467,6 +5492,7 @@
 /com/ionite
 /com/ionoscloud
 /com/ionspin
+/com/ionutbanu
 /com/iopipe
 /com/iorga
 /com/iotake
@@ -5911,6 +5937,7 @@
 /com/jobhive
 /com/jobisjob
 /com/jobjects
+/com/jocmp
 /com/joecordingley
 /com/joecwu
 /com/joefkelley
@@ -6041,6 +6068,7 @@
 /com/juanmuscaria
 /com/jubalrife
 /com/jubiman
+/com/jucius
 /com/juconcurrent
 /com/judgmentlabs
 /com/judopay
@@ -6206,6 +6234,7 @@
 /com/kentico
 /com/kenticocloud
 /com/kenzan
+/com/keplars
 /com/kerb4j
 /com/kerbaya
 /com/kerbores
@@ -6324,6 +6353,7 @@
 /com/knowably
 /com/knowgate
 /com/knowledgepixels
+/com/knowledgespike
 /com/knuddels
 /com/koahlabs
 /com/kobakei
@@ -6463,6 +6493,7 @@
 /com/kurzdigital
 /com/kushkipagos
 /com/kustomer
+/com/kutaybuyukkorukcu
 /com/kuzudb
 /com/kvaithin
 /com/kvc0
@@ -6483,6 +6514,7 @@
 /com/kyriossecurity
 /com/l2asgard
 /com/l2fprod
+/com/laaer
 /com/laamella
 /com/lab-440
 /com/labacacia
@@ -6496,6 +6528,7 @@
 /com/labymedia
 /com/lacorepayments
 /com/lacunasoftware
+/com/laddro
 /com/ladybugdb
 /com/lafouche
 /com/lahsivjar
@@ -6565,6 +6598,7 @@
 /com/layer
 /com/layer1
 /com/layer-net
+/com/layers
 /com/layjava
 /com/laylib
 /com/laysonx
@@ -7765,6 +7799,7 @@
 /com/mounacheikhna
 /com/mountainminds
 /com/movableink
+/com/movexgeo
 /com/moviejukebox
 /com/movielabs
 /com/movile
@@ -7890,6 +7925,7 @@
 /com/mytiki
 /com/myunidays
 /com/mywristcoin
+/com/myzhouye
 /com/myzlab
 /com/mzaalo
 /com/mzinx
@@ -7966,6 +8002,7 @@
 /com/ncredinburgh
 /com/ncryptify
 /com/ndabooking
+/com/nduyhai
 /com/neaeraconsulting
 /com/nealk
 /com/neaos
@@ -8004,6 +8041,7 @@
 /com/nerdvision
 /com/nerdynick
 /com/nerjal
+/com/neroyun
 /com/nervepoint
 /com/nervousync
 /com/nescale
@@ -8033,6 +8071,7 @@
 /com/nettleweb
 /com/nettoolkit
 /com/netuitive
+/com/netumscan
 /com/networkbench
 /com/networkedassets
 /com/networknt
@@ -8109,6 +8148,7 @@
 /com/nicholaspaulsmith
 /com/nickanderssohn
 /com/nickdsantos
+/com/nickhassan
 /com/nickhudkins
 /com/nicknackdevelopment
 /com/nickrobison
@@ -8147,6 +8187,7 @@
 /com/nimbusframework
 /com/nimroddayan
 /com/nimworks
+/com/nine-lab
 /com/nineoldandroids
 /com/nineya
 /com/ning
@@ -8473,6 +8514,7 @@
 /com/open-elements
 /com/openfaas
 /com/openfairness
+/com/openfilz
 /com/opengamma
 /com/openguardrails
 /com/openhtmltopdf
@@ -8524,6 +8566,7 @@
 /com/optersoft
 /com/optimaize
 /com/optimalbi
+/com/optimasc
 /com/optimetriks
 /com/optimizely
 /com/optimove
@@ -8794,6 +8837,7 @@
 /com/pdfcrowd
 /com/pdfdancer
 /com/pdfgate
+/com/pdfluent
 /com/pdfreactor
 /com/pdftools
 /com/pdlpdl
@@ -9218,6 +9262,7 @@
 /com/pyx4j
 /com/pyx4me
 /com/q42
+/com/qainsights
 /com/qaiware
 /com/qaneh
 /com/qantium
@@ -9324,6 +9369,7 @@
 /com/qudonghealth
 /com/quebin31
 /com/quectel
+/com/quefly
 /com/quentindommerc
 /com/queomedia
 /com/querydsl
@@ -9348,6 +9394,7 @@
 /com/qulice
 /com/qunar
 /com/quoininc
+/com/quonfig
 /com/quotemedia
 /com/qurami
 /com/quran
@@ -9509,6 +9556,7 @@
 /com/red-dove
 /com/redfin
 /com/redhat
+/com/rediads
 /com/redijedi
 /com/redis
 /com/redislabs
@@ -9538,6 +9586,7 @@
 /com/regtab
 /com/rei
 /com/reizes
+/com/rejment
 /com/rejowan
 /com/relaximus
 /com/relaxsoftwareapps
@@ -10472,6 +10521,7 @@
 /com/smartdevicelink
 /com/smartdigimkttech
 /com/smartertravel
+/com/smartfoo
 /com/smartfoxpro
 /com/smartgwt
 /com/smarthito
@@ -10917,6 +10967,7 @@
 /com/subgarden
 /com/subiger
 /com/subinkrishna
+/com/submillisecond
 /com/subnit
 /com/subscriptionflow
 /com/subshell
@@ -11075,6 +11126,7 @@
 /com/systechafrica
 /com/system32dev
 /com/systemcn
+/com/systemhalted
 /com/systemkern
 /com/systemsplanet
 /com/sysunite
@@ -11564,6 +11616,7 @@
 /com/tokera
 /com/toktasoft
 /com/toldoven
+/com/tollara
 /com/tollge
 /com/tolpp
 /com/tomakeitgo
@@ -11715,6 +11768,7 @@
 /com/trip38
 /com/tripfinger
 /com/triplelift
+/com/triplewhale
 /com/tripsnek
 /com/triptheone
 /com/tripwirejs
@@ -11757,6 +11811,7 @@
 /com/truvideo
 /com/truvity
 /com/truward
+/com/truxl
 /com/trxhost
 /com/tryadhawk
 /com/trydatapoint
@@ -11822,6 +11877,7 @@
 /com/tuzhihai
 /com/tvd12
 /com/tweesky
+/com/twelvedata
 /com/twelvemonkeys
 /com/twikey
 /com/twilio
@@ -12003,12 +12059,14 @@
 /com/usabilla
 /com/usalko
 /com/usebutton
+/com/usecentralads
 /com/usedopamine
 /com/useepay
 /com/usefulmilk
 /com/usehashmap
 /com/useinspetor
 /com/useoptic
+/com/usepolylingo
 /com/usercentrics
 /com/userexperior
 /com/usergeek
@@ -12056,6 +12114,7 @@
 /com/vackosar
 /com/vaclavdedik
 /com/vadeen
+/com/vaimee
 /com/vajrapulse
 /com/valaphee
 /com/valchkou
@@ -12386,6 +12445,7 @@
 /com/warren-r
 /com/warrenstrange
 /com/waseefakhtar
+/com/waseel
 /com/waseemsabir
 /com/washingtonpost
 /com/wasmo
@@ -12590,6 +12650,7 @@
 /com/wkclz
 /com/wkovacs64
 /com/wl4g
+/com/wlami
 /com/wldos
 /com/wmbest
 /com/wmp
@@ -12638,6 +12699,7 @@
 /com/woutwerkman
 /com/wowostar
 /com/wowsql
+/com/wowza
 /com/woyouyigegushi
 /com/wozavez
 /com/wrapp
@@ -12645,6 +12707,7 @@
 /com/writingminds
 /com/wrld3d
 /com/wshlfx
+/com/wso2
 /com/wsojka
 /com/wtanaka
 /com/wttch
@@ -13206,6 +13269,7 @@
 /com/ziqni
 /com/zitlab
 /com/zivver
+/com/zixflow
 /com/zj0724
 /com/zjiecode
 /com/zkaiyun
@@ -13702,6 +13766,7 @@
 /io/beanmother
 /io/beapi
 /io/beautifier
+/io/beeping
 /io/bella-baxter
 /io/bernhardt
 /io/bernoulli
@@ -14057,6 +14122,7 @@
 /io/devnindo
 /io/dfinery
 /io/dgraph
+/io/dgwise
 /io/dhilar
 /io/diagrid
 /io/dialob
@@ -14251,6 +14317,7 @@
 /io/fluentlenium
 /io/fluidsonic
 /io/fluo
+/io/fluss
 /io/flux-capacitor
 /io/fluxx
 /io/fluxzero
@@ -14518,6 +14585,7 @@
 /io/ipinfo
 /io/iplocate
 /io/ipsq
+/io/ipwhois
 /io/irain
 /io/iron
 /io/irontest
@@ -15243,6 +15311,7 @@
 /io/prometheus
 /io/proofdock
 /io/prophecy
+/io/prosopo
 /io/protop
 /io/protostuff
 /io/provenance
@@ -15361,6 +15430,7 @@
 /io/rhpatrick
 /io/rightmesh
 /io/rincl
+/io/ringloom
 /io/rivulet
 /io/rnkit
 /io/rny
@@ -15419,6 +15489,7 @@
 /io/scyna
 /io/sdkman
 /io/sdks
+/io/sdmx
 /io/sdsolutions
 /io/seal
 /io/seald
@@ -15573,6 +15644,7 @@
 /io/spsw
 /io/sqooba
 /io/sqreen
+/io/squarescreen
 /io/squark
 /io/squashql
 /io/squidex
@@ -15583,6 +15655,7 @@
 /io/stardog
 /io/stardots
 /io/stargate
+/io/starim
 /io/start
 /io/starter
 /io/staticcdn
@@ -15662,6 +15735,7 @@
 /io/tcds
 /io/teachingmachines
 /io/teamif
+/io/teaql
 /io/tech1
 /io/technoirlab
 /io/techtrix
@@ -15934,6 +16008,7 @@
 /io/ygdrasil
 /io/yggdrash
 /io/yielder
+/io/yki
 /io/yokota
 /io/yonoma
 /io/yosemiteblockchain
@@ -16808,6 +16883,7 @@
 /net/jaardvark
 /net/jackadull
 /net/jacobpeterson
+/net/jacopobiscella
 /net/jade-dungeon
 /net/jadler
 /net/jafama
@@ -17157,6 +17233,7 @@
 /net/nodebox
 /net/noerd
 /net/nokok
+/net/nolax
 /net/northfuse
 /net/nova
 /net/nowina
@@ -17192,6 +17269,7 @@
 /net/ontopia
 /net/onyxmueller
 /net/ooder
+/net/openan
 /net/open-esb
 /net/openhft
 /net/openid
@@ -17440,6 +17518,7 @@
 /net/sizovs
 /net/sjava
 /net/s-jr
+/net/skiley
 /net/skobow
 /net/skyscanner
 /net/slions
@@ -17821,6 +17900,7 @@
 /org/aioobe
 /org/airsonic
 /org/aisbreaker
+/org/aistemsplitter
 /org/ajax4jsf
 /org/ajaxanywhere
 /org/ajaxer
@@ -18022,6 +18102,7 @@
 /org/axway
 /org/aya-prover
 /org/azeckoski
+/org/azertio
 /org/azolla
 /org/azyva
 /org/b1
@@ -18075,6 +18156,7 @@
 /org/bekit
 /org/bekwam
 /org/benf
+/org/berrycrush
 /org/beryx
 /org/bessantlab
 /org/betteridiots
@@ -20038,6 +20120,7 @@
 /org/kualigan
 /org/kubek2k
 /org/kubinity
+/org/kufl
 /org/kulabukhov
 /org/kurento
 /org/kurtymckurt
@@ -20158,6 +20241,7 @@
 /org/liquibase
 /org/liquigraph
 /org/lisasp
+/org/litebridgedb
 /org/litesoft
 /org/litote
 /org/littlegrid
@@ -21962,6 +22046,7 @@
 /org/tplatform
 /org/tpolecat
 /org/traceo
+/org/traffichunter
 /org/trailsframework
 /org/tranql
 /org/transactionunit
@@ -22362,6 +22447,7 @@
 /org/zenframework
 /org/zenoda
 /org/zeplinko
+/org/zerodds
 /org/zeromq
 /org/zeroturnaround
 /org/zfcj

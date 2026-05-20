@@ -468,13 +468,7 @@ function UserDetailModal({ user, actionUserId, onClose, onStatusAction }: UserDe
           </div>
 
           {/* Actions */}
-          <div className="mt-6 flex items-center justify-between">
-            <button
-              onClick={onClose}
-              className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
-            >
-              Đóng
-            </button>
+          <div className="mt-6 flex items-center justify-end">
             <button
               onClick={() => onStatusAction(user)}
               disabled={isActioning}

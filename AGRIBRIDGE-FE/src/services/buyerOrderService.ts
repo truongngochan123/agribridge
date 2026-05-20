@@ -1,6 +1,7 @@
 import type { BuyerQuickOrderPayload } from '../components/buyer/buyerQuickOrderTypes'
 import type { BuyerOrderRow } from '../types/buyerDashboard'
 import { apiClient } from './apiClient'
+import { dispatchStateSync } from './stateSyncService'
 
 export type BuyerOrderComplaint = {
   id: number
@@ -82,7 +83,12 @@ export async function createQuickOrder(payload: BuyerQuickOrderPayload): Promise
   const response = await apiClient.post('/api/buyer/orders/quick-order', payload, {
     timeout: 20000,
   })
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['ORDER', 'PAYMENT', 'DELIVERY', 'DEBT', 'INVENTORY', 'DASHBOARD'], {
+    source: 'buyer-order:create-quick',
+    entityId: data?.orderId,
+  })
+  return data
 }
 
 export async function fetchBuyerOrders(): Promise<BuyerOrder[]> {
@@ -97,16 +103,30 @@ export async function fetchBuyerOrder(orderId: number): Promise<BuyerOrder> {
 
 export async function confirmBuyerOrderReceived(orderId: number): Promise<void> {
   await apiClient.post(`/api/buyer/orders/${orderId}/confirm-received`)
+  dispatchStateSync(['ORDER', 'DELIVERY', 'PAYMENT', 'DEBT', 'DASHBOARD'], {
+    source: 'buyer-order:confirm-received',
+    entityId: orderId,
+  })
 }
 
 export async function demoConfirmBuyerOrderPayment(orderId: number): Promise<BuyerOrder> {
   const response = await apiClient.post(`/api/buyer/orders/${orderId}/demo-confirm-payment`)
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['ORDER', 'PAYMENT', 'DEBT', 'DELIVERY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-order:confirm-payment',
+    entityId: orderId,
+  })
+  return data
 }
 
 export async function demoPayBuyerOrderRemaining(orderId: number): Promise<BuyerOrder> {
   const response = await apiClient.post(`/api/buyer/orders/${orderId}/demo-pay-remaining`)
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['ORDER', 'PAYMENT', 'DEBT', 'DELIVERY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-order:pay-remaining',
+    entityId: orderId,
+  })
+  return data
 }
 
 export async function createBuyerOrderComplaint(
@@ -114,5 +134,10 @@ export async function createBuyerOrderComplaint(
   payload: { batchId?: number | null; title: string; description: string; severity?: string },
 ): Promise<BuyerOrderComplaint> {
   const response = await apiClient.post(`/api/buyer/orders/${orderId}/complaints`, payload)
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['ORDER', 'COMPLAINT', 'DELIVERY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-order:create-complaint',
+    entityId: orderId,
+  })
+  return data
 }

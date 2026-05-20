@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient'
+import { dispatchStateSync } from './stateSyncService'
 
 export type DeliveryStatus =
   | 'PENDING'
@@ -90,6 +91,11 @@ export type BuyerDeliveryDetail = {
     updateNote?: string | null
     evidenceUrls?: string[] | null
     updatedAt?: string | null
+    supplierResponse?: string | null
+    supplierEvidenceUrls?: string[] | null
+    proposedResolution?: string | null
+    resolutionType?: string | null
+    buyerActionRequiredAt?: string | null
   }>
   complaints: Array<{
     id: number
@@ -148,7 +154,12 @@ export async function confirmBuyerDeliveryReceived(
   payload: { condition: string; note?: string; evidenceImage?: string; confirmed: boolean },
 ): Promise<BuyerDeliveryDetail> {
   const response = await apiClient.post(`/api/buyer/deliveries/${shipmentId}/confirm-received`, payload)
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['DELIVERY', 'ORDER', 'PAYMENT', 'DEBT', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-delivery:confirm-received',
+    entityId: shipmentId,
+  })
+  return data
 }
 
 export async function createBuyerDeliveryIncident(
@@ -163,13 +174,19 @@ export async function createBuyerDeliveryIncident(
   },
 ) {
   const response = await apiClient.post(`/api/buyer/deliveries/${shipmentId}/incidents`, payload)
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['DELIVERY', 'ORDER', 'COMPLAINT', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-delivery:create-incident',
+    entityId: shipmentId,
+  })
+  return data
 }
 
 export async function updateBuyerDeliveryIncident(
   shipmentId: number,
   incidentId: number,
   payload: {
+    action?: 'ACCEPT_RESOLUTION' | 'REJECT_RESOLUTION' | 'REQUEST_CONTINUE' | 'ESCALATE'
     note?: string
     missingQuantity?: number
     damagedQuantity?: number
@@ -178,5 +195,10 @@ export async function updateBuyerDeliveryIncident(
   },
 ) {
   const response = await apiClient.patch(`/api/buyer/deliveries/${shipmentId}/incidents/${incidentId}`, payload)
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['DELIVERY', 'ORDER', 'COMPLAINT', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-delivery:update-incident',
+    entityId: shipmentId,
+  })
+  return data
 }

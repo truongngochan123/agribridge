@@ -10,6 +10,7 @@
   } from 'lucide-react'
   import { useEffect, useMemo, useRef, useState } from 'react'
   import { fetchCurrentUserProfile } from '../../services/currentUserService'
+  import { fetchBuyerDebtSupplierDetail } from '../../services/buyerDebtApi'
   import {
     quoteBuyerShipping,
     type BuyerShippingQuote,
@@ -29,6 +30,7 @@
     BuyerPaymentMethod,
     BuyerQuickOrderBuyerInfo,
     BuyerQuickOrderPayload,
+    BuyerQuickOrderPaymentSummary,
     BuyerQuickOrderTarget,
   } from './buyerQuickOrderTypes'
 
@@ -41,7 +43,7 @@
     creditLimit?: BuyerCreditLimit | null
     submitting?: boolean
     onClose: () => void
-    onSubmit?: (payload: BuyerQuickOrderPayload) => Promise<void> | void
+    onSubmit?: (payload: BuyerQuickOrderPayload, summary?: BuyerQuickOrderPaymentSummary) => Promise<void> | void
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -258,6 +260,7 @@
     const [shippingError, setShippingError] = useState('')          // receiver-side hard error
     const [senderAddressWarning, setSenderAddressWarning] = useState('') // supplier-side soft warning
     const inFlightShippingQuoteKeyRef = useRef('')
+    const [supplierCreditLimit, setSupplierCreditLimit] = useState<BuyerCreditLimit | null>(creditLimit ?? null)
 
     // ── Reset quantity when target changes ──
     useEffect(() => {
@@ -474,24 +477,68 @@
       : null
     const buyerCompanyId = target.buyerCompanyId ?? readSessionNumber('agribridge.auth.companyId')
     const supplierId = target.supplierId ?? target.supplierCompanyId ?? null
+    useEffect(() => {
+      if (creditLimit) {
+        setSupplierCreditLimit(creditLimit)
+        return
+      }
+      if (!supplierId) {
+        setSupplierCreditLimit(null)
+        return
+      }
+      let cancelled = false
+      fetchBuyerDebtSupplierDetail(supplierId)
+        .then((data) => {
+          if (cancelled) return
+          setSupplierCreditLimit({
+            paymentTermDays: data.summary.paymentTermDays || 0,
+            creditLimit: data.summary.creditLimit,
+            remainingCredit: Math.max(Number(data.summary.creditLimit || 0) - Number(data.summary.remainingAmount || 0), 0),
+            status: data.summary.creditStatus,
+            isBlocked: data.summary.isBlocked,
+            blockedReason: data.summary.blockedReason,
+          })
+        })
+        .catch(() => {
+          if (!cancelled) setSupplierCreditLimit(null)
+        })
+      return () => {
+        cancelled = true
+      }
+    }, [creditLimit, supplierId])
     const depositRate = 50
     const depositAmount = estimatedTotal != null ? estimatedTotal * 0.5 : null
     const balanceAmount = estimatedTotal != null && depositAmount != null ? estimatedTotal - depositAmount : null
-    const remainingCredit = creditLimit?.remainingCredit ?? creditLimit?.creditLimit ?? null
-    const creditDisabledReason = !creditLimit
-      ? 'Nhà cung cấp chưa cấp công nợ cho buyer này.'
-      : creditLimit.isBlocked
+    const effectiveCreditLimit = supplierCreditLimit
+    const creditStatus = String(effectiveCreditLimit?.status || (effectiveCreditLimit?.isBlocked ? 'SUSPENDED' : effectiveCreditLimit ? 'ACTIVE' : '')).toUpperCase()
+    const hasCreditRelationship = Boolean(effectiveCreditLimit && [7, 15, 30].includes(Number(effectiveCreditLimit.paymentTermDays)))
+    const hasActiveCredit = Boolean(hasCreditRelationship && creditStatus === 'ACTIVE' && Number(effectiveCreditLimit?.creditLimit || 0) > 0)
+    const hasGrantedCredit = Boolean(hasCreditRelationship && creditStatus !== 'CLOSED')
+    const remainingCredit = effectiveCreditLimit?.remainingCredit ?? effectiveCreditLimit?.creditLimit ?? null
+    const creditDisabledReason = !hasGrantedCredit
+      ? 'Nhà cung cấp hiện không hỗ trợ thanh toán công nợ.'
+      : creditLimit?.isBlocked
         ? creditLimit.blockedReason || 'Công nợ đang bị tạm khóa.'
         : estimatedTotal != null && remainingCredit != null && estimatedTotal > remainingCredit
           ? 'Không đủ hạn mức công nợ.'
           : ''
-    const isCreditDisabled = Boolean(creditDisabledReason)
+    const effectiveCreditDisabledReason = creditStatus === 'CLOSED'
+      ? 'Nhà cung cấp hiện không hỗ trợ thanh toán công nợ.'
+      : !hasGrantedCredit
+        ? 'Nhà cung cấp hiện không hỗ trợ thanh toán công nợ.'
+        : creditStatus === 'SUSPENDED' || effectiveCreditLimit?.isBlocked
+          ? effectiveCreditLimit?.blockedReason || 'Thanh toán công nợ hiện đang bị tạm khóa bởi nhà cung cấp.'
+          : estimatedTotal != null && remainingCredit != null && estimatedTotal > remainingCredit
+            ? 'Không đủ hạn mức công nợ.'
+            : ''
+    void creditDisabledReason
+    const isCreditDisabled = Boolean(effectiveCreditDisabledReason)
     const paymentMethodLabel =
       paymentMethod === 'DEPOSIT_50'
         ? 'Đặt cọc 50%'
         : paymentMethod === 'CREDIT'
-          ? creditLimit
-            ? `Công nợ ${creditLimit.paymentTermDays} ngày`
+          ? hasActiveCredit && effectiveCreditLimit
+            ? `Công nợ ${effectiveCreditLimit.paymentTermDays} ngày`
             : 'Công nợ'
           : 'Chuyển khoản qua sàn'
     // Raw days from quote
@@ -581,17 +628,21 @@
       !submitting &&
       !(paymentMethod === 'CREDIT' && isCreditDisabled)
 
+    useEffect(() => {
+      if (paymentMethod === 'CREDIT' && !hasGrantedCredit) setPaymentMethod('ESCROW_TRANSFER')
+    }, [hasGrantedCredit, paymentMethod])
+
     const heroImage = useMemo(() => {
       if (!target.imageUrl) return PLACEHOLDER_IMAGE
       return resolveUploadedFileUrl(target.imageUrl) || target.imageUrl
     }, [target.imageUrl])
 
     const creditDueLabel = useMemo(() => {
-      if (!creditLimit) return null
+      if (!effectiveCreditLimit) return null
       const due = new Date()
-      due.setDate(due.getDate() + creditLimit.paymentTermDays)
+      due.setDate(due.getDate() + effectiveCreditLimit.paymentTermDays)
       return due.toLocaleDateString('vi-VN')
-    }, [creditLimit])
+    }, [effectiveCreditLimit])
 
     useEffect(() => {
       const hasValidQuantity = quantityNumber > 0 && !Number.isNaN(quantityNumber)
@@ -818,7 +869,7 @@
         depositRate: paymentMethod === 'DEPOSIT_50' ? depositRate : null,
         depositAmount: paymentMethod === 'DEPOSIT_50' ? depositAmount : null,
         balanceAmount: paymentMethod === 'DEPOSIT_50' ? balanceAmount : null,
-        creditTermDays: paymentMethod === 'CREDIT' && creditLimit ? creditLimit.paymentTermDays : null,
+        creditTermDays: paymentMethod === 'CREDIT' && effectiveCreditLimit ? effectiveCreditLimit.paymentTermDays : null,
         shippingFee: effectiveShippingQuote?.estimatedShippingFee ?? null,
         shippingProviderCode: effectiveShippingQuote?.providerCode ?? null,
         shippingProviderName: effectiveShippingQuote?.providerName ?? null,
@@ -844,7 +895,17 @@
       }
 
       if (onSubmit) {
-        void onSubmit(payload)
+        const creditRemainingBeforeOrder = effectiveCreditLimit?.remainingCredit ?? effectiveCreditLimit?.creditLimit ?? null
+        void onSubmit(payload, {
+          supplierName: target.supplierName,
+          creditLimit: effectiveCreditLimit?.creditLimit ?? null,
+          remainingCreditBeforeOrder: creditRemainingBeforeOrder,
+          remainingCreditAfterOrder:
+            paymentMethod === 'CREDIT' && creditRemainingBeforeOrder != null && estimatedTotal != null
+              ? Math.max(creditRemainingBeforeOrder - estimatedTotal, 0)
+              : null,
+          orderStatus: 'PENDING',
+        })
       }
     }
 
@@ -891,6 +952,12 @@
                     <p className="mt-0.5 truncate text-xs font-semibold text-slate-600">
                       {target.supplierName || 'Nhà cung cấp'}
                     </p>
+                    <div className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-extrabold ${hasActiveCredit ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : creditStatus === 'SUSPENDED' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-500'}`}>
+                      <span>{hasGrantedCredit ? 'Được mua công nợ' : 'Chưa được cấp công nợ'}</span>
+                      {hasActiveCredit && effectiveCreditLimit ? (
+                        <span className="font-semibold">{effectiveCreditLimit.paymentTermDays} ngày • Còn {formatMoney(remainingCredit)}</span>
+                      ) : null}
+                    </div>
                     <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
                       <MiniRow label="Mã lô" value={target.batchCode || '--'} />
                       <MiniRow
@@ -899,8 +966,8 @@
                       />
                       <MiniRow label="MOQ" value={formatQuantity(target.minMoq, target.unit)} />
                       <MiniRow label="Tồn kho KD" value={formatQuantity(target.availableQuantity, target.unit)} />
-                      <MiniRow label="Grade" value={target.grade || '--'} />
-                      <MiniRow label="Size" value={target.size || '--'} />
+                      <MiniRow label="Hạng" value={target.grade || '--'} />
+                      <MiniRow label="Cỡ" value={target.size || '--'} />
                       <MiniRow label="Hạn sử dụng" value={formatDateLabel(target.expiryDate)} />
                       {target.originRegion ? (
                         <MiniRow label="Xuất xứ" value={target.originRegion} />
@@ -1293,7 +1360,7 @@
                   />
                   <ShippingRow
                     label="Người trả phí"
-                    value={buyerInfo.fullName?.trim() || buyerInfo.companyName?.trim() || 'Buyer'}
+                    value={buyerInfo.fullName?.trim() || buyerInfo.companyName?.trim() || 'Đối tác'}
                   />
                 </div>
                 {/* Estimated delivery date row — full width */}
@@ -1377,6 +1444,7 @@
                   </label>
 
                   {/* Option: Credit */}
+                  {hasGrantedCredit ? (
                   <label
                     className={`flex items-start gap-3 rounded-xl border p-3 transition ${
                       isCreditDisabled
@@ -1396,16 +1464,16 @@
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-bold text-slate-800">Công nợ</p>
-                        {creditLimit && !isCreditDisabled ? (
+                        {effectiveCreditLimit && !isCreditDisabled ? (
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600">
-                            Công nợ {creditLimit.paymentTermDays} ngày
+                            Công nợ {effectiveCreditLimit.paymentTermDays} ngày
                           </span>
                         ) : null}
                       </div>
                       <p className="mt-0.5 text-xs text-slate-500">Thanh toán sau theo hạn mức được cấp.</p>
                       {isCreditDisabled ? (
-                        <p className="mt-1 text-xs font-semibold text-rose-600">{creditDisabledReason}</p>
-                      ) : creditLimit ? (
+                        <p className="mt-1 text-xs font-semibold text-rose-600">{effectiveCreditDisabledReason}</p>
+                      ) : effectiveCreditLimit ? (
                         <div className="mt-1 space-y-0.5 text-xs text-slate-500">
                           {remainingCredit != null ? (
                             <p>
@@ -1415,13 +1483,14 @@
                           ) : null}
                           <p>
                             Kỳ hạn:{' '}
-                            <span className="font-semibold text-slate-700">{creditLimit.paymentTermDays} ngày</span>
+                            <span className="font-semibold text-slate-700">{effectiveCreditLimit.paymentTermDays} ngày</span>
                             {creditDueLabel ? ` · Dự kiến ${creditDueLabel}` : ''}
                           </p>
                         </div>
                       ) : null}
                     </div>
                   </label>
+                  ) : null}
                 </div>
               </div>
             </section>
@@ -1531,3 +1600,4 @@
     BuyerQuickOrderPayload,
     BuyerQuickOrderTarget,
   } from './buyerQuickOrderTypes'
+

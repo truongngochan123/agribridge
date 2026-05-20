@@ -1,12 +1,13 @@
 import { Award, Bookmark, ExternalLink, Eye, Flame, Layers, MapPin, PackageSearch, QrCode, Search, ShoppingBag, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BuyerQuickOrderModal } from '../../components/buyer/BuyerQuickOrderModal'
 import { BuyerOrderPaymentModal } from '../../components/buyer/BuyerOrderPaymentModal'
 import { BuyerSelectBatchModal } from '../../components/buyer/BuyerSelectBatchModal'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
-import type { BuyerPaymentMethod, BuyerQuickOrderPayload, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
+import type { BuyerPaymentMethod, BuyerQuickOrderPayload, BuyerQuickOrderPaymentSummary, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
 import { useBuyerOrderPayment } from '../../hooks/useBuyerOrderPayment'
+import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { useToast } from '../../hooks/useToast'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { createQuickOrder } from '../../services/buyerOrderService'
@@ -70,6 +71,10 @@ type QuickOrderPaymentModalData = {
   transferContent?: string | null
   paymentMethod: BuyerPaymentMethod
   creditTermDays?: number | null
+  supplierName?: string | null
+  creditLimit?: number | null
+  remainingCreditAfterOrder?: number | null
+  orderStatus?: string | null
 }
 
 const priceFilters: Array<{ value: PriceFilter; label: string }> = [
@@ -350,6 +355,28 @@ export function BuyerSourcingPage() {
     }
   }, [])
 
+  const refreshProducts = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [rows, categoryRows, provinceRows] = await Promise.all([
+        fetchBuyerSourcingProducts(),
+        fetchCategories(),
+        fetchMetadataProvinces(),
+      ])
+      setProducts(rows)
+      setCategories(categoryRows)
+      setProvinces(provinceRows)
+      setSavedIds(new Set(rows.filter((item) => item.isSaved).map((item) => item.productId)))
+    } catch (requestError) {
+        setError(readApiErrorMessage(requestError) || 'Không thể tải danh sách sản phẩm.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useNotificationModuleRefresh(['INVENTORY', 'SOURCING', 'ORDER', 'RFQ'], refreshProducts)
+
   useEffect(() => {
     let ignore = false
     async function loadBuyerDefaultProvince() {
@@ -552,12 +579,12 @@ export function BuyerSourcingPage() {
     }
   }
 
-  const handleQuickOrderSubmit = async (payload: BuyerQuickOrderPayload) => {
+  const handleQuickOrderSubmit = async (payload: BuyerQuickOrderPayload, summary?: BuyerQuickOrderPaymentSummary) => {
     setQuickOrderSubmitting(true)
     const currentTarget = quickOrderTarget
     try {
       const result = await createQuickOrder(payload)
-      showToast('Tạo đơn hàng thành công. Vui lòng hoàn tất thanh toán.', 'success')
+      showToast(payload.paymentMethod === 'CREDIT' ? 'Đã tạo đơn hàng công nợ.' : 'Tạo đơn hàng thành công. Vui lòng hoàn tất thanh toán.', 'success')
       setQuickOrderTarget(null)
       if (currentTarget) {
         setPaymentModalData({
@@ -572,6 +599,10 @@ export function BuyerSourcingPage() {
           transferContent: result.transferContent ?? null,
           paymentMethod: payload.paymentMethod,
           creditTermDays: payload.creditTermDays ?? null,
+          supplierName: summary?.supplierName ?? currentTarget.supplierName ?? null,
+          creditLimit: summary?.creditLimit ?? null,
+          remainingCreditAfterOrder: summary?.remainingCreditAfterOrder ?? null,
+          orderStatus: result.orderStatus ?? summary?.orderStatus ?? null,
         })
       }
       const rows = await fetchBuyerSourcingProducts()
@@ -869,8 +900,8 @@ export function BuyerSourcingPage() {
           target={quickOrderTarget}
           submitting={quickOrderSubmitting}
           onClose={() => setQuickOrderTarget(null)}
-          onSubmit={(payload) => {
-            void handleQuickOrderSubmit(payload)
+          onSubmit={(payload, summary) => {
+            void handleQuickOrderSubmit(payload, summary)
           }}
         />
       ) : null}
@@ -887,9 +918,14 @@ export function BuyerSourcingPage() {
           totalAmount={paymentModalData.totalAmount}
           paymentMethod={paymentModalData.paymentMethod}
           creditTermDays={paymentModalData.creditTermDays}
+          supplierName={paymentModalData.supplierName}
+          creditLimit={paymentModalData.creditLimit}
+          remainingCreditAfterOrder={paymentModalData.remainingCreditAfterOrder}
+          orderStatus={paymentModalData.orderStatus}
           transferContent={paymentModalData.transferContent}
           confirming={confirming}
           onClose={() => setPaymentModalData(null)}
+          onViewOrder={() => navigate(`/buyer/orders?orderId=${paymentModalData.orderId}`)}
           onConfirmPaid={() => void handleConfirmPayment()}
         />
       ) : null}
@@ -1308,9 +1344,6 @@ function ProductDetailModal({
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3">
-          <button onClick={onClose} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100">
-            Đóng
-          </button>
           <Link to={`/buyer/sourcing/products/${product.productId}/batches`} className="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50">
             Xem lô hàng
           </Link>
