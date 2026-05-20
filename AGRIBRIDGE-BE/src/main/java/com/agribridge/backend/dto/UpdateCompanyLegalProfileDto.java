@@ -22,6 +22,8 @@ public class UpdateCompanyLegalProfileDto {
     @NotBlank
     private String province;
 
+    private String district;
+
     private String ward;
 
     @NotBlank

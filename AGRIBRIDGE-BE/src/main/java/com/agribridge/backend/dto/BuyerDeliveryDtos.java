@@ -35,7 +35,15 @@ public final class BuyerDeliveryDtos {
             BigDecimal currentLng,
             String status,
             String statusLabel,
-            int progress
+            int progress,
+            String receiverName,
+            String receiverPhone,
+            String deliveryAddress,
+            String buyerName,
+            String buyerPhone,
+            String branchContactName,
+            String branchPhone,
+            String branchAddress
     ) {
     }
 
@@ -44,7 +52,27 @@ public final class BuyerDeliveryDtos {
             List<ProductItem> products,
             List<TimelineEvent> timeline,
             List<Incident> incidents,
-            List<Complaint> complaints
+            List<Complaint> complaints,
+            PaymentDueInfo paymentDue
+    ) {
+    }
+
+    public record PaymentDueInfo(
+            Long invoiceId,
+            String invoiceCode,
+            String displayInvoiceCode,
+            Long orderId,
+            String orderCode,
+            String supplierName,
+            String productName,
+            BigDecimal quantity,
+            String unit,
+            BigDecimal totalAmount,
+            BigDecimal paidAmount,
+            BigDecimal remainingAmount,
+            LocalDate dueDate,
+            String transferContent,
+            String paymentMethod
     ) {
     }
 
@@ -58,7 +86,8 @@ public final class BuyerDeliveryDtos {
             BigDecimal quantity,
             String unit,
             BigDecimal price,
-            BigDecimal subtotal
+            BigDecimal subtotal,
+            String batchUrl
     ) {
     }
 
@@ -80,7 +109,17 @@ public final class BuyerDeliveryDtos {
             String status,
             LocalDateTime createdAt,
             LocalDateTime resolvedAt,
-            String resolutionNote
+            String resolutionNote,
+            Integer missingQuantity,
+            Integer damagedQuantity,
+            String updateNote,
+            List<String> evidenceUrls,
+            LocalDateTime updatedAt,
+            String supplierResponse,
+            List<String> supplierEvidenceUrls,
+            String proposedResolution,
+            String resolutionType,
+            LocalDateTime buyerActionRequiredAt
     ) {
     }
 
@@ -107,7 +146,20 @@ public final class BuyerDeliveryDtos {
     public record IncidentRequest(
             String incidentType,
             String description,
-            String imageUrl
+            String imageUrl,
+            List<String> evidenceUrls,
+            Integer missingQuantity,
+            Integer damagedQuantity
+    ) {
+    }
+
+    public record UpdateIncidentRequest(
+            String action,
+            String note,
+            Integer missingQuantity,
+            Integer damagedQuantity,
+            String imageUrl,
+            List<String> evidenceUrls
     ) {
     }
 }

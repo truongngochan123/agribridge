@@ -28,6 +28,7 @@ export type UpdateLegalProfilePayload = {
   website?: string
   province: string
   district?: string
+  ward?: string
   address: string
   description?: string
 }

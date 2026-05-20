@@ -16,9 +16,11 @@
   } from '../../services/buyerShippingService'
   import {
     fetchVietnamProvinces,
-    fetchVietnamWardsByProvinceCode,
+    fetchVietnamDistrictsByProvinceCode,
+    fetchVietnamWardsByDistrictCode,
     findProvinceByName,
     type VietnamProvinceOption,
+    type VietnamDistrictOption,
     type VietnamWardOption,
   } from '../../services/vietnamAddressService'
   import { resolveUploadedFileUrl } from '../../services/uploadService'
@@ -101,6 +103,46 @@
       .trim()
   }
 
+  /**
+   * Demo logic: estimate shipping days based on province match.
+   * - Same province → 1 day
+   * - Adjacent southern/northern region → 2 days
+   * - Cross-region or unknown → 3 days
+   */
+  function estimateDeliveryDays(fromProvince?: string | null, toProvince?: string | null): { min: number; max: number } {
+    if (!fromProvince || !toProvince) return { min: 2, max: 3 }
+    const norm = (s: string) => normalizeSearchText(s).replace(/tinh|thanh pho|tp\.?\s*/g, '').trim()
+    const from = norm(fromProvince)
+    const to = norm(toProvince)
+    if (from === to) return { min: 1, max: 1 }
+
+    // Groups of nearby provinces (simplified demo)
+    const SOUTH = ['ho chi minh', 'binh duong', 'dong nai', 'long an', 'tay ninh', 'ba ria vung tau', 'can tho', 'an giang', 'dong thap', 'tien giang', 'ben tre', 'vinh long', 'tra vinh', 'soc trang', 'bac lieu', 'ca mau', 'kien giang', 'hau giang']
+    const NORTH = ['ha noi', 'hai phong', 'hai duong', 'hung yen', 'bac ninh', 'vinh phuc', 'thai nguyen', 'bac giang', 'quang ninh', 'nam dinh', 'ninh binh', 'ha nam', 'thai binh']
+    const CENTRAL = ['da nang', 'thua thien hue', 'quang nam', 'quang ngai', 'binh dinh', 'phu yen', 'khanh hoa', 'ninh thuan', 'binh thuan', 'quang tri', 'quang binh', 'ha tinh', 'nghe an', 'thanh hoa']
+
+    const regionOf = (p: string) => {
+      if (SOUTH.some((r) => p.includes(r) || r.includes(p))) return 'SOUTH'
+      if (NORTH.some((r) => p.includes(r) || r.includes(p))) return 'NORTH'
+      if (CENTRAL.some((r) => p.includes(r) || r.includes(p))) return 'CENTRAL'
+      return 'OTHER'
+    }
+    const fromRegion = regionOf(from)
+    const toRegion = regionOf(to)
+    if (fromRegion !== 'OTHER' && fromRegion === toRegion) return { min: 1, max: 2 }
+    return { min: 2, max: 3 }
+  }
+
+  function addDays(date: Date, days: number): Date {
+    const result = new Date(date)
+    result.setDate(result.getDate() + days)
+    return result
+  }
+
+  function formatViDate(date: Date): string {
+    return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
+
   function addressNamesMatch(left?: string | null, right?: string | null) {
     const normalizedLeft = normalizeAddressOptionText(left)
     const normalizedRight = normalizeAddressOptionText(right)
@@ -123,6 +165,7 @@
         get('agribridge.auth.branchProvince') ||
         get('agribridge.auth.companyProvince') ||
         get('agribridge.auth.province'),
+      district: get('agribridge.auth.companyDistrict') || null,
       ward:
         get('agribridge.auth.companyWard') ||
         get('agribridge.auth.ward'),
@@ -188,14 +231,19 @@
     const [draftPhone, setDraftPhone] = useState(buyerInfo.phone || '')
     const [draftProvince, setDraftProvince] = useState(buyerInfo.province || '')
     const [draftProvinceCode, setDraftProvinceCode] = useState('')
+    const [draftDistrict, setDraftDistrict] = useState(buyerInfo.district || '')
+    const [draftDistrictCode, setDraftDistrictCode] = useState('')
     const [draftWard, setDraftWard] = useState(buyerInfo.ward || '')
     const [draftWardCode, setDraftWardCode] = useState('')
     const [draftAddress, setDraftAddress] = useState(buyerInfo.address || '')
     const [provinceOptions, setProvinceOptions] = useState<VietnamProvinceOption[]>([])
+    const [districtOptions, setDistrictOptions] = useState<VietnamDistrictOption[]>([])
     const [wardOptions, setWardOptions] = useState<VietnamWardOption[]>([])
     const [provinceSearch, setProvinceSearch] = useState(buyerInfo.province || '')
+    const [districtSearch, setDistrictSearch] = useState(buyerInfo.district || '')
     const [wardSearch, setWardSearch] = useState(buyerInfo.ward || '')
     const [showProvinceOptions, setShowProvinceOptions] = useState(false)
+    const [showDistrictOptions, setShowDistrictOptions] = useState(false)
     const [showWardOptions, setShowWardOptions] = useState(false)
     const [loadingAddressOptions, setLoadingAddressOptions] = useState(false)
     const [addressLoadError, setAddressLoadError] = useState('')
@@ -231,6 +279,7 @@
           if (profile.phone) localStorage.setItem('agribridge.auth.phone', profile.phone)
           if (profile.companyName) localStorage.setItem('agribridge.auth.companyName', profile.companyName)
           if (profile.province && profile.province !== 'N/A') localStorage.setItem('agribridge.auth.companyProvince', profile.province)
+          if (profile.district && profile.district !== 'N/A') localStorage.setItem('agribridge.auth.companyDistrict', profile.district)
           if (profile.ward && profile.ward !== 'N/A') localStorage.setItem('agribridge.auth.companyWard', profile.ward)
           if (profile.address && profile.address !== 'N/A') localStorage.setItem('agribridge.auth.companyAddress', profile.address)
 
@@ -242,7 +291,7 @@
               prev.province ||
               (profile.province !== 'N/A' ? profile.province : null) ||
               null,
-            district: prev.district || null,
+            district: prev.district || (profile.district !== 'N/A' ? profile.district : null) || null,
             ward: prev.ward || (profile.ward !== 'N/A' ? profile.ward : null) || null,
             address:
               prev.address ||
@@ -289,28 +338,42 @@
 
    
 
-   useEffect(() => {
-  let ignore = false
-
-  async function loadWards() {
-    if (!draftProvinceCode.trim()) {
-      setWardOptions([])
-      return
+  useEffect(() => {
+    let ignore = false
+    async function loadDistricts() {
+      if (!draftProvinceCode.trim()) {
+        setDistrictOptions([])
+        setWardOptions([])
+        return
+      }
+      try {
+        const districts = await fetchVietnamDistrictsByProvinceCode(Number(draftProvinceCode))
+        if (!ignore) setDistrictOptions(districts)
+      } catch {
+        if (!ignore) setDistrictOptions([])
+      }
     }
+    void loadDistricts()
+    return () => { ignore = true }
+  }, [draftProvinceCode])
 
-    try {
-      const wards = await fetchVietnamWardsByProvinceCode(Number(draftProvinceCode))
-      if (!ignore) setWardOptions(wards)
-    } catch {
-      if (!ignore) setWardOptions([])
+  useEffect(() => {
+    let ignore = false
+    async function loadWards() {
+      if (!draftDistrictCode.trim()) {
+        setWardOptions([])
+        return
+      }
+      try {
+        const wards = await fetchVietnamWardsByDistrictCode(Number(draftDistrictCode))
+        if (!ignore) setWardOptions(wards)
+      } catch {
+        if (!ignore) setWardOptions([])
+      }
     }
-  }
-
-  void loadWards()
-  return () => {
-    ignore = true
-  }
-}, [draftProvinceCode])
+    void loadWards()
+    return () => { ignore = true }
+  }, [draftDistrictCode])
 
     useEffect(() => {
       if (!draftWard.trim() || draftWardCode.trim() || wardOptions.length === 0) return
@@ -327,9 +390,10 @@
 
       async function validateDeliveryWard() {
         const provinceName = buyerInfo.province?.trim()
+        const districtName = buyerInfo.district?.trim()
         const wardName = buyerInfo.ward?.trim()
 
-        if (!provinceName || !wardName) {
+        if (!provinceName || !districtName || !wardName) {
           setDeliveryAddressValid(false)
           if (!provinceName) setDeliveryAddressWarning('')
           return
@@ -348,13 +412,24 @@
         }
 
         try {
-          const wards = await fetchVietnamWardsByProvinceCode(matchedProvince.code)
+          const districts = await fetchVietnamDistrictsByProvinceCode(matchedProvince.code)
+          if (ignore) return
+
+          const matchedDistrict = districts.find((d) => addressNamesMatch(d.name, districtName))
+          if (!matchedDistrict) {
+            setDeliveryAddressValid(false)
+            setDeliveryAddressWarning('Quận/huyện không hợp lệ')
+            setShippingQuote(null)
+            return
+          }
+
+          const wards = await fetchVietnamWardsByDistrictCode(matchedDistrict.code)
           if (ignore) return
 
           const matchedWard = wards.find((ward) => addressNamesMatch(ward.name, wardName))
           if (!matchedWard) {
             setDeliveryAddressValid(false)
-            setDeliveryAddressWarning('Xã/phường không thuộc tỉnh đã chọn, vui lòng chọn lại địa chỉ nhận hàng')
+            setDeliveryAddressWarning('Xã/phường không thuộc quận/huyện đã chọn, vui lòng chọn lại địa chỉ nhận hàng')
             setShippingQuote(null)
             setBuyerInfo((current) => {
               if (current.province?.trim() === provinceName && current.ward?.trim() === wardName) {
@@ -419,21 +494,51 @@
             ? `Công nợ ${creditLimit.paymentTermDays} ngày`
             : 'Công nợ'
           : 'Chuyển khoản qua sàn'
+    // Raw days from quote
+    const rawDaysMin = effectiveShippingQuote?.estimatedDaysMin ?? null
+    const rawDaysMax = effectiveShippingQuote?.estimatedDaysMax ?? null
+
+    // Fallback demo estimate based on address provinces
+    const demoDays = estimateDeliveryDays(target.supplierProvince ?? null, buyerInfo.province ?? null)
+
+    const daysMin = rawDaysMin ?? demoDays.min
+    const daysMax = rawDaysMax ?? demoDays.max
+
+    const today = new Date()
+    const earliestDate = addDays(today, daysMin)
+    const latestDate = addDays(today, daysMax)
+
+    // Formatted display
+    const estimatedDeliveryDateLabel: string = (() => {
+      if (!effectiveShippingQuote && !buyerInfo.province) return 'Chưa tính'
+      const earliest = formatViDate(earliestDate)
+      const latest = formatViDate(latestDate)
+      return earliest === latest ? earliest : `${earliest} - ${latest}`
+    })()
+
+    // Legacy raw text (kept for payload submission)
     const estimatedDeliveryTime =
       effectiveShippingQuote?.estimatedDeliveryTime ||
-      (effectiveShippingQuote?.estimatedDaysMin != null && effectiveShippingQuote?.estimatedDaysMax != null
-        ? `${effectiveShippingQuote.estimatedDaysMin} - ${effectiveShippingQuote.estimatedDaysMax} ngày`
+      (rawDaysMin != null && rawDaysMax != null
+        ? `${rawDaysMin} - ${rawDaysMax} ngày`
         : null)
+    // To fix unused variable:
+    const finalEstimatedDeliveryTime = estimatedDeliveryTime;
 
     const filteredProvinceOptions = useMemo(() => {
       const query = normalizeSearchText(provinceSearch)
       if (!query) return provinceOptions
-      return provinceOptions.filter((province) => normalizeSearchText(province.name).includes(query))
+      return provinceOptions.filter((p) => normalizeSearchText(p.name).includes(query))
     }, [provinceOptions, provinceSearch])
+    const filteredDistrictOptions = useMemo(() => {
+      const query = normalizeSearchText(districtSearch)
+      if (!query) return districtOptions
+      return districtOptions.filter((d) => normalizeSearchText(d.name).includes(query))
+    }, [districtOptions, districtSearch])
     const filteredWardOptions = useMemo(() => {
       const query = normalizeSearchText(wardSearch)
       if (!query) return wardOptions
-      return wardOptions.filter((ward) => normalizeSearchText(ward.name).includes(query))
+      return wardOptions.filter((w) => normalizeSearchText(w.name).includes(query))
     }, [wardOptions, wardSearch])
 
     const showMoqWarning =
@@ -518,6 +623,7 @@
       const shippingQuoteKey = JSON.stringify({
         quantity: quantityNumber,
         province: buyerInfo.province,
+        district: buyerInfo.district,
         ward: buyerInfo.ward,
         address: buyerInfo.address,
         productId: target.productId,
@@ -542,6 +648,7 @@
           quantity: quantityNumber,
           unit: target.unit || 'kg',
           toProvince: buyerInfo.province || null,
+          toDistrict: buyerInfo.district || null,
           toWard: buyerInfo.ward || null,
           toAddress: buyerInfo.address || null,
           weight: estimateWeightInGram(quantityNumber, target.unit),
@@ -598,6 +705,7 @@
     }, [
       buyerInfo.address,
       buyerInfo.province,
+      buyerInfo.district,
       buyerInfo.ward,
       deliveryAddressValid,
       deliveryAddressWarning,
@@ -616,8 +724,12 @@
         setAddressEditError('Vui lòng chọn tỉnh/thành từ danh sách.')
         return
       }
+      if (!draftDistrictCode.trim() || !draftDistrict.trim()) {
+        setAddressEditError('Vui lòng chọn quận/huyện từ danh sách sau khi chọn tỉnh/thành.')
+        return
+      }
       if (!draftWardCode.trim() || !draftWard.trim()) {
-        setAddressEditError('Vui lòng chọn xã/phường từ danh sách sau khi chọn tỉnh/thành.')
+        setAddressEditError('Vui lòng chọn xã/phường từ danh sách sau khi chọn quận/huyện.')
         return
       }
       if (!draftAddress.trim()) {
@@ -632,6 +744,7 @@
         companyName: buyerInfo.companyName,
         phone: draftPhone.trim() || buyerInfo.phone,
         province: draftProvince.trim(),
+        district: draftDistrict.trim(),
         ward: draftWard.trim(),
         address: draftAddress.trim(),
       })
@@ -639,39 +752,49 @@
     }
 
     const handleCancelEdit = () => {
-  setDraftName(buyerInfo.fullName || '')
-  setDraftPhone(buyerInfo.phone || '')
-  setDraftProvince(buyerInfo.province || '')
-  setProvinceSearch(buyerInfo.province || '')
-  setDraftProvinceCode('')
-  setDraftWard(buyerInfo.ward || '')
-  setWardSearch(buyerInfo.ward || '')
-  setDraftWardCode('')
-  setDraftAddress(buyerInfo.address || '')
-  setWardOptions([])
-  setAddressEditError('')
-  setShowProvinceOptions(false)
-  setShowWardOptions(false)
-  setEditingAddress(false)
-}
+      setDraftName(buyerInfo.fullName || '')
+      setDraftPhone(buyerInfo.phone || '')
+      setDraftProvince(buyerInfo.province || '')
+      setProvinceSearch(buyerInfo.province || '')
+      setDraftProvinceCode('')
+      setDraftDistrict(buyerInfo.district || '')
+      setDistrictSearch(buyerInfo.district || '')
+      setDraftDistrictCode('')
+      setDraftWard(buyerInfo.ward || '')
+      setWardSearch(buyerInfo.ward || '')
+      setDraftWardCode('')
+      setDraftAddress(buyerInfo.address || '')
+      setDistrictOptions([])
+      setWardOptions([])
+      setAddressEditError('')
+      setShowProvinceOptions(false)
+      setShowDistrictOptions(false)
+      setShowWardOptions(false)
+      setEditingAddress(false)
+    }
 
-const handleOpenEdit = () => {
-  const matchedProvince = findProvinceByName(provinceOptions, buyerInfo.province)
-  setDraftName(buyerInfo.fullName || '')
-  setDraftPhone(buyerInfo.phone || '')
-  setDraftProvince(buyerInfo.province || '')
-  setProvinceSearch(buyerInfo.province || '')
-  setDraftProvinceCode(matchedProvince ? String(matchedProvince.code) : '')
-  setDraftWard(buyerInfo.ward || '')
-  setWardSearch(buyerInfo.ward || '')
-  setDraftWardCode('')
-  setDraftAddress(buyerInfo.address || '')
-  setWardOptions([])
-  setAddressEditError('')
-  setShowProvinceOptions(false)
-  setShowWardOptions(false)
-  setEditingAddress(true)
-}
+    const handleOpenEdit = () => {
+      const matchedProvince = findProvinceByName(provinceOptions, buyerInfo.province || '')
+      setDraftName(buyerInfo.fullName || '')
+      setDraftPhone(buyerInfo.phone || '')
+      setDraftProvince(buyerInfo.province || '')
+      setProvinceSearch(buyerInfo.province || '')
+      setDraftProvinceCode(matchedProvince ? String(matchedProvince.code) : '')
+      setDraftDistrict(buyerInfo.district || '')
+      setDistrictSearch(buyerInfo.district || '')
+      setDraftDistrictCode('')
+      setDraftWard(buyerInfo.ward || '')
+      setWardSearch(buyerInfo.ward || '')
+      setDraftWardCode('')
+      setDraftAddress(buyerInfo.address || '')
+      setDistrictOptions([])
+      setWardOptions([])
+      setAddressEditError('')
+      setShowProvinceOptions(false)
+      setShowDistrictOptions(false)
+      setShowWardOptions(false)
+      setEditingAddress(true)
+    }
 
     const handleSubmit = () => {
       if (!canSubmit) return
@@ -688,6 +811,7 @@ const handleOpenEdit = () => {
         deliveryName: buyerInfo.fullName || '',
         deliveryPhone: buyerInfo.phone || '',
         deliveryProvince: buyerInfo.province || '',
+        deliveryDistrict: buyerInfo.district || null,
         deliveryWard: buyerInfo.ward || null,
         deliveryAddress: buyerInfo.address || '',
         paymentMethod,
@@ -699,9 +823,23 @@ const handleOpenEdit = () => {
         shippingProviderCode: effectiveShippingQuote?.providerCode ?? null,
         shippingProviderName: effectiveShippingQuote?.providerName ?? null,
         shippingServiceName: effectiveShippingQuote?.serviceName ?? null,
-        estimatedDeliveryTime: effectiveShippingQuote?.estimatedDeliveryTime ?? null,
+        estimatedDeliveryTime: finalEstimatedDeliveryTime,
         shippingPayer: effectiveShippingQuote?.shippingPayer ?? 'BUYER',
         shippingStatus: effectiveShippingQuote ? 'QUOTED' : 'PENDING_QUOTE',
+        shippingShopIdUsed: effectiveShippingQuote?.shopIdUsed ?? null,
+        shippingFromDistrictId: effectiveShippingQuote?.fromDistrictId ?? null,
+        shippingFromWardCode: effectiveShippingQuote?.fromWardCode ?? null,
+        shippingToDistrictId: effectiveShippingQuote?.toDistrictId ?? null,
+        shippingToWardCode: effectiveShippingQuote?.toWardCode ?? null,
+        shippingWeight: effectiveShippingQuote?.weight ?? null,
+        shippingLength: effectiveShippingQuote?.length ?? null,
+        shippingWidth: effectiveShippingQuote?.width ?? null,
+        shippingHeight: effectiveShippingQuote?.height ?? null,
+        shippingServiceTypeId: effectiveShippingQuote?.serviceTypeId ?? null,
+        shippingServiceId: effectiveShippingQuote?.serviceId ?? null,
+        shippingInsuranceValue: effectiveShippingQuote?.insuranceValue ?? null,
+        shippingRawQuoteRequest: effectiveShippingQuote?.rawQuoteRequest ?? null,
+        shippingRawQuoteResponse: effectiveShippingQuote?.rawQuoteResponse ?? null,
         orderStatus: 'PENDING',
       }
 
@@ -982,6 +1120,61 @@ const handleOpenEdit = () => {
                       </div>
                       
                       <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">Qu\u1eadn / Huy\u1ec7n</label>
+                        <div className="relative">
+                          <input
+                            value={districtSearch || draftDistrict}
+                            disabled={!draftProvinceCode.trim()}
+                            onFocus={() => { setDistrictSearch(""); setShowDistrictOptions(true) }}
+                            onBlur={() => window.setTimeout(() => setShowDistrictOptions(false), 150)}
+                            onChange={(e) => {
+                              setDistrictSearch(e.target.value)
+                              setDraftDistrict("")
+                              setDraftDistrictCode("")
+                              setDraftWard("")
+                              setDraftWardCode("")
+                              setWardSearch("")
+                              setWardOptions([])
+                              setAddressEditError("")
+                              setShowDistrictOptions(true)
+                            }}
+                            className="h-10 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                            placeholder={draftProvinceCode.trim() ? "Ch\u1ecdn ho\u1eb7c t\u00ecm qu\u1eadn/huy\u1ec7n" : "Ch\u1ecdn t\u1ec9nh tr\u01b0\u1edbc"}
+                          />
+                          {showDistrictOptions && draftProvinceCode.trim() ? (
+                            <div className="absolute z-30 mt-1 max-h-[220px] w-full overflow-y-auto rounded-lg border border-emerald-100 bg-white py-1 text-sm shadow-lg">
+                              {filteredDistrictOptions.length > 0 ? (
+                                filteredDistrictOptions.map((district) => (
+                                  <button
+                                    key={district.code}
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => {
+                                      setDraftDistrictCode(String(district.code))
+                                      setDraftDistrict(district.name)
+                                      setDistrictSearch(district.name)
+                                      setDraftWard("")
+                                      setDraftWardCode("")
+                                      setWardSearch("")
+                                      setWardOptions([])
+                                      setAddressEditError("")
+                                      setDeliveryAddressWarning("")
+                                      setShippingError("")
+                                      setShowDistrictOptions(false)
+                                    }}
+                                    className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-emerald-50"
+                                  >
+                                    {district.name}
+                                  </button>
+                                ))
+                              ) : (
+                                <p className="px-3 py-2 text-slate-400">Kh\u00f4ng t\u00ecm th\u1ea5y</p>
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div>
                         <label className="mb-1 block text-xs font-semibold text-slate-600">Xã / Phường</label>
                         <div className="relative">
                           <input
@@ -1086,9 +1279,8 @@ const handleOpenEdit = () => {
                 <div className="grid gap-2 sm:grid-cols-2 text-sm">
                   <ShippingRow
                     label="Đơn vị vận chuyển"
-                    value={shippingLoading ? 'Đang tính...' : effectiveShippingQuote?.providerName || 'Chờ tính'}
+                    value={shippingLoading ? 'Đang tính...' : (effectiveShippingQuote?.providerCode === 'GHN' ? (effectiveShippingQuote.providerName || 'GHN') : 'Vận chuyển nội bộ')}
                   />
-                  <ShippingRow label="Dịch vụ" value={effectiveShippingQuote?.serviceName || 'Chờ tính'} />
                   <ShippingRow
                     label="Phí vận chuyển"
                     value={
@@ -1100,10 +1292,18 @@ const handleOpenEdit = () => {
                     }
                   />
                   <ShippingRow
-                    label="Thời gian giao dự kiến"
-                    value={estimatedDeliveryTime || 'Chưa tính'}
+                    label="Người trả phí"
+                    value={buyerInfo.fullName?.trim() || buyerInfo.companyName?.trim() || 'Buyer'}
                   />
-                  <ShippingRow label="Người trả phí" value="Buyer" />
+                </div>
+                {/* Estimated delivery date row — full width */}
+                <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/60 px-4 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Ngày giao dự kiến</p>
+                    <p className="text-sm font-extrabold text-emerald-800">
+                      {shippingLoading ? 'Đang tính...' : estimatedDeliveryDateLabel}
+                    </p>
+                  </div>
                 </div>
                 {/* INTERNAL provider soft info banner */}
                 {effectiveShippingQuote?.providerCode === 'INTERNAL' && !senderAddressWarning ? (
@@ -1125,8 +1325,9 @@ const handleOpenEdit = () => {
                     {shippingError}
                   </p>
                 ) : null}
-          
               </div>
+
+
 
               {/* Payment */}
               <div className="rounded-2xl border border-slate-200 bg-white p-4">

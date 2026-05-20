@@ -42,12 +42,16 @@ public class GhnAddressMappingService {
     public GhnLocation resolveForGhn(Address address, String role) {
         long start = System.currentTimeMillis();
         log.info(
-                "GHN address mapping: role={}, source=DIRECT_GHN_MASTER_DATA, originalProvince={}, originalWard={}",
+                "GHN address mapping: role={}, source=DIRECT_GHN_MASTER_DATA, originalProvince={}, originalDistrict={}, originalWard={}",
                 role,
                 address.province(),
+                address.district(),
                 address.ward());
+        if (!StringUtils.hasText(address.district())) {
+            log.warn("GHN address mapping: district is empty for role={}. Resolution will scan all districts — consider providing district for accuracy.", role);
+        }
         try {
-            GhnLocation location = resolveLocation(address.province(), address.ward(), role);
+            GhnLocation location = resolveLocation(address.province(), address.district(), address.ward(), role);
             log.info("Resolved GHN {} location in {}ms", role, System.currentTimeMillis() - start);
             return location;
         } catch (IllegalArgumentException ex) {
@@ -56,7 +60,9 @@ public class GhnAddressMappingService {
                     ? "Xã/phường không thuộc tỉnh/thành đã chọn. Vui lòng chọn lại địa chỉ."
                     : "Cannot resolve GHN-compatible sender address.";
             throw new IllegalArgumentException(
-                    message + " province=" + address.province() + ", ward=" + address.ward(),
+                    message + " province=" + address.province()
+                    + ", district=" + address.district()
+                    + ", ward=" + address.ward(),
                     ex);
         }
     }
@@ -71,125 +77,163 @@ public class GhnAddressMappingService {
      */
     public GhnLocation resolveForGhnSender(Address address) {
         long start = System.currentTimeMillis();
-        log.info("GHN sender address mapping: province={}, ward={}", address.province(), address.ward());
+        log.info("GHN sender address mapping: province={}, district={}, ward={}",
+                address.province(), address.district(), address.ward());
+        if (!StringUtils.hasText(address.district())) {
+            log.warn("GHN sender address mapping: district is empty, will use district-name fallback strategy.");
+        }
         try {
-            GhnLocation location = resolveLocationWithDistrictFallback(address.province(), address.ward());
+            GhnLocation location = resolveLocationWithDistrictFallback(address.province(), address.district(), address.ward());
             log.info("Resolved GHN sender location in {}ms", System.currentTimeMillis() - start);
             return location;
         } catch (IllegalArgumentException ex) {
             log.warn("Failed to resolve GHN sender location in {}ms: {}", System.currentTimeMillis() - start, ex.getMessage());
             throw new IllegalArgumentException(
-                    "Cannot resolve GHN-compatible sender address. province=" + address.province() + ", ward=" + address.ward(),
+                    "Cannot resolve GHN-compatible sender address. province=" + address.province()
+                    + ", district=" + address.district()
+                    + ", ward=" + address.ward(),
                     ex);
         }
     }
 
-    public DebugLocationResponse debugLocation(String provinceName, String wardName) {
+    public DebugLocationResponse debugLocation(String provinceName, String districtName, String wardName) {
         String normalizedProvince = normalizeAdministrativeName(provinceName);
+        String normalizedDistrict = normalizeAdministrativeName(districtName);
         String normalizedWard = normalizeAdministrativeName(wardName);
         GhnProvince province = findProvince(provinceName, normalizedProvince);
         List<String> nearProvinceMatches = nearProvinceMatches(normalizedProvince);
 
+        String matchedDistrictName = null;
+        Integer matchedDistrictId = null;
         String matchedWard = null;
         String matchedWardCode = null;
-        Integer matchedDistrictId = null;
         List<String> nearWardMatches = List.of();
 
         if (province != null) {
             List<GhnDistrict> districts = getDistricts().stream()
-                    .filter(district -> district.provinceId() != null && district.provinceId().equals(province.provinceId()))
+                    .filter(d -> d.provinceId() != null && d.provinceId().equals(province.provinceId()))
                     .toList();
-            nearWardMatches = nearWardMatches(districts, normalizedWard);
 
-            for (GhnDistrict district : districts) {
-                GhnWard ward = findWardInDistrict(district.districtId(), wardName, normalizedWard);
-                if (ward != null) {
-                    matchedWard = ward.wardName();
-                    matchedWardCode = ward.wardCode();
-                    matchedDistrictId = district.districtId();
-                    break;
+            // Try district-targeted lookup first
+            if (StringUtils.hasText(districtName)) {
+                GhnDistrict targetDistrict = districts.stream()
+                        .filter(d -> d.districtName() != null &&
+                                administrativeNamesMatch(normalizeAdministrativeName(d.districtName()), normalizedDistrict))
+                        .findFirst().orElse(null);
+                if (targetDistrict != null) {
+                    matchedDistrictName = targetDistrict.districtName();
+                    matchedDistrictId = targetDistrict.districtId();
+                    List<GhnDistrict> singleDistrict = List.of(targetDistrict);
+                    nearWardMatches = nearWardMatches(singleDistrict, normalizedWard);
+                    GhnWard ward = findWardInDistrict(targetDistrict.districtId(), wardName, normalizedWard);
+                    if (ward != null) {
+                        matchedWard = ward.wardName();
+                        matchedWardCode = ward.wardCode();
+                    }
+                }
+            }
+
+            // Fallback: scan all districts if district not matched
+            if (matchedWard == null) {
+                nearWardMatches = nearWardMatches(districts, normalizedWard);
+                for (GhnDistrict district : districts) {
+                    GhnWard ward = findWardInDistrict(district.districtId(), wardName, normalizedWard);
+                    if (ward != null) {
+                        matchedWard = ward.wardName();
+                        matchedWardCode = ward.wardCode();
+                        matchedDistrictId = district.districtId();
+                        matchedDistrictName = district.districtName();
+                        break;
+                    }
                 }
             }
         }
 
         return new DebugLocationResponse(
                 provinceName,
+                districtName,
                 wardName,
                 normalizedProvince,
+                normalizedDistrict,
                 normalizedWard,
                 province != null ? province.provinceName() : null,
                 province != null ? province.provinceId() : null,
+                matchedDistrictName,
+                matchedDistrictId,
                 matchedWard,
                 matchedWardCode,
-                matchedDistrictId,
                 nearProvinceMatches,
                 nearWardMatches);
     }
 
-    private GhnLocation resolveLocation(String provinceName, String wardName, String role) {
+    private GhnLocation resolveLocation(String provinceName, String districtName, String wardName, String role) {
         String normalizedProvince = normalizeAdministrativeName(provinceName);
+        String normalizedDistrict = normalizeAdministrativeName(districtName);
         String normalizedWard = normalizeAdministrativeName(wardName);
-        String cacheKey = normalizedProvince + "|" + normalizedWard;
+        String cacheKey = normalizedProvince + "|" + normalizedDistrict + "|" + normalizedWard;
         GhnLocation cached = resolvedLocationCache.get(cacheKey);
         if (cached != null) {
-            log.info("Resolved GHN {} location from cache: province={}, ward={}", role, provinceName, wardName);
+            log.info("Resolved GHN {} location from cache: province={}, district={}, ward={}",
+                    role, provinceName, districtName, wardName);
             return cached;
         }
 
         log.info(
-                "Resolving GHN {} location: provinceInput={}, normalizedProvince={}, wardInput={}, normalizedWard={}",
-                role,
-                provinceName,
-                normalizedProvince,
-                wardName,
-                normalizedWard);
+                "Resolving GHN {} location: provinceInput={}, normalizedProvince={}, districtInput={}, normalizedDistrict={}, wardInput={}, normalizedWard={}",
+                role, provinceName, normalizedProvince, districtName, normalizedDistrict, wardName, normalizedWard);
 
         GhnProvince province = findProvince(provinceName, normalizedProvince);
         if (province == null) {
-            log.warn(
-                    "GHN near province matches for {}: {}",
-                    normalizedProvince,
-                    nearProvinceMatches(normalizedProvince));
-            log.warn(
-                    "Cannot resolve GHN {} province: province={}, normalizedProvince={}",
-                    role,
-                    provinceName,
-                    normalizedProvince);
+            log.warn("GHN near province matches for {}: {}", normalizedProvince, nearProvinceMatches(normalizedProvince));
+            log.warn("Cannot resolve GHN {} province: province={}, normalizedProvince={}", role, provinceName, normalizedProvince);
             throw new IllegalArgumentException("Cannot resolve GHN location");
         }
 
-        List<GhnDistrict> districts = getDistricts().stream()
-                .filter(district -> district.provinceId() != null && district.provinceId().equals(province.provinceId()))
+        List<GhnDistrict> allDistricts = getDistricts().stream()
+                .filter(d -> d.provinceId() != null && d.provinceId().equals(province.provinceId()))
                 .toList();
-        log.info(
-                "GHN {} province district count: provinceId={}, districtCount={}",
-                role,
-                province.provinceId(),
-                districts.size());
-        log.info("GHN near ward matches for {}: {}", normalizedWard, nearWardMatches(districts, normalizedWard));
+        log.info("GHN {} province district count: provinceId={}, districtCount={}", role, province.provinceId(), allDistricts.size());
 
-        for (GhnDistrict district : districts) {
+        // ── Pass 1: District-targeted lookup (preferred when district is provided) ──
+        if (StringUtils.hasText(districtName)) {
+            GhnDistrict targetDistrict = allDistricts.stream()
+                    .filter(d -> d.districtName() != null &&
+                            administrativeNamesMatch(normalizeAdministrativeName(d.districtName()), normalizedDistrict))
+                    .findFirst().orElse(null);
+            if (targetDistrict != null) {
+                log.info("GHN {} district matched: districtId={}, districtName={}",
+                        role, targetDistrict.districtId(), targetDistrict.districtName());
+                GhnWard ward = findWardInDistrict(targetDistrict.districtId(), wardName, normalizedWard);
+                if (ward != null) {
+                    log.info("Matched GHN {} ward (district-targeted): districtId={}, wardCode={}, wardName={}",
+                            role, targetDistrict.districtId(), ward.wardCode(), ward.wardName());
+                    GhnLocation location = new GhnLocation(targetDistrict.districtId(), ward.wardCode());
+                    resolvedLocationCache.put(cacheKey, location);
+                    return location;
+                }
+                log.warn("GHN {} ward not found in targeted district={}: ward={}",
+                        role, targetDistrict.districtName(), wardName);
+            } else {
+                log.warn("GHN {} district not matched in province: districtInput={}, normalizedDistrict={}",
+                        role, districtName, normalizedDistrict);
+            }
+        }
+
+        // ── Pass 2: Province-wide scan fallback ──────────────────────────────────
+        log.info("GHN near ward matches for {}: {}", normalizedWard, nearWardMatches(allDistricts, normalizedWard));
+        for (GhnDistrict district : allDistricts) {
             GhnWard ward = findWardInDistrict(district.districtId(), wardName, normalizedWard);
             if (ward != null) {
-                log.info(
-                        "Matched GHN {} ward: districtId={}, wardCode={}, wardName={}",
-                        role,
-                        district.districtId(),
-                        ward.wardCode(),
-                        ward.wardName());
+                log.info("Matched GHN {} ward (province-scan): districtId={}, wardCode={}, wardName={}",
+                        role, district.districtId(), ward.wardCode(), ward.wardName());
                 GhnLocation location = new GhnLocation(district.districtId(), ward.wardCode());
                 resolvedLocationCache.put(cacheKey, location);
                 return location;
             }
         }
 
-        log.warn(
-                "Cannot resolve GHN {} ward in matched province: province={}, provinceId={}, ward={}, normalizedWard={}",
-                role,
-                provinceName,
-                province.provinceId(),
-                wardName,
-                normalizedWard);
+        log.warn("Cannot resolve GHN {} ward in matched province: province={}, provinceId={}, district={}, ward={}, normalizedWard={}",
+                role, provinceName, province.provinceId(), districtName, wardName, normalizedWard);
         throw new IllegalArgumentException("Cannot resolve GHN location");
     }
 
@@ -198,13 +242,15 @@ public class GhnAddressMappingService {
      * If the ward text doesn't match any ward, tries matching it against district names
      * and picks the first ward of the matching district.
      */
-    private GhnLocation resolveLocationWithDistrictFallback(String provinceName, String wardName) {
+    private GhnLocation resolveLocationWithDistrictFallback(String provinceName, String districtName, String wardName) {
         String normalizedProvince = normalizeAdministrativeName(provinceName);
+        String normalizedDistrict = normalizeAdministrativeName(districtName);
         String normalizedWard = normalizeAdministrativeName(wardName);
-        String cacheKey = "sender|" + normalizedProvince + "|" + normalizedWard;
+        String cacheKey = "sender|" + normalizedProvince + "|" + normalizedDistrict + "|" + normalizedWard;
         GhnLocation cached = resolvedLocationCache.get(cacheKey);
         if (cached != null) {
-            log.info("Resolved GHN sender location from cache: province={}, ward={}", provinceName, wardName);
+            log.info("Resolved GHN sender location from cache: province={}, district={}, ward={}",
+                    provinceName, districtName, wardName);
             return cached;
         }
 
@@ -213,12 +259,33 @@ public class GhnAddressMappingService {
             throw new IllegalArgumentException("Cannot resolve GHN sender province: " + provinceName);
         }
 
-        List<GhnDistrict> districts = getDistricts().stream()
+        List<GhnDistrict> allDistricts = getDistricts().stream()
                 .filter(d -> d.provinceId() != null && d.provinceId().equals(province.provinceId()))
                 .toList();
 
-        // ── Pass 1: exact ward match ──────────────────────────────────────────
-        for (GhnDistrict district : districts) {
+        // ── Pass 0: district-targeted ward match (when district name provided) ─
+        if (StringUtils.hasText(districtName)) {
+            GhnDistrict targetDistrict = allDistricts.stream()
+                    .filter(d -> d.districtName() != null &&
+                            administrativeNamesMatch(normalizeAdministrativeName(d.districtName()), normalizedDistrict))
+                    .findFirst().orElse(null);
+            if (targetDistrict != null) {
+                GhnWard ward = findWardInDistrict(targetDistrict.districtId(), wardName, normalizedWard);
+                if (ward != null) {
+                    log.info("Sender ward matched (district-targeted): districtId={}, wardCode={}, wardName={}",
+                            targetDistrict.districtId(), ward.wardCode(), ward.wardName());
+                    GhnLocation location = new GhnLocation(targetDistrict.districtId(), ward.wardCode());
+                    resolvedLocationCache.put(cacheKey, location);
+                    return location;
+                }
+                // If district matched but ward not found in it, still try fallback on that district
+                log.info("Sender ward not found in targeted district={} — will try district-name-as-ward fallback",
+                        targetDistrict.districtName());
+            }
+        }
+
+        // ── Pass 1: exact ward match (province-wide scan) ─────────────────────
+        for (GhnDistrict district : allDistricts) {
             GhnWard ward = findWardInDistrict(district.districtId(), wardName, normalizedWard);
             if (ward != null) {
                 log.info("Sender ward matched (pass 1): districtId={}, wardCode={}, wardName={}",
@@ -231,7 +298,7 @@ public class GhnAddressMappingService {
 
         // ── Pass 2: treat ward text as district name, pick first ward ─────────
         log.info("Sender ward not found in pass 1 — trying district-name fallback for ward='{}'", wardName);
-        for (GhnDistrict district : districts) {
+        for (GhnDistrict district : allDistricts) {
             if (district.districtName() == null) continue;
             String normalizedDistrictName = normalizeAdministrativeName(district.districtName());
             if (administrativeNamesMatch(normalizedDistrictName, normalizedWard)) {
@@ -248,7 +315,8 @@ public class GhnAddressMappingService {
         }
 
         throw new IllegalArgumentException(
-                "Cannot resolve GHN sender location even with district fallback. province=" + provinceName + ", ward=" + wardName);
+                "Cannot resolve GHN sender location even with district fallback. province=" + provinceName
+                + ", district=" + districtName + ", ward=" + wardName);
     }
 
     private List<String> nearProvinceMatches(String normalizedProvinceName) {
@@ -389,7 +457,7 @@ public class GhnAddressMappingService {
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
     }
 
-    public record Address(String province, String ward, String address) {
+    public record Address(String province, String district, String ward, String address) {
     }
 
     public record GhnLocation(Integer districtId, String wardCode) {
@@ -397,14 +465,17 @@ public class GhnAddressMappingService {
 
     public record DebugLocationResponse(
             String inputProvince,
+            String inputDistrict,
             String inputWard,
             String normalizedProvince,
+            String normalizedDistrict,
             String normalizedWard,
             String matchedProvince,
             Integer matchedProvinceId,
+            String matchedDistrict,
+            Integer matchedDistrictId,
             String matchedWard,
             String matchedWardCode,
-            Integer matchedDistrictId,
             List<String> nearProvinceMatches,
             List<String> nearWardMatches) {
     }

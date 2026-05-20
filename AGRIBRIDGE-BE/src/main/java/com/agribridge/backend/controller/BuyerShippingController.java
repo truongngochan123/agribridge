@@ -36,7 +36,8 @@ public class BuyerShippingController {
     @GetMapping("/debug-location")
     public GhnAddressMappingService.DebugLocationResponse debugLocation(
             @RequestParam String province,
+            @RequestParam(required = false, defaultValue = "") String district,
             @RequestParam String ward) {
-        return ghnAddressMappingService.debugLocation(province, ward);
+        return ghnAddressMappingService.debugLocation(province, district, ward);
     }
 }

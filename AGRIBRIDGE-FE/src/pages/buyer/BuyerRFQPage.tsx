@@ -502,7 +502,6 @@ export function BuyerRFQPage() {
           optionsError={optionsError}
           optionsLoading={optionsLoading}
           categories={categories}
-          branches={branches}
           submitting={formSubmitting}
           onChange={setForm}
           onClose={() => {
@@ -694,7 +693,6 @@ function FormModal({
   optionsError,
   optionsLoading,
   categories,
-  branches,
   submitting,
   onChange,
   onClose,
@@ -706,7 +704,6 @@ function FormModal({
   optionsError: string | null
   optionsLoading: boolean
   categories: CategoryOption[]
-  branches: BuyerBranchSummary[]
   submitting: boolean
   onChange: (form: RfqFormState) => void
   onClose: () => void

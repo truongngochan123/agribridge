@@ -93,6 +93,12 @@ public class CompanyController {
         return companyService.addCertificate(id, request);
     }
 
+    @PostMapping("/{id}/ghn-shop/sync")
+    public CompanyEntity syncGhnShop(@PathVariable Long id) {
+        requireOwnCompany(id);
+        return companyService.syncGhnShop(id);
+    }
+
     @DeleteMapping("/{id}/media/{mediaId}")
     public CompanyProfileAssetsResponseDto deleteMedia(@PathVariable Long id, @PathVariable Long mediaId) {
         requireOwnCompany(id);

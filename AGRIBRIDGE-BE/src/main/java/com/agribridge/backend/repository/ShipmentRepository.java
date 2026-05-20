@@ -17,6 +17,9 @@ public interface ShipmentRepository extends JpaRepository<ShipmentEntity, Long> 
 
     Optional<ShipmentEntity> findTopByOrderIdOrderByCreatedAtDesc(Long orderId);
 
+    List<ShipmentEntity> findByStatusInAndAutoProgressEnabledTrueOrderByLastStatusChangedAtAsc(
+            Collection<ShipmentStatusEnum> statuses);
+
     @Query("""
             SELECT s
             FROM ShipmentEntity s

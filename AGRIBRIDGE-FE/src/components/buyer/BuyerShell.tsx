@@ -10,13 +10,15 @@ import {
   Search,
   LineChart,
 } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { buyerMenuItems } from '../../data/buyerDashboardData'
-import { notificationUnreadCount } from '../../data/notifications'
 import { NotificationDrawer } from '../site/NotificationDrawer'
 import type { BuyerMenuKey } from '../../types/buyerDashboard'
 import { useCurrentUserProfile } from '../../hooks/useCurrentUserProfile'
+import { clearCurrentUserProfileCache } from '../../services/currentUserService'
+import { clearAuthSession } from '../../services/authSession'
+import { fetchNotifications, resolveNotificationRoute, type AppNotification } from '../../services/notificationService'
 
 type BuyerShellProps = {
   activeKey: BuyerMenuKey
@@ -39,11 +41,64 @@ const iconByKey = {
 }
 
 export function BuyerShell({ activeKey, title, subtitle, actions, filterBar, children }: BuyerShellProps) {
+  const navigate = useNavigate()
   const [openNotifications, setOpenNotifications] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [slideNotification, setSlideNotification] = useState<AppNotification | null>(null)
+  const prevLatestIdRef = useRef<number | null>(null)
   const { profile } = useCurrentUserProfile()
   const buyerName = profile?.fullName && profile.fullName !== 'N/A' ? profile.fullName : 'Buyer'
   const buyerRole = profile?.companyTypeLabel && profile.companyTypeLabel !== 'N/A' ? profile.companyTypeLabel : 'Nhà buôn'
   const buyerInitials = profile?.initials && profile.initials !== 'N/A' ? profile.initials : buyerName.charAt(0).toUpperCase()
+
+  const handleLogout = () => {
+    clearAuthSession()
+
+    const sessionKeysToDelete: string[] = []
+    for (let index = 0; index < sessionStorage.length; index += 1) {
+      const key = sessionStorage.key(index)
+      if (key?.startsWith('agribridge.')) {
+        sessionKeysToDelete.push(key)
+      }
+    }
+    sessionKeysToDelete.forEach((key) => sessionStorage.removeItem(key))
+
+    clearCurrentUserProfileCache()
+    navigate('/auth/login', { replace: true })
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    let timerId: number | undefined
+
+    const loadNotifications = async () => {
+      try {
+        const data = await fetchNotifications()
+        if (cancelled) return
+        setUnreadCount(data.unreadCount || 0)
+        const latestUnread = (data.items || []).find((item) => !item.isRead)
+        if (latestUnread) {
+          if (prevLatestIdRef.current !== null && prevLatestIdRef.current !== latestUnread.id) {
+            setSlideNotification(latestUnread)
+            window.setTimeout(() => setSlideNotification(null), 5000)
+          }
+          prevLatestIdRef.current = latestUnread.id
+        }
+      } catch {
+        if (!cancelled) setUnreadCount(0)
+      }
+    }
+
+    void loadNotifications()
+    timerId = window.setInterval(() => {
+      void loadNotifications()
+    }, 15000)
+
+    return () => {
+      cancelled = true
+      if (timerId) window.clearInterval(timerId)
+    }
+  }, [])
 
   return (
     <div className="h-screen overflow-hidden bg-emerald-50/30 text-emerald-950">
@@ -87,7 +142,10 @@ export function BuyerShell({ activeKey, title, subtitle, actions, filterBar, chi
             <div className="rounded-xl bg-white/10 px-3 py-3">
               <p className="text-sm font-bold">{buyerName}</p>
               <p className="text-xs text-emerald-100">{buyerRole}</p>
-              <button className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-white/90 hover:text-white">
+              <button
+                className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-white/90 hover:text-white"
+                onClick={handleLogout}
+              >
                 <LogOut className="h-4 w-4" />
                 Đăng xuất
               </button>
@@ -111,7 +169,7 @@ export function BuyerShell({ activeKey, title, subtitle, actions, filterBar, chi
                 >
                   <Bell className="h-4 w-4" />
                   <span className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                    {notificationUnreadCount}
+                    {unreadCount}
                   </span>
                 </button>
 
@@ -138,7 +196,21 @@ export function BuyerShell({ activeKey, title, subtitle, actions, filterBar, chi
           <div className="flex-1 overflow-y-auto p-4">{children}</div>
         </main>
       </div>
-      <NotificationDrawer open={openNotifications} onClose={() => setOpenNotifications(false)} />
+      {slideNotification ? (
+        <button
+          className="fixed right-4 top-4 z-[85] w-[min(420px,calc(100%-2rem))] rounded-xl border border-emerald-200 bg-white p-3 text-left shadow-lg"
+          onClick={() => navigate(resolveNotificationRoute(slideNotification))}
+        >
+          <p className="text-sm font-bold text-slate-900">{slideNotification.title}</p>
+          <p className="mt-1 text-sm text-slate-600">{slideNotification.body}</p>
+        </button>
+      ) : null}
+      <NotificationDrawer
+        open={openNotifications}
+        onClose={() => setOpenNotifications(false)}
+        onUnreadCountChange={setUnreadCount}
+        onNotificationClick={(route) => navigate(route)}
+      />
     </div>
   )
 }

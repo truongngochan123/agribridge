@@ -539,11 +539,9 @@ function OrderDetailModal({
             {selectedOrder.note ? <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900"><span className="font-bold">Ghi chú: </span>{selectedOrder.note}</div> : null}
 
             <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
-              {selectedOrder.availableActions.map((action) => renderActionButton(selectedOrder, action))}
+              {selectedOrder.availableActions.map((action) => action === 'VIEW_DETAIL' ? null : renderActionButton(selectedOrder, action))}
               {isWaitingBuyer(selectedOrder) ? <span className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">Chờ buyer xác nhận</span> : null}
-              <button className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setSelectedOrder(null)}>
-                Đóng
-              </button>
+              
             </div>
           </div>
         ) : (

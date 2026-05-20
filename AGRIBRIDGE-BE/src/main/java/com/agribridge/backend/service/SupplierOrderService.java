@@ -3,6 +3,7 @@ package com.agribridge.backend.service;
 import com.agribridge.backend.dto.CreateSupplierShipmentDto;
 import com.agribridge.backend.dto.SupplierOrderDetailDto;
 import com.agribridge.backend.dto.SupplierOrderDto;
+import com.agribridge.backend.dto.SupplierShipmentIncidentActionDto;
 import com.agribridge.backend.dto.UpdateSupplierOrderStatusDto;
 import com.agribridge.backend.dto.UpdateSupplierShipmentStatusDto;
 import java.util.List;
@@ -28,4 +29,8 @@ public interface SupplierOrderService {
     SupplierOrderDto startShippingDemoOrder(Long orderId);
 
     SupplierOrderDto markDeliveredDemoOrder(Long orderId);
+
+    SupplierOrderDto syncGhnDemoOrder(Long orderId);
+
+    void updateShipmentIncident(Long shipmentId, Long incidentId, SupplierShipmentIncidentActionDto request);
 }

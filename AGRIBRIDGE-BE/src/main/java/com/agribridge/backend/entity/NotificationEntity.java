@@ -56,6 +56,9 @@ public class NotificationEntity {
     @Column(name = "body")
     private String body;
 
+    @Column(name = "metadata", length = 4000)
+    private String metadata;
+
     @Column(name = "ref_table")
     private String refTable;
 

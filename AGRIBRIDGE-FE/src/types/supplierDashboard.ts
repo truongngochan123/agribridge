@@ -106,6 +106,15 @@ export interface ShipmentItem {
   estimatedDeliveryTime?: string
   createdAt?: string
   rawOrderId?: number | null
+  shipmentEvents?: SupplierShipmentEvent[]
+}
+
+export interface SupplierShipmentEvent {
+  id: number
+  status: string
+  description?: string | null
+  location?: string | null
+  eventTime: string
 }
 
 export interface DebtCustomerItem {

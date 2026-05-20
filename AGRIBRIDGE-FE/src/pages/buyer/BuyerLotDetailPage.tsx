@@ -16,10 +16,12 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { BuyerQuickOrderModal } from '../../components/buyer/BuyerQuickOrderModal'
+import { BuyerOrderPaymentModal } from '../../components/buyer/BuyerOrderPaymentModal'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
-import type { BuyerQuickOrderPayload, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
+import type { BuyerPaymentMethod, BuyerQuickOrderPayload, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
+import { useBuyerOrderPayment } from '../../hooks/useBuyerOrderPayment'
 import { useToast } from '../../hooks/useToast'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { createQuickOrder } from '../../services/buyerOrderService'
@@ -32,6 +34,20 @@ import { resolveUploadedFileUrl } from '../../services/uploadService'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
 
 type ActiveTab = 'lot' | 'quality' | 'history' | 'supplier'
+
+type QuickOrderPaymentModalData = {
+  orderId: number
+  orderCode: string
+  productName: string
+  quantity: number
+  unit?: string | null
+  subtotal?: number | null
+  shippingFee?: number | null
+  totalAmount?: number | null
+  transferContent?: string | null
+  paymentMethod: BuyerPaymentMethod
+  creditTermDays?: number | null
+}
 
 type RfqFormState = {
   quantity: string
@@ -244,7 +260,9 @@ function toQuickOrderTarget(lot: BuyerLotDetail, lotCode: string): BuyerQuickOrd
 export function BuyerLotDetailPage() {
   usePageTitle('Chi tiết lô hàng')
   const { lotId } = useParams<{ lotId: string }>()
+  const navigate = useNavigate()
   const { showToast } = useToast()
+  const { confirmPayment, confirming } = useBuyerOrderPayment()
 
   const [lot, setLot] = useState<BuyerLotDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -256,6 +274,7 @@ export function BuyerLotDetailPage() {
   const [submittingRfq, setSubmittingRfq] = useState(false)
   const [quickOrderTarget, setQuickOrderTarget] = useState<BuyerQuickOrderTarget | null>(null)
   const [submittingQuickOrder, setSubmittingQuickOrder] = useState(false)
+  const [paymentModalData, setPaymentModalData] = useState<QuickOrderPaymentModalData | null>(null)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
 
   const parsedLotId = Number(lotId)
@@ -325,14 +344,39 @@ export function BuyerLotDetailPage() {
 
   const submitQuickOrder = async (payload: BuyerQuickOrderPayload) => {
     setSubmittingQuickOrder(true)
+    const currentTarget = quickOrderTarget
     try {
       const result = await createQuickOrder(payload)
-      showToast(result.message || 'Tạo đơn hàng thành công', 'success')
+      showToast('Tạo đơn hàng thành công. Vui lòng hoàn tất thanh toán.', 'success')
       setQuickOrderTarget(null)
+      if (currentTarget) {
+        setPaymentModalData({
+          orderId: result.orderId,
+          orderCode: result.orderCode,
+          productName: currentTarget.productName,
+          quantity: payload.quantity,
+          unit: payload.unit,
+          subtotal: payload.subtotal,
+          shippingFee: payload.shippingFee,
+          totalAmount: result.payableAmount ?? result.grandTotal ?? (payload.subtotal ?? 0) + (payload.shippingFee ?? 0),
+          transferContent: result.transferContent ?? null,
+          paymentMethod: payload.paymentMethod,
+          creditTermDays: payload.creditTermDays ?? null,
+        })
+      }
     } catch (requestError) {
       showToast(readApiErrorMessage(requestError) || 'Không thể tạo đơn hàng.', 'error')
     } finally {
       setSubmittingQuickOrder(false)
+    }
+  }
+
+  const handleConfirmPayment = async () => {
+    if (!paymentModalData) return
+    const updated = await confirmPayment({ orderId: paymentModalData.orderId })
+    if (updated) {
+      setPaymentModalData(null)
+      navigate(`/buyer/orders?orderId=${paymentModalData.orderId}`)
     }
   }
 
@@ -592,6 +636,25 @@ export function BuyerLotDetailPage() {
           onSubmit={(payload) => {
             void submitQuickOrder(payload)
           }}
+        />
+      ) : null}
+
+      {paymentModalData ? (
+        <BuyerOrderPaymentModal
+          open={Boolean(paymentModalData)}
+          orderCode={paymentModalData.orderCode}
+          productName={paymentModalData.productName}
+          quantity={paymentModalData.quantity}
+          unit={paymentModalData.unit}
+          subtotal={paymentModalData.subtotal}
+          shippingFee={paymentModalData.shippingFee}
+          totalAmount={paymentModalData.totalAmount}
+          paymentMethod={paymentModalData.paymentMethod}
+          creditTermDays={paymentModalData.creditTermDays}
+          transferContent={paymentModalData.transferContent}
+          confirming={confirming}
+          onClose={() => setPaymentModalData(null)}
+          onConfirmPaid={() => void handleConfirmPayment()}
         />
       ) : null}
     </BuyerShell>

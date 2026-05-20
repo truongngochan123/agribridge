@@ -50,7 +50,7 @@ public class ProductEntity {
     @Column(nullable = false)
     private String name;
 
-    @Column
+    @Column(columnDefinition = "NVARCHAR(MAX)")
     private String description;
 
     @Column(nullable = false)

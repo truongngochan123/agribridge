@@ -1,35 +1,115 @@
-import { AlertTriangle, CheckCircle2, Clock, Package, PhoneCall, Truck, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Package, PhoneCall, Truck, X } from 'lucide-react'
 import { useState } from 'react'
 import { SearchInput, SupplierPanel } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
-import { useToast } from '../../hooks/useToast'
 import { usePageTitle } from '../../hooks/usePageTitle'
-import { updateSupplierShipmentStatus, type SupplierShipmentStatusCode } from '../../services/supplierService'
-import type { ShipmentItem } from '../../types/supplierDashboard'
+import type { ShipmentItem, SupplierShipmentEvent } from '../../types/supplierDashboard'
 import { useSupplierDashboardData } from './useSupplierDashboardData'
-
-// ─── Status helpers ────────────────────────────────────────────────────────────
 
 type StatusColor = 'amber' | 'blue' | 'indigo' | 'emerald' | 'rose' | 'slate'
 
+const STATUS_COLOR_CLASSES: Record<StatusColor, { badge: string; ring: string; dot: string; bar: string }> = {
+  amber: {
+    badge: 'bg-amber-100 text-amber-800',
+    ring: 'ring-amber-400',
+    dot: 'bg-amber-400',
+    bar: 'from-amber-400 to-amber-600',
+  },
+  blue: {
+    badge: 'bg-blue-100 text-blue-800',
+    ring: 'ring-blue-400',
+    dot: 'bg-blue-400',
+    bar: 'from-blue-400 to-blue-600',
+  },
+  indigo: {
+    badge: 'bg-indigo-100 text-indigo-800',
+    ring: 'ring-indigo-400',
+    dot: 'bg-indigo-400',
+    bar: 'from-indigo-400 to-indigo-600',
+  },
+  emerald: {
+    badge: 'bg-emerald-100 text-emerald-800',
+    ring: 'ring-emerald-400',
+    dot: 'bg-emerald-500',
+    bar: 'from-emerald-400 to-emerald-600',
+  },
+  rose: {
+    badge: 'bg-rose-100 text-rose-700',
+    ring: 'ring-rose-400',
+    dot: 'bg-rose-400',
+    bar: 'from-rose-400 to-rose-600',
+  },
+  slate: {
+    badge: 'bg-slate-100 text-slate-600',
+    ring: 'ring-slate-300',
+    dot: 'bg-slate-400',
+    bar: 'from-slate-300 to-slate-400',
+  },
+}
+
+const FILTER_TABS = [
+  { key: 'all', label: 'Tất cả' },
+  { key: 'preparing', label: 'Chuẩn bị' },
+  { key: 'transit', label: 'Đang giao' },
+  { key: 'done', label: 'Đã giao' },
+  { key: 'issue', label: 'Sự cố' },
+]
+
+const STATUS_LABELS: Record<string, string> = {
+  CREATED: 'Đã tạo vận đơn',
+  WAITING_PICKUP: 'Chờ lấy hàng',
+  PENDING: 'Chờ xử lý',
+  PREPARING: 'Chuẩn bị',
+  PICKED_UP: 'Đã lấy hàng tại kho',
+  SHIPPED: 'Đã xuất kho',
+  SHIPPING: 'Đang giao',
+  IN_TRANSIT: 'Đang vận chuyển',
+  OUT_FOR_DELIVERY: 'Đang giao tới người nhận',
+  WAITING_CONFIRMATION: 'Chờ xác nhận',
+  DELIVERED: 'Đã giao',
+  CANCELLED: 'Đã hủy',
+  FAILED: 'Giao thất bại',
+  FAILED_DELIVERY: 'Giao thất bại',
+  INCIDENT: 'Sự cố',
+}
+
 function getStatusMeta(status: string): { color: StatusColor; label: string } {
-  const s = status?.toLowerCase() ?? ''
-  if (s.includes('chuẩn bị') || s.includes('pending')) return { color: 'amber', label: status }
-  if (s.includes('rời kho') || s.includes('shipped')) return { color: 'blue', label: status }
-  if (s.includes('vận chuyển') || s.includes('transit')) return { color: 'indigo', label: status }
-  if (s.includes('buyer') || s.includes('waiting')) return { color: 'indigo', label: status }
-  if (s.includes('giao') || s.includes('delivered')) return { color: 'emerald', label: status }
-  if (s.includes('hủy') || s.includes('failed') || s.includes('sự cố')) return { color: 'rose', label: status }
+  const normalized = normalizeStatus(status)
+  const label = STATUS_LABELS[normalized] ?? status ?? 'N/A'
+  if (normalized === 'WAITING_PICKUP' || normalized === 'PENDING' || normalized === 'PREPARING' || normalized === 'CREATED') {
+    return { color: 'amber', label }
+  }
+  if (normalized === 'PICKED_UP' || normalized === 'SHIPPED') {
+    return { color: 'blue', label }
+  }
+  if (normalized === 'IN_TRANSIT' || normalized === 'SHIPPING' || normalized === 'OUT_FOR_DELIVERY' || normalized === 'WAITING_CONFIRMATION') {
+    return { color: 'indigo', label }
+  }
+  if (normalized === 'DELIVERED') {
+    return { color: 'emerald', label }
+  }
+  if (normalized === 'CANCELLED' || normalized === 'FAILED' || normalized === 'FAILED_DELIVERY' || normalized === 'INCIDENT') {
+    return { color: 'rose', label }
+  }
   return { color: 'slate', label: status || 'N/A' }
 }
 
-const STATUS_COLOR_CLASSES: Record<StatusColor, { badge: string; ring: string; dot: string }> = {
-  amber:   { badge: 'bg-amber-100 text-amber-800',   ring: 'ring-amber-400',   dot: 'bg-amber-400' },
-  blue:    { badge: 'bg-blue-100 text-blue-800',     ring: 'ring-blue-400',    dot: 'bg-blue-400' },
-  indigo:  { badge: 'bg-indigo-100 text-indigo-800', ring: 'ring-indigo-400',  dot: 'bg-indigo-400' },
-  emerald: { badge: 'bg-emerald-100 text-emerald-800', ring: 'ring-emerald-400', dot: 'bg-emerald-500' },
-  rose:    { badge: 'bg-rose-100 text-rose-700',     ring: 'ring-rose-400',    dot: 'bg-rose-400' },
-  slate:   { badge: 'bg-slate-100 text-slate-600',   ring: 'ring-slate-300',   dot: 'bg-slate-400' },
+function normalizeStatus(status: string) {
+  const s = (status || '').trim().toLowerCase()
+  if (s.includes('chờ lấy') || s === 'waiting_pickup') return 'WAITING_PICKUP'
+  if (s.includes('lấy hàng') || s === 'picked_up') return 'PICKED_UP'
+  if (s.includes('rời kho') || s.includes('xuất kho') || s === 'shipped') return 'SHIPPED'
+  if (s.includes('vận chuyển') || s === 'in_transit' || s === 'shipping') return 'IN_TRANSIT'
+  if (s.includes('người nhận') || s === 'out_for_delivery') return 'OUT_FOR_DELIVERY'
+  if (s.includes('chờ người mua') || s.includes('chờ buyer') || s.includes('xác nhận') || s === 'waiting_confirmation') return 'WAITING_CONFIRMATION'
+  if (s.includes('đã giao') || s === 'delivered') return 'DELIVERED'
+  if (s.includes('hủy') || s === 'cancelled') return 'CANCELLED'
+  if (s.includes('sự cố') || s === 'incident') return 'INCIDENT'
+  if (s.includes('thất bại') || s === 'failed' || s === 'failed_delivery') return 'FAILED'
+  if (s.includes('chuẩn bị') || s === 'preparing') return 'PREPARING'
+  if (s === 'created') return 'CREATED'
+  if (s === 'pending') return 'PENDING'
+  return status.toUpperCase()
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -43,64 +123,30 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-// ─── Next-status transition map ────────────────────────────────────────────────
-
-type NextAction = { label: string; status: SupplierShipmentStatusCode; variant: 'primary' | 'danger' }
-
-function getNextActions(currentStatus: string): NextAction[] {
-  const s = (currentStatus || '').toLowerCase()
-  if (s.includes('chuẩn bị') || s === 'pending' || s === 'preparing') {
-    return [{ label: 'Xác nhận lấy hàng', status: 'SHIPPED', variant: 'primary' }]
-  }
-  if (s.includes('rời kho') || s === 'shipped') {
-    return [{ label: 'Đang vận chuyển', status: 'IN_TRANSIT', variant: 'primary' }]
-  }
-  if (s.includes('vận chuyển') || s === 'in_transit' || s === 'shipping') {
-    return [
-      { label: 'Đã đến nơi', status: 'WAITING_CONFIRMATION', variant: 'primary' },
-      { label: 'Báo sự cố', status: 'FAILED', variant: 'danger' },
-    ]
-  }
-  if (s.includes('chờ buyer') || s === 'waiting_confirmation') {
-    return [{ label: 'Hoàn thành', status: 'DELIVERED', variant: 'primary' }]
-  }
-  return []
-}
-
-// ─── Progress bar ──────────────────────────────────────────────────────────────
-
-function ProgressBar({ progress, color = 'emerald' }: { progress: number; color?: string }) {
+function ProgressBar({ progress, color = 'emerald' }: { progress: number; color?: StatusColor }) {
+  const barClass = STATUS_COLOR_CLASSES[color]?.bar ?? STATUS_COLOR_CLASSES.emerald.bar
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
       <div
-        className={`h-full rounded-full bg-gradient-to-r from-${color}-400 to-${color}-600 transition-all duration-500`}
+        className={`h-full rounded-full bg-gradient-to-r ${barClass} transition-all duration-500`}
         style={{ width: `${Math.min(Math.max(progress, 0), 100)}%` }}
       />
     </div>
   )
 }
 
-// ─── Shipment Card ─────────────────────────────────────────────────────────────
-
-function ShipmentCard({
-  ship,
-  onDetail,
-}: {
-  ship: ShipmentItem
-  onDetail: () => void
-}) {
+function ShipmentCard({ ship, onDetail }: { ship: ShipmentItem; onDetail: () => void }) {
   const { color } = getStatusMeta(ship.status)
-  const ring = STATUS_COLOR_CLASSES[color].ring
+  const cls = STATUS_COLOR_CLASSES[color]
+  const progressColor: StatusColor = color === 'emerald' ? 'emerald' : color === 'rose' ? 'rose' : 'indigo'
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:ring-2 ${ring} hover:ring-offset-1`}
+      className={`group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:ring-2 ${cls.ring} hover:ring-offset-1`}
     >
-      {/* top accent stripe */}
-      <div className={`h-1 w-full bg-gradient-to-r from-${color}-400 to-${color}-600`} />
+      <div className={`h-1 w-full bg-gradient-to-r ${cls.bar}`} />
 
       <div className="p-4">
-        {/* Header row */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -119,7 +165,6 @@ function ShipmentCard({
           </div>
         </div>
 
-        {/* Cargo + fee row */}
         <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2">
           <div className="flex items-center gap-1.5 text-xs text-slate-500">
             <Package className="h-3.5 w-3.5 text-emerald-500" />
@@ -133,7 +178,6 @@ function ShipmentCard({
           </div>
         </div>
 
-        {/* Receiver */}
         {ship.receiverName && ship.receiverName !== 'N/A' && (
           <p className="mt-2 text-xs text-slate-500">
             <span className="font-semibold text-slate-700">{ship.receiverName}</span>
@@ -141,24 +185,23 @@ function ShipmentCard({
           </p>
         )}
 
-        {/* Progress */}
         <div className="mt-3">
-          <ProgressBar progress={ship.progress} color={color === 'emerald' ? 'emerald' : color === 'rose' ? 'rose' : 'indigo'} />
+          <ProgressBar progress={ship.progress} color={progressColor} />
           <p className="mt-1 text-right text-[11px] font-semibold text-slate-400">{ship.progress}%</p>
         </div>
 
-        {/* Action */}
         <div className="mt-3 flex items-center gap-2">
           <button
             onClick={onDetail}
             className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 py-2 text-xs font-bold text-white transition hover:opacity-90 active:scale-95"
           >
-            Chi tiết & Cập nhật
+            Chi tiết
           </button>
           {ship.receiverPhone && ship.receiverPhone !== 'N/A' && (
             <a
               href={`tel:${ship.receiverPhone}`}
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
+              title="Gọi người nhận"
             >
               <PhoneCall className="h-4 w-4" />
             </a>
@@ -169,131 +212,55 @@ function ShipmentCard({
   )
 }
 
-// ─── Timeline ─────────────────────────────────────────────────────────────────
-
-type TimelineStep = { label: string; time: string; done: boolean }
-
-function buildTimeline(ship: { status: string; createdAt?: string; eta?: string }): TimelineStep[] {
-  const s = (ship.status || '').toLowerCase()
-  const isDone = (threshold: string) => s.includes(threshold) || ['delivered', 'failed', 'waiting'].some((k) => s.includes(k))
-  const isAtLeast = (step: string) => s.includes(step)
-
-  return [
-    {
-      label: 'Tạo đơn hàng & đặt lịch',
-      time: ship.createdAt || 'N/A',
-      done: true,
-    },
-    {
-      label: 'Lấy hàng tại kho',
-      time: isAtLeast('rời') || isAtLeast('transit') || isDone('wait') || isAtLeast('giao') ? 'Đã xong' : 'Chờ xử lý',
-      done: isAtLeast('rời') || isAtLeast('transit') || isDone('wait') || isAtLeast('giao'),
-    },
-    {
-      label: 'Đang vận chuyển',
-      time: isAtLeast('transit') || isDone('wait') || isAtLeast('giao') ? 'Đang xử lý' : 'Chờ xử lý',
-      done: isAtLeast('transit') || isDone('wait') || isAtLeast('giao'),
-    },
-    {
-      label: 'Giao hàng thành công',
-      time: isAtLeast('giao') ? 'Hoàn thành' : ship.eta || 'Dự kiến',
-      done: isAtLeast('giao'),
-    },
-  ]
-}
-
-function Timeline({ steps }: { steps: TimelineStep[] }) {
+function Timeline({ events }: { events: SupplierShipmentEvent[] }) {
+  if (events.length === 0) {
+    return <p className="text-xs font-medium text-slate-400">Chưa có timeline.</p>
+  }
   return (
     <ol className="relative space-y-3 border-l border-dashed border-slate-200 pl-5">
-      {steps.map((step, i) => (
-        <li key={i} className="relative">
-          <span
-            className={`absolute -left-[1.45rem] flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-              step.done
-                ? 'border-emerald-500 bg-emerald-500 text-white'
-                : 'border-slate-300 bg-white'
-            }`}
-          >
-            {step.done ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3 text-slate-400" />}
+      {events.map((event) => (
+        <li key={event.id} className="relative">
+          <span className="absolute -left-[1.45rem] flex h-5 w-5 items-center justify-center rounded-full border-2 border-emerald-500 bg-emerald-500 text-white">
+            <CheckCircle2 className="h-3 w-3" />
           </span>
-          <p className={`text-xs font-semibold ${step.done ? 'text-slate-800' : 'text-slate-400'}`}>{step.label}</p>
-          <p className="text-[11px] text-slate-400">{step.time}</p>
+          <p className="text-xs font-semibold text-slate-800">{event.description || getStatusMeta(event.status).label}</p>
+          <p className="text-[11px] text-slate-400">
+            {event.eventTime}{event.location ? ` · ${event.location}` : ''}
+          </p>
         </li>
       ))}
     </ol>
   )
 }
 
-// ─── Detail Modal ──────────────────────────────────────────────────────────────
-
-function ShipmentDetailModal({
-  ship,
-  onClose,
-  onStatusUpdated,
-}: {
-  ship: ShipmentItem
-  onClose: () => void
-  onStatusUpdated: () => void
-}) {
-  const { showToast } = useToast()
-  const [updating, setUpdating] = useState(false)
-
-  const timeline = buildTimeline(ship)
-  const nextActions = getNextActions(ship.status)
-  const { color } = getStatusMeta(ship.status)
+function ShipmentDetailModal({ ship, onClose }: { ship: ShipmentItem; onClose: () => void }) {
+  const timeline = ship.shipmentEvents ?? []
+  const { color, label } = getStatusMeta(ship.status)
   const dotClass = STATUS_COLOR_CLASSES[color].dot
-
-  const handleStatusUpdate = async (action: NextAction) => {
-    if (!ship.rawOrderId) {
-      showToast('Không tìm thấy mã đơn hàng để cập nhật.', 'error')
-      return
-    }
-    const companyId = Number(localStorage.getItem('agribridge.auth.companyId'))
-    if (!companyId) {
-      showToast('Chưa xác định công ty, vui lòng đăng nhập lại.', 'error')
-      return
-    }
-
-    setUpdating(true)
-    try {
-      await updateSupplierShipmentStatus(companyId, ship.rawOrderId, action.status)
-      showToast(`Cập nhật thành công: ${action.label}`, 'success')
-      onStatusUpdated()
-      onClose()
-    } catch {
-      showToast('Cập nhật trạng thái thất bại. Vui lòng thử lại.', 'error')
-    } finally {
-      setUpdating(false)
-    }
-  }
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-start justify-between gap-4 bg-gradient-to-r from-slate-800 to-slate-700 px-5 py-4">
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-xl font-extrabold text-white">{ship.id}</h3>
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold bg-white/20 text-white`}>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 text-xs font-bold text-white">
                 <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
-                {ship.status}
+                {label}
               </span>
             </div>
             <p className="mt-0.5 text-sm text-slate-300">{ship.orderRef} · {ship.route}</p>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-white/70 hover:bg-white/10">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-white/70 hover:bg-white/10" aria-label="Đóng">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto space-y-4 p-5">
-
-          {/* Info grid */}
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           <div className="grid gap-3 sm:grid-cols-2">
             <InfoCard label="Người nhận" value={ship.receiverName && ship.receiverName !== 'N/A' ? ship.receiverName : '—'} />
             <InfoCard label="Số điện thoại" value={ship.receiverPhone && ship.receiverPhone !== 'N/A' ? ship.receiverPhone : '—'} />
@@ -308,7 +275,6 @@ function ShipmentDetailModal({
             <InfoCard label="Dự kiến giao" value={ship.estimatedDeliveryTime && ship.estimatedDeliveryTime !== 'N/A' ? ship.estimatedDeliveryTime : ship.eta || '—'} />
           </div>
 
-          {/* Progress */}
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-bold text-slate-700">Tiến độ vận chuyển</p>
@@ -317,13 +283,11 @@ function ShipmentDetailModal({
             <ProgressBar progress={ship.progress} />
           </div>
 
-          {/* Timeline */}
           <div>
             <p className="mb-3 text-sm font-bold text-slate-800">Timeline</p>
-            <Timeline steps={timeline} />
+            <Timeline events={timeline} />
           </div>
 
-          {/* Cargo note */}
           {ship.driver && ship.driver !== 'N/A' && (
             <div className="flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-800">
               <Truck className="h-4 w-4 shrink-0 text-blue-500" />
@@ -332,30 +296,7 @@ function ShipmentDetailModal({
           )}
         </div>
 
-        {/* Footer — next actions */}
         <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 bg-white px-5 py-3">
-          {nextActions.length > 0 ? (
-            <>
-              {nextActions.map((action) => (
-                <button
-                  key={action.status}
-                  disabled={updating}
-                  onClick={() => { void handleStatusUpdate(action) }}
-                  className={`rounded-xl px-4 py-2 text-xs font-bold transition active:scale-95 disabled:opacity-60 ${
-                    action.variant === 'danger'
-                      ? 'border border-rose-300 bg-white text-rose-600 hover:bg-rose-50'
-                      : 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white hover:opacity-90'
-                  }`}
-                >
-                  {updating ? 'Đang cập nhật...' : action.label}
-                </button>
-              ))}
-            </>
-          ) : (
-            <p className="text-xs text-slate-400 italic">
-              {ship.status.toLowerCase().includes('giao') ? '✓ Đã hoàn thành giao hàng' : 'Không có hành động tiếp theo'}
-            </p>
-          )}
           <div className="ml-auto flex gap-2">
             {ship.receiverPhone && ship.receiverPhone !== 'N/A' && (
               <a
@@ -391,68 +332,57 @@ function InfoCard({ label, value, accent, className }: { label: string; value: s
   )
 }
 
-// ─── Filter tabs ───────────────────────────────────────────────────────────────
-
-const FILTER_TABS = [
-  { key: 'all', label: 'Tất cả' },
-  { key: 'preparing', label: 'Chuẩn bị' },
-  { key: 'transit', label: 'Đang giao' },
-  { key: 'done', label: 'Đã giao' },
-  { key: 'issue', label: 'Sự cố' },
-]
-
 function matchFilter(status: string, key: string) {
-  const s = status.toLowerCase()
+  const normalized = normalizeStatus(status)
   if (key === 'all') return true
-  if (key === 'preparing') return s.includes('chuẩn') || s.includes('rời kho')
-  if (key === 'transit') return s.includes('vận chuyển') || s.includes('chờ buyer')
-  if (key === 'done') return s.includes('giao')
-  if (key === 'issue') return s.includes('sự cố') || s.includes('hủy') || s.includes('failed')
+  if (key === 'preparing') return ['CREATED', 'PENDING', 'PREPARING', 'WAITING_PICKUP', 'PICKED_UP', 'SHIPPED'].includes(normalized)
+  if (key === 'transit') return ['IN_TRANSIT', 'SHIPPING', 'OUT_FOR_DELIVERY', 'WAITING_CONFIRMATION'].includes(normalized)
+  if (key === 'done') return normalized === 'DELIVERED'
+  if (key === 'issue') return ['INCIDENT', 'CANCELLED', 'FAILED', 'FAILED_DELIVERY'].includes(normalized)
   return true
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
-
 export function SupplierDeliveryPage() {
-  usePageTitle('Theo dõi Giao hàng')
-  const { data, loading, error, reload } = useSupplierDashboardData()
+  usePageTitle('Theo dõi giao hàng')
+  const { data, loading, error } = useSupplierDashboardData()
   const shipmentRows = data?.shipments ?? []
 
   const [activeFilter, setActiveFilter] = useState('all')
   const [activeShipmentId, setActiveShipmentId] = useState<string | null>(null)
-
   const [searchKeyword, setSearchKeyword] = useState('')
+
   const filtered = shipmentRows
-    .filter((s) => matchFilter(s.status, activeFilter))
-    .filter((s) => {
+    .filter((shipment) => matchFilter(shipment.status, activeFilter))
+    .filter((shipment) => {
       if (!searchKeyword.trim()) return true
-      const kw = searchKeyword.trim().toLowerCase()
+      const keyword = searchKeyword.trim().toLowerCase()
       return (
-        s.id.toLowerCase().includes(kw) ||
-        s.route.toLowerCase().includes(kw) ||
-        s.cargo.toLowerCase().includes(kw) ||
-        (s.driver ?? '').toLowerCase().includes(kw)
+        shipment.id.toLowerCase().includes(keyword) ||
+        shipment.route.toLowerCase().includes(keyword) ||
+        shipment.cargo.toLowerCase().includes(keyword) ||
+        (shipment.driver ?? '').toLowerCase().includes(keyword)
       )
     })
-  const activeShipment = shipmentRows.find((s) => s.id === activeShipmentId) ?? null
+
+  const activeShipment = shipmentRows.find((shipment) => shipment.id === activeShipmentId) ?? null
 
   const tabCount = (key: string) => {
     if (key === 'all') return shipmentRows.length
-    return shipmentRows.filter((s) => matchFilter(s.status, key)).length
+    return shipmentRows.filter((shipment) => matchFilter(shipment.status, key)).length
   }
 
   return (
     <>
       <SupplierShell
         activeKey="delivery"
-        title="Quản lý Giao hàng"
-        subtitle="Theo dõi vận chuyển và cập nhật trạng thái giao hàng"
+        title="Quản lý giao hàng"
+        subtitle="Theo dõi vận chuyển và trạng thái giao hàng"
         filterBar={
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput
               value={searchKeyword}
               onChange={setSearchKeyword}
-              placeholder="Tìm shipment, route, hàng hóa..."
+              placeholder="Tìm shipment, tuyến giao, hàng hóa..."
               className="min-w-[220px] max-w-xs"
             />
             <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
@@ -478,7 +408,6 @@ export function SupplierDeliveryPage() {
           </div>
         }
       >
-        {/* States */}
         {loading && (
           <div className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
@@ -506,11 +435,10 @@ export function SupplierDeliveryPage() {
         )}
         {!loading && !error && shipmentRows.length > 0 && filtered.length === 0 && (
           <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-400">
-            Không có shipment nào ở trạng thái "{FILTER_TABS.find((t) => t.key === activeFilter)?.label}".
+            Không có shipment nào ở trạng thái "{FILTER_TABS.find((tab) => tab.key === activeFilter)?.label}".
           </p>
         )}
 
-        {/* Grid */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((ship) => (
             <ShipmentCard
@@ -522,12 +450,10 @@ export function SupplierDeliveryPage() {
         </div>
       </SupplierShell>
 
-      {/* Detail Modal */}
       {activeShipment && (
         <ShipmentDetailModal
           ship={activeShipment}
           onClose={() => setActiveShipmentId(null)}
-          onStatusUpdated={reload}
         />
       )}
     </>

@@ -26,6 +26,30 @@ public final class BuyerBranchDtos {
     public record StatusRequest(Boolean isActive) {
     }
 
+    public record EmployeeCreateRequest(
+            String fullName,
+            String email,
+            String phone,
+            String temporaryPassword,
+            String role,
+            String status,
+            Boolean inviteOnly
+    ) {
+    }
+
+    public record EmployeeAssignRequest(
+            Long userId,
+            String role,
+            String status
+    ) {
+    }
+
+    public record EmployeeAvailability(
+            boolean phoneTaken,
+            boolean emailTaken
+    ) {
+    }
+
     public record Summary(
             Long rawId,
             String id,

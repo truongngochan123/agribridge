@@ -45,13 +45,13 @@ const MAX_BATCH_VIDEO_SIZE_BYTES = 95 * 1024 * 1024
 
 function toStorageValue(value: string | null | undefined): string {
   if (!value) return ''
-  return value.replace('Â°C', '').trim()
+  return value.replace(/\s*(Â?°C)\s*/gi, '').trim()
 }
 
 function toStorageLabel(value: string): string {
   const normalized = value.trim()
   if (!normalized) return ''
-  return `${normalized}Â°C`
+  return `${normalized}°C`
 }
 
 function toAbsoluteUploadedUrl(url?: string | null): string | undefined {

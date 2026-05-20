@@ -9,6 +9,7 @@ export type BuyerShippingQuoteRequest = {
   quantity: number
   unit: string
   toProvince?: string | null
+  toDistrict?: string | null
   toWard?: string | null
   toAddress?: string | null
   weight?: number | null
@@ -32,6 +33,20 @@ export type BuyerShippingQuote = {
   isPendingQuote?: boolean
   /** Human-readable reason the quote is pending (sender address issue). */
   pendingReason?: string | null
+  shopIdUsed?: string | null
+  fromDistrictId?: number | null
+  fromWardCode?: string | null
+  toDistrictId?: number | null
+  toWardCode?: string | null
+  weight?: number | null
+  length?: number | null
+  width?: number | null
+  height?: number | null
+  serviceTypeId?: number | null
+  serviceId?: number | null
+  insuranceValue?: number | null
+  rawQuoteRequest?: string | null
+  rawQuoteResponse?: string | null
 }
 
 export async function quoteBuyerShipping(

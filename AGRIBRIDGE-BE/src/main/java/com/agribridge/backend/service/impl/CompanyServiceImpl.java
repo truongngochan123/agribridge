@@ -10,6 +10,7 @@ import com.agribridge.backend.entity.enums.VerificationStatusEnum;
 import com.agribridge.backend.repository.CompanyImageRepository;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.service.CompanyService;
+import com.agribridge.backend.service.GhnShippingService;
 import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.List;
@@ -27,6 +28,7 @@ public class CompanyServiceImpl implements CompanyService {
 
     private final CompanyRepository companyRepository;
     private final CompanyImageRepository companyImageRepository;
+    private final GhnShippingService ghnShippingService;
 
     @Override
     public List<CompanyEntity> findAll() {
@@ -81,6 +83,11 @@ public class CompanyServiceImpl implements CompanyService {
         log.info("Updating company legal profile id={}", id);
         CompanyEntity company = findById(id);
 
+        boolean addressChanged = isDifferent(company.getProvince(), request.getProvince())
+            || isDifferent(company.getDistrict(), request.getDistrict())
+            || isDifferent(company.getWard(), request.getWard())
+            || isDifferent(company.getAddress(), request.getAddress());
+
         String name = normalizeRequired(request.getName(), "Tên pháp lý doanh nghiệp là bắt buộc.");
         String province = normalizeRequired(request.getProvince(), "Tỉnh/Thành là bắt buộc.");
         String address = normalizeRequired(request.getAddress(), "Địa chỉ là bắt buộc.");
@@ -96,9 +103,14 @@ public class CompanyServiceImpl implements CompanyService {
         company.setEstablishedYear(request.getEstablishedYear());
         company.setWebsite(normalizeOptional(request.getWebsite()));
         company.setProvince(province);
+        company.setDistrict(normalizeOptional(request.getDistrict()));
         company.setWard(normalizeOptional(request.getWard()));
         company.setAddress(address);
         company.setDescription(normalizeOptional(request.getDescription()));
+
+        if (addressChanged) {
+            markGhnShopNeedsSync(company);
+        }
 
         CompanyEntity updated = Objects.requireNonNull(companyRepository.save(company));
         log.info("Updated company legal profile id={}", updated.getId());
@@ -225,6 +237,13 @@ public class CompanyServiceImpl implements CompanyService {
         return approvedCompany;
     }
 
+    @Override
+    @Transactional
+    public CompanyEntity syncGhnShop(Long id) {
+        CompanyEntity company = findById(id);
+        return ghnShippingService.ensureSupplierGhnShop(company);
+    }
+
     private CompanyProfileAssetsResponseDto.MediaItemDto mapToMediaItem(CompanyImageEntity image) {
         return CompanyProfileAssetsResponseDto.MediaItemDto.builder()
                 .id(image.getId())
@@ -249,6 +268,29 @@ public class CompanyServiceImpl implements CompanyService {
         }
         String normalized = value.trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private boolean isDifferent(String left, String right) {
+        String normalizedLeft = normalizeOptional(left);
+        String normalizedRight = normalizeOptional(right);
+        if (normalizedLeft == null && normalizedRight == null) {
+            return false;
+        }
+        if (normalizedLeft == null || normalizedRight == null) {
+            return true;
+        }
+        return !normalizedLeft.equalsIgnoreCase(normalizedRight);
+    }
+
+    private void markGhnShopNeedsSync(CompanyEntity company) {
+        company.setGhnShopId(null);
+        company.setGhnShopName(null);
+        company.setGhnShopPhone(null);
+        company.setGhnShopAddress(null);
+        company.setGhnShopDistrictId(null);
+        company.setGhnShopWardCode(null);
+        company.setGhnShopCreatedAt(null);
+        company.setGhnShopStatus("NEEDS_SYNC");
     }
 
     private String extractFileName(String url) {

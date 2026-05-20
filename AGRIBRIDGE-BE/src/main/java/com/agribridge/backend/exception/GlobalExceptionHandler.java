@@ -1,5 +1,6 @@
 package com.agribridge.backend.exception;
 
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -7,9 +8,19 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<Map<String, String>> handleApiException(ApiException ex) {
+        return ResponseEntity
+                .status(ex.getStatus())
+                .body(Map.of(
+                        "message", ex.getMessage() == null ? "REQUEST_FAILED" : ex.getMessage()));
+    }
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, String>> handleResponseStatusException(ResponseStatusException ex) {
@@ -37,6 +48,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleException(Exception ex) {
+        log.error("Unhandled backend error", ex);
         return ResponseEntity
                 .internalServerError()
                 .body(Map.of(

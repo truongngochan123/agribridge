@@ -10,6 +10,7 @@ export type RegistrationDraft = {
   companyPhone: string
   companyEmail: string
   province: string
+  district?: string
   ward: string
   address: string
   description?: string
@@ -121,6 +122,7 @@ export async function registerAccount(draft: RegistrationDraft, contact: Contact
       companyEmail: draft.companyEmail || undefined,
       address: draft.address,
       province: draft.province,
+      district: draft.district || undefined,
       ward: draft.ward,
       description: buildDescription(draft),
       logoUrl: normalizeMediaRef(draft.logoUrl),
@@ -144,6 +146,7 @@ export async function registerAccount(draft: RegistrationDraft, contact: Contact
     companyEmail: draft.companyEmail || undefined,
     address: draft.address,
     province: draft.province,
+    district: draft.district || undefined,
     ward: draft.ward,
     description: buildDescription(draft),
     logoUrl: normalizeMediaRef(draft.logoUrl),

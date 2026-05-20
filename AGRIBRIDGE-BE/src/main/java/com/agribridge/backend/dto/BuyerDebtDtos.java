@@ -32,6 +32,7 @@ public final class BuyerDebtDtos {
             BigDecimal limitUsage,
             Boolean isBlocked,
             String blockedReason,
+            String creditStatus,
             String status,
             String statusLabel
     ) {
@@ -41,7 +42,8 @@ public final class BuyerDebtDtos {
             SupplierDebt summary,
             List<InvoiceItem> invoices,
             List<PaymentItem> payments,
-            List<AdjustmentItem> adjustments
+            List<AdjustmentItem> adjustments,
+            List<ReminderItem> reminders
     ) {
     }
 
@@ -50,12 +52,20 @@ public final class BuyerDebtDtos {
             String invoiceNumber,
             Long orderId,
             String orderRef,
+            String productName,
+            BigDecimal quantity,
+            String unit,
             LocalDateTime createdAt,
+            LocalDateTime confirmedReceivedAt,
             LocalDate dueDate,
+            LocalDate expectedDueDate,
+            String dueLabel,
             BigDecimal totalAmount,
             BigDecimal adjustedAmount,
             BigDecimal paidAmount,
             BigDecimal remainingAmount,
+            String paymentPlanType,
+            Integer paymentTermDays,
             String status,
             String statusLabel,
             Long overdueDays
@@ -79,6 +89,26 @@ public final class BuyerDebtDtos {
             BigDecimal amount,
             String adjustmentType,
             String description,
+            LocalDateTime createdAt
+    ) {
+    }
+
+    public record ReminderItem(
+            Long reminderId,
+            Long invoiceId,
+            String invoiceNumber,
+            Long orderId,
+            String orderCode,
+            String productName,
+            BigDecimal quantity,
+            String unit,
+            String dueLabel,
+            BigDecimal amount,
+            String message,
+            String channel,
+            String status,
+            String senderName,
+            LocalDateTime sentAt,
             LocalDateTime createdAt
     ) {
     }

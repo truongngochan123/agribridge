@@ -12,9 +12,11 @@ import { uploadRegistrationFile } from '../../services/uploadService'
 
 import {
   fetchVietnamProvinces,
-  fetchVietnamWardsByProvinceCode,
+  fetchVietnamDistrictsByProvinceCode,
+  fetchVietnamWardsByDistrictCode,
   findProvinceByName,
   type VietnamProvinceOption,
+  type VietnamDistrictOption,
 } from '../../services/vietnamAddressService'
 
 const DRAFT_KEY = 'agribridge.register.draft'
@@ -35,6 +37,7 @@ type BusinessFieldErrors = {
   companyName?: string
   taxCode?: string
   province?: string
+  district?: string
   ward?: string
   address?: string
 }
@@ -128,6 +131,7 @@ export function SupplierRegistrationBusinessInfoPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<BusinessFieldErrors>({})
   const [provinceOptions, setProvinceOptions] = useState<VietnamProvinceOption[]>([])
+  const [districtOptions, setDistrictOptions] = useState<VietnamDistrictOption[]>([])
   const [wardOptions, setWardOptions] = useState<string[]>([])
   const [loadingAddressOptions, setLoadingAddressOptions] = useState(false)
   const [addressLoadError, setAddressLoadError] = useState('')
@@ -195,31 +199,46 @@ export function SupplierRegistrationBusinessInfoPage() {
   }, [])
 
   useEffect(() => {
-  let ignore = false
-
-  async function loadWards() {
-    if (!form.province.trim() || !selectedProvince) {
-      setWardOptions([])
-      return
-    }
-
-    try {
-      const wards = await fetchVietnamWardsByProvinceCode(selectedProvince.code)
-      if (!ignore) {
-        setWardOptions(wards.map((ward) => ward.name))
-      }
-    } catch {
-      if (!ignore) {
+    let ignore = false
+    async function loadDistricts() {
+      if (!form.province.trim() || !selectedProvince) {
+        setDistrictOptions([])
         setWardOptions([])
+        return
+      }
+      try {
+        const districts = await fetchVietnamDistrictsByProvinceCode(selectedProvince.code)
+        if (!ignore) setDistrictOptions(districts)
+      } catch {
+        if (!ignore) setDistrictOptions([])
       }
     }
-  }
+    void loadDistricts()
+    return () => { ignore = true }
+  }, [form.province, selectedProvince])
 
-  void loadWards()
-  return () => {
-    ignore = true
-  }
-}, [form.province, selectedProvince])
+  const selectedDistrict = useMemo(
+    () => districtOptions.find((d) => d.name === form.district) ?? null,
+    [form.district, districtOptions],
+  )
+
+  useEffect(() => {
+    let ignore = false
+    async function loadWards() {
+      if (!selectedDistrict) {
+        setWardOptions([])
+        return
+      }
+      try {
+        const wards = await fetchVietnamWardsByDistrictCode(selectedDistrict.code)
+        if (!ignore) setWardOptions(wards.map((w) => w.name))
+      } catch {
+        if (!ignore) setWardOptions([])
+      }
+    }
+    void loadWards()
+    return () => { ignore = true }
+  }, [selectedDistrict])
 
   const handleChange = <K extends keyof RegistrationDraft>(key: K, value: RegistrationDraft[K]) => {
     setForm((prev) => ({
@@ -227,7 +246,8 @@ export function SupplierRegistrationBusinessInfoPage() {
       [key]: value,
       role: currentRole,
       businessType: currentRole === 'supplier' ? 'BUSINESS' : (key === 'taxCode' ? ((String(value).trim() ? 'BUSINESS' : 'INDIVIDUAL')) : prev.businessType),
-      ward: key === 'province' ? '' : key === 'ward' ? String(value) : prev.ward,
+      district: key === 'province' ? '' : key === 'district' ? String(value) : prev.district,
+      ward: (key === 'province' || key === 'district') ? '' : key === 'ward' ? String(value) : prev.ward,
     }))
     if (key === 'companyName' || key === 'taxCode' || key === 'province' || key === 'ward' || key === 'address') {
       setFieldErrors((prev) => ({ ...prev, [key]: '' }))
@@ -580,13 +600,37 @@ export function SupplierRegistrationBusinessInfoPage() {
               </div>
 
               <div>
+                <label className={labelClass}>Quận / Huyện *</label>
+                <input
+                  className={inputClass}
+                  placeholder={form.province ? 'Chọn hoặc gõ tên quận/huyện' : 'Chọn tỉnh/thành trước'}
+                  list="district-options"
+                  value={form.district ?? ''}
+                  disabled={!form.province}
+                  onChange={(event) => handleChange('district', event.target.value)}
+                  onBlur={() =>
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      district: (form.district ?? '').trim() ? '' : 'Vui lòng chọn quận/huyện.',
+                    }))
+                  }
+                />
+                <datalist id="district-options">
+                  {districtOptions.map((item) => (
+                    <option key={item.code} value={item.name} />
+                  ))}
+                </datalist>
+                {fieldErrors.district ? <p className="mt-1 text-xs font-semibold text-[#DC2626]">{fieldErrors.district}</p> : null}
+              </div>
+
+              <div>
                 <label className={labelClass}>Xã / Phường *</label>
                 <input
                   className={inputClass}
-                  placeholder="Chọn hoặc gõ tên xã/phường"
+                  placeholder={form.district ? 'Chọn hoặc gõ tên xã/phường' : 'Chọn quận/huyện trước'}
                   list="ward-options"
                   value={form.ward}
-                  disabled={!form.province}
+                  disabled={!form.district}
                   onChange={(event) => handleChange('ward', event.target.value)}
                   onBlur={() =>
                     setFieldErrors((prev) => ({

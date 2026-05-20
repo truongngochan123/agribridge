@@ -3,6 +3,7 @@ package com.agribridge.backend.controller;
 import com.agribridge.backend.dto.CreateSupplierShipmentDto;
 import com.agribridge.backend.dto.SupplierOrderDetailDto;
 import com.agribridge.backend.dto.SupplierOrderDto;
+import com.agribridge.backend.dto.SupplierShipmentIncidentActionDto;
 import com.agribridge.backend.dto.UpdateSupplierOrderStatusDto;
 import com.agribridge.backend.dto.UpdateSupplierShipmentStatusDto;
 import com.agribridge.backend.service.SupplierOrderService;
@@ -82,5 +83,18 @@ public class SupplierOrderController {
     @PostMapping("/{orderId}/mark-delivered")
     public SupplierOrderDto markDelivered(@PathVariable Long orderId) {
         return supplierOrderService.markDeliveredDemoOrder(orderId);
+    }
+
+    @PostMapping("/{orderId}/sync-ghn")
+    public SupplierOrderDto syncGhn(@PathVariable Long orderId) {
+        return supplierOrderService.syncGhnDemoOrder(orderId);
+    }
+
+    @PatchMapping("/shipments/{shipmentId}/incidents/{incidentId}")
+    public void updateShipmentIncident(
+            @PathVariable Long shipmentId,
+            @PathVariable Long incidentId,
+            @RequestBody SupplierShipmentIncidentActionDto request) {
+        supplierOrderService.updateShipmentIncident(shipmentId, incidentId, request);
     }
 }

@@ -232,8 +232,8 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
     private String shipmentLabel(ShipmentStatusEnum status) {
         if (status == null) return "N/A";
         return switch (status) {
-            case CREATED, PENDING, PREPARING -> "Cho giao";
-            case SHIPPED, SHIPPING, IN_TRANSIT -> "Dang giao";
+            case CREATED, PENDING, PREPARING, WAITING_PICKUP -> "Cho giao";
+            case PICKED_UP, SHIPPED, SHIPPING, IN_TRANSIT, OUT_FOR_DELIVERY -> "Dang giao";
             case WAITING_CONFIRMATION -> "Cho xac nhan";
             case DELIVERED -> "Da giao";
             case CANCELLED -> "Da huy";

@@ -14,6 +14,8 @@ import com.agribridge.backend.entity.ProductImageEntity;
 import com.agribridge.backend.entity.QuoteEntity;
 import com.agribridge.backend.entity.RfqEntity;
 import com.agribridge.backend.entity.ShipmentEntity;
+import com.agribridge.backend.entity.ShipmentEventEntity;
+import com.agribridge.backend.entity.ShipmentIncidentEntity;
 import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
 import com.agribridge.backend.entity.enums.RfqStatusEnum;
@@ -30,6 +32,8 @@ import com.agribridge.backend.repository.ProductImageRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.QuoteRepository;
 import com.agribridge.backend.repository.RfqRepository;
+import com.agribridge.backend.repository.ShipmentEventRepository;
+import com.agribridge.backend.repository.ShipmentIncidentRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
 import com.agribridge.backend.service.CurrentUserService;
 import com.agribridge.backend.service.SupplierDashboardService;
@@ -72,6 +76,8 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
     private final OrderItemRepository orderItemRepository;
     private final BranchRepository branchRepository;
     private final ShipmentRepository shipmentRepository;
+    private final ShipmentEventRepository shipmentEventRepository;
+    private final ShipmentIncidentRepository shipmentIncidentRepository;
     private final InvoiceRepository invoiceRepository;
     private final PaymentRepository paymentRepository;
     private final QuoteRepository quoteRepository;
@@ -163,6 +169,14 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
         List<ShipmentEntity> shipments = orderIds.isEmpty()
                 ? Collections.emptyList()
                 : shipmentRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds);
+        Map<Long, List<ShipmentIncidentEntity>> incidentsByShipmentId = shipments.isEmpty()
+                ? Collections.emptyMap()
+                : shipmentIncidentRepository.findByShipmentIdInOrderByCreatedAtDesc(
+                        shipments.stream().map(ShipmentEntity::getId).toList()).stream()
+                        .collect(Collectors.groupingBy(
+                                ShipmentIncidentEntity::getShipmentId,
+                                LinkedHashMap::new,
+                                Collectors.toList()));
 
         List<InvoiceEntity> invoices = orderIds.isEmpty()
                 ? Collections.emptyList()
@@ -285,7 +299,11 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
 
         List<SupplierDashboardResponseDto.ShipmentDto> shipmentDtos = shipments.stream()
                 .limit(20)
-                .map(shipment -> toShipmentDto(shipment, orderById.get(shipment.getOrderId()), buyerByCompanyId))
+                .map(shipment -> toShipmentDto(
+                        shipment,
+                        orderById.get(shipment.getOrderId()),
+                        buyerByCompanyId,
+                        incidentsByShipmentId.getOrDefault(shipment.getId(), List.of())))
                 .toList();
 
         long shippingOrderCount = orders.stream()
@@ -485,7 +503,8 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
     private SupplierDashboardResponseDto.ShipmentDto toShipmentDto(
             ShipmentEntity shipment,
             OrderEntity order,
-            Map<Long, CompanyEntity> buyerByCompanyId) {
+            Map<Long, CompanyEntity> buyerByCompanyId,
+            List<ShipmentIncidentEntity> incidents) {
         CompanyEntity buyer = order == null ? null : buyerByCompanyId.get(order.getBuyerCompanyId());
         String route = order == null
                 ? (shipment.getShippingMethod() == null ? "N/A" : shipment.getShippingMethod())
@@ -514,7 +533,113 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
                 safeText(shipment.getServiceName()),
                 safeText(shipment.getEstimatedDeliveryTime()),
                 createdAtStr,
-                order == null ? null : order.getId());
+                order == null ? null : order.getId(),
+                shipment.getId(),
+                shipmentEventRepository.findByShipmentIdOrderByEventTimeAsc(shipment.getId()).stream()
+                        .map(this::toShipmentEventDto)
+                        .toList(),
+                incidents.stream().map(this::toShipmentIncidentDto).toList());
+    }
+
+    private SupplierDashboardResponseDto.ShipmentIncidentDto toShipmentIncidentDto(ShipmentIncidentEntity incident) {
+        List<String> buyerEvidence = parseEvidenceUrls(incident.getEvidenceUrls());
+        if (incident.getImageUrl() != null && !incident.getImageUrl().isBlank() && !buyerEvidence.contains(incident.getImageUrl().trim())) {
+            buyerEvidence = new ArrayList<>(buyerEvidence);
+            buyerEvidence.add(0, incident.getImageUrl().trim());
+        }
+        List<String> supplierEvidence = parseEvidenceUrls(incident.getSupplierEvidenceUrls());
+        List<SupplierDashboardResponseDto.ShipmentEventDto> timeline = shipmentEventRepository
+                .findByShipmentIdOrderByEventTimeAsc(incident.getShipmentId())
+                .stream()
+                .filter(event -> {
+                    String status = event.getStatus() == null ? "" : event.getStatus().toUpperCase(Locale.ROOT);
+                    return status.contains("INCIDENT") || status.contains("DISPUTE");
+                })
+                .map(this::toShipmentEventDto)
+                .toList();
+        return new SupplierDashboardResponseDto.ShipmentIncidentDto(
+                incident.getId(),
+                incident.getIncidentType(),
+                severityFor(incident),
+                incident.getDescription(),
+                affectedQuantity(incident),
+                incident.getMissingQuantity(),
+                incident.getDamagedQuantity(),
+                normalizeIncidentStatus(incident.getStatus()),
+                formatDateTimeNullable(incident.getCreatedAt()),
+                formatDateTimeNullable(incident.getUpdatedAt()),
+                formatDateTimeNullable(incident.getResolvedAt()),
+                incident.getResolutionNote(),
+                incident.getUpdateNote(),
+                incident.getSupplierResponse(),
+                incident.getProposedResolution(),
+                incident.getResolutionType(),
+                buyerEvidence,
+                supplierEvidence,
+                buyerEvidence.size() + supplierEvidence.size(),
+                timeline);
+    }
+
+    private String normalizeIncidentStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return "WAITING_SUPPLIER_RESPONSE";
+        }
+        return switch (status.trim().toUpperCase(Locale.ROOT)) {
+            case "OPEN", "PENDING_SUPPLIER_RESPONSE", "WAITING_SUPPLIER_RESPONSE", "BUYER_REPORTED" -> "WAITING_SUPPLIER_RESPONSE";
+            case "PROCESSING", "INVESTIGATING", "UNDER_REVIEW", "SUPPLIER_PROPOSED_RESOLUTION" -> "SUPPLIER_PROPOSED_RESOLUTION";
+            case "WAITING_BUYER", "WAITING_BUYER_RESPONSE", "WAITING_BUYER_CONFIRMATION" -> "WAITING_BUYER_CONFIRMATION";
+            case "NEGOTIATING" -> "NEGOTIATING";
+            case "ESCALATED" -> "ESCALATED";
+            case "RESOLVED" -> "RESOLVED";
+            case "REJECTED" -> "REJECTED";
+            case "COMPENSATED" -> "COMPENSATED";
+            default -> "WAITING_SUPPLIER_RESPONSE";
+        };
+    }
+
+    private String severityFor(ShipmentIncidentEntity incident) {
+        String type = incident.getIncidentType() == null ? "" : incident.getIncidentType().toUpperCase(Locale.ROOT);
+        if ("DAMAGED".equals(type) || "MISSING_ITEMS".equals(type)) {
+            return "HIGH";
+        }
+        if ("WRONG_PRODUCT".equals(type) || affectedQuantity(incident) != null) {
+            return "MEDIUM";
+        }
+        return "LOW";
+    }
+
+    private Integer affectedQuantity(ShipmentIncidentEntity incident) {
+        if (incident.getMissingQuantity() != null) {
+            return incident.getMissingQuantity();
+        }
+        return incident.getDamagedQuantity();
+    }
+
+    private String formatDateTimeNullable(java.time.LocalDateTime value) {
+        return value == null ? null : value.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+    }
+
+    private List<String> parseEvidenceUrls(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .distinct()
+                .toList();
+    }
+
+    private SupplierDashboardResponseDto.ShipmentEventDto toShipmentEventDto(ShipmentEventEntity event) {
+        String eventTime = event.getEventTime() == null
+                ? "N/A"
+                : event.getEventTime().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+        return new SupplierDashboardResponseDto.ShipmentEventDto(
+                event.getId(),
+                event.getStatus(),
+                event.getDescription(),
+                event.getLocation(),
+                eventTime);
     }
 
     private String buildFullAddress(ShipmentEntity shipment) {
@@ -851,6 +976,9 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             return "Chuẩn bị";
         }
         return switch (status) {
+            case WAITING_PICKUP -> "Chờ lấy hàng";
+            case PICKED_UP -> "Đã lấy hàng tại kho";
+            case OUT_FOR_DELIVERY -> "Đang giao tới người nhận";
             case CREATED, PENDING, PREPARING -> "Chuẩn bị";
             case SHIPPED -> "Đã rời kho";
             case IN_TRANSIT, SHIPPING -> "Đang vận chuyển";
@@ -866,10 +994,13 @@ public class SupplierDashboardServiceImpl implements SupplierDashboardService {
             return 15;
         }
         return switch (status) {
+            case WAITING_PICKUP -> 20;
+            case PICKED_UP -> 40;
+            case OUT_FOR_DELIVERY -> 80;
             case CREATED, PENDING, PREPARING -> 20;
             case SHIPPED -> 45;
             case IN_TRANSIT, SHIPPING -> 65;
-            case WAITING_CONFIRMATION -> 85;
+            case WAITING_CONFIRMATION -> 90;
             case DELIVERED -> 100;
             case CANCELLED, INCIDENT, FAILED, FAILED_DELIVERY -> 45;
         };
