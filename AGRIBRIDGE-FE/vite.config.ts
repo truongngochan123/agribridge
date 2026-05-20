@@ -9,6 +9,17 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      '/api': {
+        target: 'http://localhost:8025',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/ws-chat': {
+        target: 'http://localhost:8025',
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+      },
       '/province-api': {
         target: 'https://provinces.open-api.vn',
         changeOrigin: true,

@@ -1,0 +1,12 @@
+﻿.codex-checkpoints/pre-notification-center-20260513-untracked.txt
+.codex-checkpoints/pre-notification-center-20260513.patch
+.m2-temp/.meta/prefixes-apache.snapshots-c1d4c55f9308e5ac18a4069bed41dca64d85c515.txt.65273979138403220.tmp
+.m2-temp/.meta/prefixes-apache.snapshots-c1d4c55f9308e5ac18a4069bed41dca64d85c515.txt.65273979138403220.tmp.15499169734372027078.tmp
+.m2-temp/.meta/prefixes-central.txt.12807389816449760030.tmp
+.m2-temp/.meta/prefixes-central.txt.12807389816449760030.tmp.6711599616766596113.tmp
+AGRIBRIDGE-BE/logs/agribridge.log.2026-05-09.0.gz
+AGRIBRIDGE-BE/logs/agribridge.log.2026-05-10.0.gz
+AGRIBRIDGE-BE/logs/agribridge.log.2026-05-11.0.gz
+AGRIBRIDGE-BE/logs/agribridge.log.2026-05-12.0.gz
+AGRIBRIDGE-BE/logs/agribridge.log.2026-05-13.0.gz
+AGRIBRIDGE-BE/logs/agribridge.log.2026-05-13.1.gz

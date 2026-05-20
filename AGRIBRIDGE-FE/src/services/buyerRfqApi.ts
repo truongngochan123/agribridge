@@ -9,6 +9,7 @@ import type {
   CreateBuyerRfqRequest,
   UpdateBuyerRfqRequest,
 } from '../types/buyerRfq'
+import { dispatchStateSync } from './stateSyncService'
 
 function compactPayload<T extends Record<string, unknown>>(payload: T): Partial<T> {
   return Object.fromEntries(
@@ -45,26 +46,46 @@ export async function getBuyerRfqCompare(rfqId: number): Promise<BuyerRfqCompare
 
 export async function createBuyerRfq(payload: CreateBuyerRfqRequest): Promise<BuyerRfqDetail> {
   const response = await apiClient.post<BuyerRfqDetail>('/api/buyer/rfqs', compactPayload(payload))
+  dispatchStateSync(['RFQ', 'QUOTE', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-rfq:create',
+    entityId: response.data?.id,
+  })
   return response.data
 }
 
 export async function createMarketplaceBuyerRfq(payload: CreateBuyerRfqRequest): Promise<BuyerRfqDetail> {
   const response = await apiClient.post<BuyerRfqDetail>('/api/buyer/rfqs/marketplace', compactPayload({ ...payload, type: 'MARKETPLACE' }))
+  dispatchStateSync(['RFQ', 'QUOTE', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-rfq:create-marketplace',
+    entityId: response.data?.id,
+  })
   return response.data
 }
 
 export async function createDirectBuyerRfq(payload: CreateBuyerRfqRequest): Promise<BuyerRfqDetail> {
   const response = await apiClient.post<BuyerRfqDetail>('/api/buyer/rfqs/direct', compactPayload({ ...payload, type: 'DIRECT' }))
+  dispatchStateSync(['RFQ', 'QUOTE', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-rfq:create-direct',
+    entityId: response.data?.id,
+  })
   return response.data
 }
 
 export async function updateBuyerRfq(rfqId: number, payload: UpdateBuyerRfqRequest): Promise<BuyerRfqDetail> {
   const response = await apiClient.put<BuyerRfqDetail>(`/api/buyer/rfqs/${rfqId}`, compactPayload(payload))
+  dispatchStateSync(['RFQ', 'QUOTE', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-rfq:update',
+    entityId: rfqId,
+  })
   return response.data
 }
 
 export async function cancelBuyerRfq(rfqId: number): Promise<void> {
   await apiClient.patch(`/api/buyer/rfqs/${rfqId}/cancel`)
+  dispatchStateSync(['RFQ', 'QUOTE', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-rfq:cancel',
+    entityId: rfqId,
+  })
 }
 
 export async function convertQuoteToOrder(
@@ -77,6 +98,10 @@ export async function convertQuoteToOrder(
     payload,
     { timeout: 20000 },
   )
+  dispatchStateSync(['RFQ', 'QUOTE', 'ORDER', 'PAYMENT', 'DELIVERY', 'INVENTORY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-rfq:convert-to-order',
+    entityId: rfqId,
+  })
   return response.data
 }
 
@@ -90,6 +115,10 @@ export async function acceptBuyerRfqQuote(
     payload,
     { timeout: 20000 },
   )
+  dispatchStateSync(['RFQ', 'QUOTE', 'ORDER', 'PAYMENT', 'DELIVERY', 'INVENTORY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-rfq:accept-quote',
+    entityId: rfqId,
+  })
   return response.data
 }
 

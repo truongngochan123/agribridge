@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BatchFormFields, EMPTY_BATCH_FORM, type BatchFormState } from '../../components/supplier/BatchFormFields'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
+import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { useToast } from '../../hooks/useToast'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import {
@@ -178,6 +179,8 @@ export function SupplierLotListPage() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  useNotificationModuleRefresh(['INVENTORY', 'SOURCING', 'ORDER', 'RFQ'], loadData)
 
   useEffect(() => {
     if (batches.length === 0) {

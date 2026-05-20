@@ -202,11 +202,8 @@ export function BuyerPaymentInstructionModal({
             </>
           )}
 
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-              Đóng
-            </button>
-            {!isCredit ? (
+          {!isCredit ? (
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={onDemoPaid}
@@ -215,8 +212,8 @@ export function BuyerPaymentInstructionModal({
               >
                 {submitting ? 'Đang xác nhận...' : '[Demo] Xác nhận đã thanh toán'}
               </button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

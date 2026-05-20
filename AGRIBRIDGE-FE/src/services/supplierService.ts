@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient'
+import { dispatchStateSync } from './stateSyncService'
 import type { SupplierDashboardPayload } from '../types/supplierDashboard'
 import type {
   CategoryOption,
@@ -230,6 +231,10 @@ export async function runSupplierDemoOrderAction(orderId: number, action: Suppli
   if (!endpoint) throw new Error(`Unsupported supplier demo action: ${action}`)
   const response = await apiClient.post<SupplierOrderRow>(`/api/supplier/orders/${orderId}/${endpoint}`)
   clearSupplierDashboardCache()
+  dispatchStateSync(['ORDER', 'DELIVERY', 'PAYMENT', 'DEBT', 'INVENTORY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: `supplier-order:${endpoint}`,
+    entityId: orderId,
+  })
   return response.data
 }
 
@@ -240,6 +245,10 @@ export function clearSupplierDashboardCache(): void {
 export async function createSupplierQuote(rfqId: number, payload: CreateSupplierQuoteRequest): Promise<void> {
   await apiClient.post(`/api/supplier/rfqs/${rfqId}/quote`, payload)
   clearSupplierDashboardCache()
+  dispatchStateSync(['RFQ', 'QUOTE', 'INVENTORY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'supplier-rfq:create-quote',
+    entityId: rfqId,
+  })
 }
 
 export async function fetchSupplierQuoteContext(rfqId: number): Promise<SupplierQuoteContext> {
@@ -250,6 +259,10 @@ export async function fetchSupplierQuoteContext(rfqId: number): Promise<Supplier
 export async function rejectSupplierRfq(rfqId: number, payload: RejectSupplierRfqRequest): Promise<void> {
   await apiClient.post(`/api/supplier/rfqs/${rfqId}/reject`, payload)
   clearSupplierDashboardCache()
+  dispatchStateSync(['RFQ', 'QUOTE', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'supplier-rfq:reject',
+    entityId: rfqId,
+  })
 }
 
 export async function fetchSupplierOrders(companyId: number): Promise<SupplierOrderRow[]> {
@@ -277,6 +290,10 @@ export async function updateSupplierOrderStatus(
     { params: { companyId } },
   )
   clearSupplierDashboardCache()
+  dispatchStateSync(['ORDER', 'PAYMENT', 'DEBT', 'DELIVERY', 'INVENTORY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'supplier-order:update-status',
+    entityId: orderId,
+  })
   return response.data
 }
 
@@ -291,6 +308,10 @@ export async function createSupplierShipment(
     { params: { companyId } },
   )
   clearSupplierDashboardCache()
+  dispatchStateSync(['ORDER', 'DELIVERY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'supplier-order:create-shipment',
+    entityId: orderId,
+  })
   return response.data
 }
 
@@ -305,7 +326,34 @@ export async function updateSupplierShipmentStatus(
     { params: { companyId } },
   )
   clearSupplierDashboardCache()
+  dispatchStateSync(['ORDER', 'DELIVERY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'supplier-order:update-shipment-status',
+    entityId: orderId,
+  })
   return response.data
+}
+
+export type SupplierIncidentActionPayload = {
+  action: string
+  status?: string
+  note?: string
+  proposedResolution?: string
+  resolutionType?: string
+  compensationAmount?: number
+  evidenceUrls?: string[]
+}
+
+export async function updateSupplierShipmentIncident(
+  shipmentId: number,
+  incidentId: number,
+  payload: SupplierIncidentActionPayload,
+): Promise<void> {
+  await apiClient.patch(`/api/supplier/orders/shipments/${shipmentId}/incidents/${incidentId}`, payload)
+  clearSupplierDashboardCache()
+  dispatchStateSync(['DELIVERY', 'ORDER', 'COMPLAINT', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'supplier-delivery:update-incident',
+    entityId: shipmentId,
+  })
 }
 
 export async function fetchSupplierProducts(companyId: number): Promise<SupplierProductOption[]> {
@@ -320,12 +368,20 @@ export async function createProductWithFirstBatch(
 ): Promise<SupplierCreateFlowResponse> {
   const response = await apiClient.post<SupplierCreateFlowResponse>('/api/supplier/products/with-first-batch', payload)
   clearSupplierDashboardCache()
+  dispatchStateSync(['INVENTORY', 'SOURCING', 'DASHBOARD'], {
+    source: 'supplier-product:create-with-first-batch',
+    entityId: response.data?.product?.id,
+  })
   return response.data
 }
 
 export async function createProductOnly(payload: CreateProductOnlyRequest): Promise<SupplierCreateFlowResponse> {
   const response = await apiClient.post<SupplierCreateFlowResponse>('/api/supplier/products', payload)
   clearSupplierDashboardCache()
+  dispatchStateSync(['INVENTORY', 'SOURCING', 'DASHBOARD'], {
+    source: 'supplier-product:create',
+    entityId: response.data?.product?.id,
+  })
   return response.data
 }
 
@@ -334,6 +390,10 @@ export async function createBatchForExistingProduct(
 ): Promise<SupplierCreateFlowResponse> {
   const response = await apiClient.post<SupplierCreateFlowResponse>('/api/supplier/batches', payload)
   clearSupplierDashboardCache()
+  dispatchStateSync(['INVENTORY', 'SOURCING', 'DASHBOARD'], {
+    source: 'supplier-batch:create',
+    entityId: response.data?.batch?.id,
+  })
   return response.data
 }
 
@@ -348,12 +408,20 @@ export async function updateSupplierProduct(
 ): Promise<SupplierCreateFlowResponse> {
   const response = await apiClient.put<SupplierCreateFlowResponse>(`/api/supplier/products/${productId}`, payload)
   clearSupplierDashboardCache()
+  dispatchStateSync(['INVENTORY', 'SOURCING', 'DASHBOARD'], {
+    source: 'supplier-product:update',
+    entityId: productId,
+  })
   return response.data
 }
 
 export async function deleteSupplierProduct(productId: number): Promise<void> {
   await apiClient.delete(`/api/supplier/products/${productId}`)
   clearSupplierDashboardCache()
+  dispatchStateSync(['INVENTORY', 'SOURCING', 'DASHBOARD'], {
+    source: 'supplier-product:delete',
+    entityId: productId,
+  })
 }
 
 export async function getProductBatches(productId: number): Promise<SupplierBatchCard[]> {
@@ -372,12 +440,20 @@ export async function updateSupplierBatch(
 ): Promise<SupplierCreateFlowResponse> {
   const response = await apiClient.put<SupplierCreateFlowResponse>(`/api/supplier/batches/${batchId}`, payload)
   clearSupplierDashboardCache()
+  dispatchStateSync(['INVENTORY', 'SOURCING', 'DASHBOARD'], {
+    source: 'supplier-batch:update',
+    entityId: batchId,
+  })
   return response.data
 }
 
 export async function deleteSupplierBatch(batchId: number): Promise<void> {
   await apiClient.delete(`/api/supplier/batches/${batchId}`)
   clearSupplierDashboardCache()
+  dispatchStateSync(['INVENTORY', 'SOURCING', 'DASHBOARD'], {
+    source: 'supplier-batch:delete',
+    entityId: batchId,
+  })
 }
 
 export async function fetchMetadataUnits(): Promise<string[]> {
@@ -404,6 +480,10 @@ export async function fetchCategories(userId?: number): Promise<CategoryOption[]
 
 export async function createSupplierCategory(payload: CreateSupplierCategoryRequest): Promise<CategoryOption> {
   const response = await apiClient.post<CategoryOption>('/api/supplier/categories', payload)
+  dispatchStateSync(['INVENTORY', 'SOURCING'], {
+    source: 'supplier-category:create',
+    entityId: response.data?.id,
+  })
   return response.data
 }
 

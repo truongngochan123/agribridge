@@ -10,6 +10,7 @@ import {
 import { createRfqChatClient, fetchRfqMessages, sendRfqMessage } from '../../services/rfqChatService'
 import { SearchInput, FilterTabBar, SupplierPanel, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
+import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { useSupplierDashboardData } from './useSupplierDashboardData'
 import { useToast } from '../../hooks/useToast'
 import { usePageTitle } from '../../hooks/usePageTitle'
@@ -119,6 +120,7 @@ function quoteBadgeLabel(rfq: RfqItem): string {
 export function SupplierRfqQuotesPage() {
   usePageTitle('Yêu cầu báo giá')
   const { data, loading, error, reload } = useSupplierDashboardData()
+  useNotificationModuleRefresh(['RFQ', 'QUOTE'], reload)
   const { showToast, showConfirm } = useToast()
   const rfqItems = data?.rfqItems ?? []
   const [openQuote, setOpenQuote] = useState(false)

@@ -1,4 +1,4 @@
-﻿export type AdminMenuKey = 'overview' | 'users' | 'registrations' | 'disputes' | 'profile'
+export type AdminMenuKey = 'overview' | 'users' | 'registrations' | 'disputes' | 'profile'
 
 export type AdminTimeFilter = '7d' | '30d' | '3m' | '12m'
 

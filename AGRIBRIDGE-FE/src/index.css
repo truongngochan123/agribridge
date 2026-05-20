@@ -13,6 +13,10 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html {
+  font-size: 14px; /* 87.5% scale for ERP density */
+}
+
 * {
   box-sizing: border-box;
 }
@@ -36,4 +40,33 @@ textarea {
 
 #root {
   min-height: 100vh;
+}
+
+@keyframes bell-shake {
+  0% {
+    transform: rotate(0);
+  }
+  15% {
+    transform: rotate(12deg);
+  }
+  30% {
+    transform: rotate(-10deg);
+  }
+  45% {
+    transform: rotate(8deg);
+  }
+  60% {
+    transform: rotate(-6deg);
+  }
+  75% {
+    transform: rotate(4deg);
+  }
+  100% {
+    transform: rotate(0);
+  }
+}
+
+.animate-bell {
+  animation: bell-shake 0.8s ease-in-out;
+  transform-origin: top center;
 }

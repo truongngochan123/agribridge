@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { BuyerPanel, SearchInput } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   cancelBuyerRfq,
@@ -17,6 +18,7 @@ import {
 import { fetchBuyerBranches, type BuyerBranchSummary } from '../../services/buyerBranchService'
 import { fetchCategories } from '../../services/supplierService'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
+import { getBranchContextFromSearchParams } from '../../utils/branchContext'
 import type { CategoryOption } from '../../types/supplierCreateFlow'
 import type {
   BuyerQuoteCompareItem,
@@ -58,7 +60,7 @@ const emptyForm: RfqFormState = {
 
 export function BuyerRFQPage() {
   usePageTitle('Yêu cầu báo giá')
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [rfqs, setRfqs] = useState<BuyerRfqListItem[]>([])
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState('')
@@ -94,6 +96,8 @@ export function BuyerRFQPage() {
   const [branches, setBranches] = useState<BuyerBranchSummary[]>([])
   const [optionsLoading, setOptionsLoading] = useState(false)
   const [optionsError, setOptionsError] = useState<string | null>(null)
+  const branchContext = getBranchContextFromSearchParams(searchParams)
+  const branchLabel = branchContext?.branchName || (branchContext?.branchId ? `Chi nhánh #${branchContext.branchId}` : '')
 
   const loadRfqs = useCallback(async () => {
     setLoadingList(true)
@@ -116,6 +120,8 @@ export function BuyerRFQPage() {
   useEffect(() => {
     void loadRfqs()
   }, [loadRfqs])
+
+  useNotificationModuleRefresh(['RFQ', 'QUOTE'], loadRfqs)
 
   useEffect(() => {
     if (!formMode) return
@@ -153,7 +159,7 @@ export function BuyerRFQPage() {
     if (formMode !== 'create') return
     if (branches.length === 0) return
     if (form.branchId.trim()) return
-    const firstBranch = branches[0]
+    const firstBranch = branches.find((branch) => String(branch.rawId) === branchContext?.branchId) || branches[0]
     if (!firstBranch) return
     const deliveryLocation = firstBranch.deliveryAddress || firstBranch.address || firstBranch.province || ''
     setForm((prev) => ({
@@ -161,7 +167,7 @@ export function BuyerRFQPage() {
       branchId: String(firstBranch.rawId),
       province: deliveryLocation || prev.province,
     }))
-  }, [branches, form.branchId, form.province, formMode])
+  }, [branchContext?.branchId, branches, form.branchId, form.province, formMode])
 
   
   const openUpdateForm = async (rfq: BuyerRfqListItem | BuyerRfqDetail) => {
@@ -249,6 +255,11 @@ export function BuyerRFQPage() {
     setAppliedStatus('')
   }
 
+  const filteredRfqs = useMemo(() => {
+    if (!branchContext?.branchId) return rfqs
+    return rfqs.filter((item) => String(item.branchId ?? '') === branchContext.branchId)
+  }, [branchContext?.branchId, rfqs])
+
   const submitForm = async () => {
     const validation = validateForm(form, formMode)
     if (validation) {
@@ -310,7 +321,7 @@ export function BuyerRFQPage() {
         note: 'Tạo đơn từ báo giá đã chọn',
         createInvoice: true,
       })
-      alert(`Đã chuyển báo giá thành đơn hàng. Order #${response.orderId}${response.invoiceId ? `, Invoice #${response.invoiceId}` : ''}`)
+      alert(`Đã chuyển báo giá thành đơn hàng. Mã đơn #${response.orderId}${response.invoiceId ? `, hóa đơn #${response.invoiceId}` : ''}`)
       setCompareData(null)
       setSelectedQuoteId(null)
       await loadRfqs()
@@ -328,10 +339,24 @@ export function BuyerRFQPage() {
     <>
       <BuyerShell
         activeKey="rfq"
-        title="RFQ & Báo giá"
-        subtitle="Quản lý yêu cầu báo giá và so sánh"
+        title={branchLabel ? `RFQ & Báo giá - ${branchLabel}` : 'RFQ & Báo giá'}
+        subtitle={branchLabel ? 'Đang xem RFQ trong phạm vi chi nhánh' : 'Quản lý yêu cầu báo giá và so sánh'}
         filterBar={
           <div className="flex flex-wrap items-center gap-2">
+            {branchLabel ? (
+              <button
+                className="inline-flex h-9 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-white"
+                onClick={() => setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev)
+                  next.delete('branchId')
+                  next.delete('branchName')
+                  return next
+                }, { replace: true })}
+              >
+                Chi nhánh: {branchLabel}
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
             <SearchInput
               value={keyword}
               onChange={(v) => { setKeyword(v) }}
@@ -344,11 +369,11 @@ export function BuyerRFQPage() {
               className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm focus:outline-none"
             >
               <option value="">Tất cả trạng thái</option>
-              <option value="OPEN">OPEN</option>
-              <option value="QUOTED">QUOTED</option>
-              <option value="ACCEPTED">ACCEPTED</option>
-              <option value="CLOSED">CLOSED</option>
-              <option value="CANCELLED">CANCELLED</option>
+              <option value="OPEN">Đang mở</option>
+              <option value="QUOTED">Đã có báo giá</option>
+              <option value="ACCEPTED">Đã chọn báo giá</option>
+              <option value="CLOSED">Đã đóng</option>
+              <option value="CANCELLED">Đã hủy</option>
             </select>
             <button
               className="h-9 rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60"
@@ -387,14 +412,14 @@ export function BuyerRFQPage() {
               <button className="ml-2 rounded-lg bg-red-600 px-3 py-1 text-xs font-bold text-white" onClick={loadRfqs}>Thử lại</button>
             </div>
           )}
-          {!loadingList && !listError && rfqs.length === 0 && (
+          {!loadingList && !listError && filteredRfqs.length === 0 && (
             <div className="flex flex-col items-center gap-2 py-10 text-center">
               <p className="text-sm font-semibold text-slate-600">Chưa có yêu cầu báo giá nào</p>
             </div>
           )}
 
           <div className="space-y-3">
-            {rfqs.map((item) => (
+            {filteredRfqs.map((item) => (
               <article key={item.id} className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -555,7 +580,7 @@ function CompareModal({
             <h3 className="text-2xl font-extrabold text-slate-900">So sánh báo giá - {data.rfq.code || rfqCode(data.rfq.id)}</h3>
             <p className="mt-0.5 text-xs text-slate-600">{data.rfq.product || 'Chưa có sản phẩm'} - {formatNumber(data.rfq.quantity)} {data.rfq.unit || ''}</p>
           </div>
-          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose}>x</button>
+          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Đóng"><X className="h-4 w-4" /></button>
         </div>
 
         <div className="grid gap-2 border-b border-slate-200 p-3 text-xs md:grid-cols-4">
@@ -576,8 +601,7 @@ function CompareModal({
           </div>
         )}
 
-        <div className="flex justify-between border-t border-slate-200 p-3">
-          <button className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700" onClick={onClose}>Đóng</button>
+        <div className="flex justify-end border-t border-slate-200 p-3">
           <button className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white disabled:bg-slate-200 disabled:text-slate-500" disabled={!selectedQuoteId || converting} onClick={onConvert}>
             {converting ? 'Đang chuyển...' : 'Chuyển thành đơn hàng'}
           </button>
@@ -608,7 +632,7 @@ function QuoteCard({ quote, checked, onSelect }: { quote: BuyerQuoteCompareItem;
 
       <div className="mt-2 rounded-lg bg-blue-50 p-2 text-center">
         <p className="text-[28px] font-extrabold text-blue-600">{formatCurrency(quote.price)}</p>
-        <p className="text-xs">per kg</p>
+        <p className="text-xs">mỗi kg</p>
         <p className="text-xs text-slate-500">Tổng: {formatCurrency(quote.total)}</p>
       </div>
 
@@ -620,7 +644,7 @@ function QuoteCard({ quote, checked, onSelect }: { quote: BuyerQuoteCompareItem;
         <InfoRow label="Thời gian" value={quote.deliveryDays == null ? 'Chưa có' : `${quote.deliveryDays} ngày`} />
         <InfoRow label="Phí ship" value={quote.shippingFee == null ? 'Chưa cập nhật' : formatCurrency(quote.shippingFee)} />
         <InfoRow label="Thanh toán" value={quote.paymentTerm || quote.note || 'Chưa có'} />
-        <InfoRow label="Trạng thái" value={quote.status || 'Chưa có'} />
+        <InfoRow label="Trạng thái" value={rfqStatusLabel(quote.status)} />
       </div>
     </article>
   )
@@ -648,7 +672,7 @@ function DetailModal({
       <div className="mx-auto mt-8 w-[94vw] max-w-2xl rounded-2xl bg-white p-4" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <h3 className="text-xl font-extrabold text-slate-900">Chi tiết RFQ</h3>
-          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose}>x</button>
+          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Đóng"><X className="h-4 w-4" /></button>
         </div>
         {loading ? <StateBox text="Đang tải chi tiết RFQ..." /> : null}
         {error ? <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p> : null}
@@ -656,11 +680,11 @@ function DetailModal({
           <>
             <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
               <InfoRow label="Mã RFQ" value={detail.code || rfqCode(detail.id)} />
-              <InfoRow label="Trạng thái" value={detail.status || 'Chưa có'} />
+              <InfoRow label="Trạng thái" value={rfqStatusLabel(detail.status)} />
               <InfoRow label="Tiêu đề" value={detail.title || 'Chưa có'} />
               <InfoRow label="Sản phẩm" value={detail.product || 'Chưa có'} />
-              <InfoRow label="Product ID" value={String(detail.productId ?? 'Chưa có')} />
-              <InfoRow label="Category ID" value={String(detail.categoryId ?? 'Chưa có')} />
+              <InfoRow label="Mã sản phẩm" value={String(detail.productId ?? 'Chưa có')} />
+              <InfoRow label="Mã danh mục" value={String(detail.categoryId ?? 'Chưa có')} />
               <InfoRow label="Số lượng" value={`${formatNumber(detail.quantity)} ${detail.unit || ''}`.trim()} />
               <InfoRow label="Tỉnh" value={detail.province || 'Chưa có'} />
               <InfoRow label="Chi nhánh" value={detail.branch?.name || detail.branch?.address || 'Chưa có'} />
@@ -677,7 +701,6 @@ function DetailModal({
               {canEdit(detail.status) ? <button className="rounded-lg border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-700" onClick={() => onEdit(detail)}>Sửa RFQ</button> : null}
               {canCancel(detail.status) ? <button className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700" onClick={() => onCancel(detail.id)}>Hủy RFQ</button> : null}
               <button className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white" onClick={() => onCompare(detail.id)}>Xem báo giá</button>
-              <button className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700" onClick={onClose}>Đóng</button>
             </div>
           </>
         ) : null}
@@ -715,7 +738,7 @@ function FormModal({
       <div className="mx-auto mt-6 max-h-[92vh] w-[94vw] max-w-2xl overflow-y-auto rounded-2xl bg-white p-4" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <h3 className="text-xl font-extrabold text-slate-900">{title}</h3>
-          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose}>x</button>
+          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Đóng"><X className="h-4 w-4" /></button>
         </div>
         {error ? <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p> : null}
         {optionsError ? <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">{optionsError}</p> : null}
@@ -744,7 +767,6 @@ function FormModal({
           </label>
         </div>
         <div className="mt-4 flex justify-end gap-2">
-          <button className="rounded-lg border border-slate-300 px-4 py-1.5 text-xs font-semibold text-slate-700" onClick={onClose} disabled={submitting}>Đóng</button>
           <button className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-60" onClick={onSubmit} disabled={submitting}>{submitting ? 'Đang lưu...' : 'Lưu RFQ'}</button>
         </div>
       </div>
@@ -758,7 +780,7 @@ function OrdersModal({ rfqId, orders, loading, error, onClose }: { rfqId: number
       <div className="mx-auto mt-10 w-[94vw] max-w-2xl rounded-2xl bg-white p-4" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <h3 className="text-xl font-extrabold text-slate-900">Đơn hàng từ {rfqCode(rfqId)}</h3>
-          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose}>x</button>
+          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Đóng"><X className="h-4 w-4" /></button>
         </div>
         {loading ? <StateBox text="Đang tải đơn hàng..." /> : null}
         {error ? <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p> : null}
@@ -766,11 +788,11 @@ function OrdersModal({ rfqId, orders, loading, error, onClose }: { rfqId: number
         <div className="mt-3 space-y-2">
           {orders.map((order) => (
             <article key={order.orderId} className="rounded-lg border border-slate-200 p-3 text-sm">
-              <InfoRow label="Order ID" value={String(order.orderId)} />
-              <InfoRow label="Quote ID" value={String(order.quoteId ?? 'Chưa có')} />
-              <InfoRow label="Supplier" value={order.supplierName || 'Chưa có'} />
+              <InfoRow label="Mã đơn" value={String(order.orderId)} />
+              <InfoRow label="Mã báo giá" value={String(order.quoteId ?? 'Chưa có')} />
+              <InfoRow label="Nhà cung cấp" value={order.supplierName || 'Chưa có'} />
               <InfoRow label="Tổng tiền" value={formatCurrency(order.totalAmount)} />
-              <InfoRow label="Trạng thái" value={order.orderStatus || 'Chưa có'} />
+              <InfoRow label="Trạng thái" value={rfqOrderStatusLabel(order.orderStatus)} />
               <InfoRow label="Ngày tạo" value={formatDateTime(order.createdAt)} />
             </article>
           ))}
@@ -844,9 +866,11 @@ function ToastModal({ title, message, onClose }: { title: string; message: strin
   return (
     <div className="fixed inset-0 z-[80] bg-black/35 p-4" onClick={onClose}>
       <div className="mx-auto mt-16 max-w-md rounded-2xl bg-white p-4" onClick={(event) => event.stopPropagation()}>
-        <h3 className="text-lg font-extrabold text-slate-900">{title}</h3>
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-lg font-extrabold text-slate-900">{title}</h3>
+          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Đóng"><X className="h-4 w-4" /></button>
+        </div>
         <p className="mt-2 text-sm text-slate-700">{message}</p>
-        <button className="mt-4 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white" onClick={onClose}>Đóng</button>
       </div>
     </div>
   )
@@ -929,9 +953,40 @@ function RfqStatusBadge({ status }: { status?: string | null }) {
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${cls.badge}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${cls.dot}`} />
-      {status || 'N/A'}
+      {rfqStatusLabel(status)}
     </span>
   )
+}
+
+function rfqStatusLabel(status?: string | null) {
+  const labels: Record<string, string> = {
+    OPEN: 'Đang mở',
+    QUOTED: 'Đã có báo giá',
+    ACCEPTED: 'Đã chọn báo giá',
+    CLOSED: 'Đã đóng',
+    CANCELLED: 'Đã hủy',
+    PENDING: 'Chờ xử lý',
+    EXPIRED: 'Đã hết hạn',
+  }
+  return labels[String(status || '').toUpperCase()] || status || 'Chưa có'
+}
+
+function rfqOrderStatusLabel(status?: string | null) {
+  const labels: Record<string, string> = {
+    PENDING: 'Chờ xử lý',
+    PENDING_SUPPLIER_CONFIRMATION: 'Chờ nhà cung cấp xác nhận',
+    CONFIRMED: 'Đã xác nhận',
+    SUPPLIER_CONFIRMED: 'Nhà cung cấp đã xác nhận',
+    PREPARING: 'Đang chuẩn bị hàng',
+    READY_TO_SHIP: 'Sẵn sàng giao',
+    SHIPPING: 'Đang giao hàng',
+    IN_DELIVERY: 'Đang giao hàng',
+    DELIVERED: 'Đã giao hàng',
+    COMPLETED: 'Hoàn tất',
+    CANCELLED: 'Đã hủy',
+    DISPUTED: 'Đang khiếu nại',
+  }
+  return labels[String(status || '').toUpperCase()] || status || 'Chưa có'
 }
 
 function canCancel(status?: string | null) {

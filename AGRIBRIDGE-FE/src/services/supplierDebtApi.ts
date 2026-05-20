@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient'
+import { dispatchStateSync } from './stateSyncService'
 
 export type DebtStatus = 'NORMAL' | 'DUE_SOON' | 'OVERDUE' | 'OVER_LIMIT' | 'BLOCKED'
 
@@ -141,7 +142,12 @@ export async function saveSupplierCreditLimit(payload: {
   note?: string
 }): Promise<SupplierCreditLimit> {
   const response = await apiClient.put('/api/supplier/debts/credit-limits', payload)
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['DEBT', 'CREDIT', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'supplier-debt:save-credit-limit',
+    entityId: payload.buyerId,
+  })
+  return data
 }
 
 export async function createSupplierDebtPayment(payload: {
@@ -153,7 +159,12 @@ export async function createSupplierDebtPayment(payload: {
   allocations: Array<{ invoiceId: number; amount: number }>
 }): Promise<SupplierDebtBuyerDetail> {
   const response = await apiClient.post('/api/supplier/debts/payments', payload)
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['DEBT', 'PAYMENT', 'ORDER', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'supplier-debt:create-payment',
+    entityId: payload.buyerId,
+  })
+  return data
 }
 
 export async function createSupplierDebtAdjustment(payload: {
@@ -163,7 +174,12 @@ export async function createSupplierDebtAdjustment(payload: {
   description?: string
 }): Promise<SupplierDebtBuyerDetail> {
   const response = await apiClient.post('/api/supplier/debts/adjustments', payload)
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['DEBT', 'PAYMENT', 'ORDER', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'supplier-debt:create-adjustment',
+    entityId: payload.invoiceId,
+  })
+  return data
 }
 
 export async function createSupplierDebtReminder(payload: {
@@ -176,5 +192,10 @@ export async function createSupplierDebtReminder(payload: {
   markOnBuyerDebtPage?: boolean
 }): Promise<SupplierDebtBuyerDetail> {
   const response = await apiClient.post('/api/supplier/debts/reminders', payload)
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['DEBT', 'REMINDER', 'NOTIFICATION', 'DASHBOARD'], {
+    source: 'supplier-debt:create-reminder',
+    entityId: payload.invoiceId,
+  })
+  return data
 }

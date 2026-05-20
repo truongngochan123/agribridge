@@ -1,8 +1,10 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Clock, MapPin, Package, PhoneCall, Truck, X, CheckCircle, CheckCircle2, UploadCloud } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { SearchInput } from '../../components/buyer/BuyerCommon'
 import { BuyerPaymentInstructionModal } from '../../components/buyer/BuyerPaymentInstructionModal'
+import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import { useToast } from '../../hooks/useToast'
 import {
@@ -21,6 +23,7 @@ import { fetchBuyerBranches, type BuyerBranchSummary } from '../../services/buye
 import { createBuyerDebtPayment } from '../../services/buyerDebtApi'
 import { uploadRegistrationFile } from '../../services/uploadService'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
+import { getBranchContextFromSearchParams } from '../../utils/branchContext'
 
 const STATUS_OPTIONS: Array<{ value: DeliveryStatus | ''; label: string }> = [
   { value: '', label: 'Tất cả trạng thái' },
@@ -81,7 +84,26 @@ function getStatusMeta(status: string): { color: StatusColor; label: string } {
 
 function getDisplayStatusLabel(status: string, label?: string) {
   const candidate = label || status
-  return STATUS_LABELS[candidate?.toUpperCase()] ?? candidate
+  const normalized = candidate?.toUpperCase()
+  const englishLabels: Record<string, string> = {
+    CREATED: 'Đã tạo vận đơn',
+    PENDING: 'Chờ xử lý',
+    PREPARING: 'Đang chuẩn bị',
+    SHIPPING: 'Đang giao',
+    IN_TRANSIT: 'Đang vận chuyển',
+    OUT_FOR_DELIVERY: 'Đang giao tới người nhận',
+    WAITING_CONFIRMATION: 'Chờ xác nhận nhận hàng',
+    DELIVERED: 'Đã giao',
+    FAILED: 'Giao thất bại',
+    FAILED_DELIVERY: 'Giao thất bại',
+    CANCELLED: 'Đã hủy',
+    CREATED_LABEL: 'Đã tạo vận đơn',
+    PENDING_LABEL: 'Chờ xử lý',
+  }
+  if (STATUS_LABELS[normalized]) return STATUS_LABELS[normalized]
+  if (englishLabels[normalized]) return englishLabels[normalized]
+  if (/^[A-Z_]+$/.test(candidate || '')) return 'Chưa cập nhật'
+  return candidate
 }
 
 function StatusBadge({ status, label }: { status: string; label?: string }) {
@@ -220,11 +242,14 @@ import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function BuyerDeliveryPage() {
   const { showToast } = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const branchContext = getBranchContextFromSearchParams(searchParams)
+  const branchLabel = branchContext?.branchName || (branchContext?.branchId ? `Chi nhánh #${branchContext.branchId}` : '')
   const [deliveries, setDeliveries] = useState<BuyerDeliveryItem[]>([])
   const [branches, setBranches] = useState<BuyerBranchSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [filters, setFilters] = useState({ branchId: '', status: '', keyword: '', fromDate: '', toDate: '' })
+  const [filters, setFilters] = useState({ branchId: branchContext?.branchId || '', status: '', keyword: '', fromDate: '', toDate: '' })
   const [timeline, setTimeline] = useState<{ shipment: BuyerDeliveryItem; events: DeliveryTimelineEvent[] } | null>(null)
   const [detail, setDetail] = useState<BuyerDeliveryDetail | null>(null)
   const [mapShipment, setMapShipment] = useState<BuyerDeliveryItem | null>(null)
@@ -238,6 +263,7 @@ export function BuyerDeliveryPage() {
   } | null>(null)
 
   const deliveryRequestId = useRef(0)
+  const deepLinkHandledRef = useRef('')
 
   const loadBranches = useCallback(async () => {
     try {
@@ -278,6 +304,20 @@ export function BuyerDeliveryPage() {
     void loadDeliveries()
   }, [loadDeliveries])
 
+  useNotificationModuleRefresh(['DELIVERY'], loadDeliveries)
+
+  useEffect(() => {
+    const targetShipmentId = searchParams.get('shipmentId')
+    const incidentTarget = searchParams.get('incident') === 'true'
+    if (!targetShipmentId || !incidentTarget || loading) return
+    const key = `${targetShipmentId}:${deliveries.length}`
+    if (deepLinkHandledRef.current === key) return
+    const shipment = deliveries.find((item) => String(item.shipmentId) === targetShipmentId || item.id === targetShipmentId || item.trackingCode === targetShipmentId)
+    if (!shipment) return
+    deepLinkHandledRef.current = key
+    void openDetail(shipment)
+  }, [deliveries, loading, searchParams])
+
   const branchOptions = useMemo(() => branches.filter((branch) => branch.isActive), [branches])
 
   const openTimeline = async (shipment: BuyerDeliveryItem) => {
@@ -308,10 +348,27 @@ export function BuyerDeliveryPage() {
     <>
       <BuyerShell
         activeKey="delivery"
-        title="Theo dõi Giao hàng"
-        subtitle="Theo dõi trạng thái vận chuyển"
+        title={branchLabel ? `Theo dõi Giao hàng - ${branchLabel}` : 'Theo dõi Giao hàng'}
+        subtitle={branchLabel ? 'Đang xem vận chuyển trong phạm vi chi nhánh' : 'Theo dõi trạng thái vận chuyển'}
         filterBar={
           <div className="flex flex-wrap items-center gap-2">
+            {branchLabel ? (
+              <button
+                className="inline-flex h-9 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-white"
+                onClick={() => {
+                  setFilters((current) => ({ ...current, branchId: '' }))
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev)
+                    next.delete('branchId')
+                    next.delete('branchName')
+                    return next
+                  }, { replace: true })
+                }}
+              >
+                Chi nhánh: {branchLabel}
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
             <SearchInput
               value={filters.keyword}
               onChange={(v) => setFilters((c) => ({ ...c, keyword: v }))}
@@ -378,6 +435,10 @@ export function BuyerDeliveryPage() {
         onIncident={() => setIncidentShipment(detail.shipment)}
         onConfirm={() => { setDetail(null); setConfirmShipment(detail.shipment) }}
         onUpdateIncident={(incident) => setUpdateIncidentTarget({ shipment: detail.shipment, incident })}
+        onIncidentActionDone={async () => {
+          setDetail(await fetchBuyerDelivery(detail.shipment.shipmentId))
+          await loadDeliveries()
+        }}
       /> : null}
       {mapShipment ? <MapModal shipment={mapShipment} onClose={() => setMapShipment(null)} /> : null}
       {incidentShipment ? <IncidentModal shipment={incidentShipment} detail={detail ?? undefined} onClose={() => setIncidentShipment(null)} onDone={() => void refreshAfterAction()} /> : null}
@@ -501,8 +562,18 @@ function mapIncidentType(type: string) {
 function mapIncidentStatus(status: string) {
   const map: Record<string, string> = {
     OPEN: 'Đang xử lý',
+    PENDING_SUPPLIER_RESPONSE: 'Chờ nhà cung cấp phản hồi',
+    WAITING_SUPPLIER_RESPONSE: 'Chờ nhà cung cấp xử lý',
     PROCESSING: 'Đang xử lý',
+    UNDER_REVIEW: 'Nhà cung cấp đang xem xét',
+    WAITING_BUYER_RESPONSE: 'Chờ bên mua phản hồi',
+    WAITING_BUYER_CONFIRMATION: 'Chờ bên mua xác nhận',
+    SUPPLIER_PROPOSED_RESOLUTION: 'Nhà cung cấp đã đề xuất',
+    NEGOTIATING: 'Đang thương lượng',
+    ESCALATED: 'Đã chuyển xử lý cấp cao',
     RESOLVED: 'Đã xử lý',
+    REJECTED: 'Đã từ chối',
+    COMPENSATED: 'Đã bồi hoàn',
     INCIDENT: 'Có sự cố'
   }
   return map[status] || status
@@ -525,7 +596,7 @@ function mapTimelineStatus(status: string, label: string) {
 
 function mapTimelineDescription(desc?: string | null) {
   if (!desc) return ''
-  if (desc.includes('Buyer reported incident')) return desc.replace('Buyer reported incident', 'Người mua báo sự cố')
+  if (desc.includes('Buyer reported incident')) return desc.replace('Buyer reported incident', 'Bên mua báo sự cố')
   return desc
 }
 
@@ -574,16 +645,18 @@ function Timeline({ events }: { events: DeliveryTimelineEvent[] }) {
   )
 }
 
-function DetailDrawer({ detail, onClose, onIncident, onConfirm, onUpdateIncident }: {
+function DetailDrawer({ detail, onClose, onIncident, onConfirm, onUpdateIncident, onIncidentActionDone }: {
   detail: BuyerDeliveryDetail
   onClose: () => void
   onIncident: () => void
   onConfirm: () => void
   onUpdateIncident: (incident: BuyerDeliveryDetail['incidents'][number]) => void
+  onIncidentActionDone: () => void
 }) {
+  const { showToast } = useToast()
   const s = detail.shipment
   const progress = s.progress ?? 0
-  const hasOpenIncident = detail.incidents.some((i) => i.status === 'OPEN' || i.status === 'PROCESSING')
+  const hasOpenIncident = detail.incidents.some((i) => ['OPEN', 'PENDING_SUPPLIER_RESPONSE', 'WAITING_SUPPLIER_RESPONSE', 'PROCESSING', 'UNDER_REVIEW', 'SUPPLIER_PROPOSED_RESOLUTION', 'WAITING_BUYER_RESPONSE', 'WAITING_BUYER_CONFIRMATION', 'NEGOTIATING', 'ESCALATED'].includes(i.status))
   // Chỉ cho xác nhận khi đang chờ buyer xác nhận, không bao gồm DELIVERED hay các trạng thái trung gian
   const showConfirm = s.status === 'WAITING_CONFIRMATION' && !s.confirmedReceivedAt && !hasOpenIncident
 
@@ -594,6 +667,26 @@ function DetailDrawer({ detail, onClose, onIncident, onConfirm, onUpdateIncident
   const etaText = s.estimatedDeliveryAt && s.estimatedDeliveryAt !== 'Đang xử lý'
     ? formatDate(s.estimatedDeliveryAt)
     : 'Chưa có thời gian dự kiến'
+
+  const handleBuyerIncidentAction = async (incident: BuyerDeliveryDetail['incidents'][number], action: 'ACCEPT_RESOLUTION' | 'REJECT_RESOLUTION' | 'REQUEST_CONTINUE') => {
+    const promptText = action === 'ACCEPT_RESOLUTION'
+      ? 'Nhập ghi chú đồng ý phương án (có thể để trống):'
+      : action === 'REJECT_RESOLUTION'
+        ? 'Nhập lý do chưa đồng ý phương án:'
+        : 'Nhập yêu cầu xử lý tiếp:'
+    const note = window.prompt(promptText, '')
+    if ((action === 'REJECT_RESOLUTION' || action === 'REQUEST_CONTINUE') && !note?.trim()) {
+      showToast('Vui lòng nhập nội dung phản hồi để nhà cung cấp tiếp tục xử lý.', 'error')
+      return
+    }
+    try {
+      await updateBuyerDeliveryIncident(s.shipmentId, incident.id, { action, note: note?.trim() || undefined })
+      showToast(action === 'ACCEPT_RESOLUTION' ? 'Đã đồng ý phương án xử lý.' : 'Đã gửi phản hồi cho nhà cung cấp.', 'success')
+      onIncidentActionDone()
+    } catch (requestError) {
+      showToast(readApiErrorMessage(requestError) || 'Không thể gửi phản hồi sự cố.', 'error')
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
@@ -752,10 +845,12 @@ function DetailDrawer({ detail, onClose, onIncident, onConfirm, onUpdateIncident
               <h4 className="mb-2 text-sm font-bold text-slate-800">Sự cố / Khiếu nại</h4>
               <div className="space-y-3">
                 {detail.incidents.map((item) => {
-                  const isEditable = item.status === 'OPEN' || item.status === 'PROCESSING'
+                  const isEditable = ['OPEN', 'PENDING_SUPPLIER_RESPONSE', 'WAITING_SUPPLIER_RESPONSE', 'PROCESSING', 'NEGOTIATING'].includes(item.status)
+                  const needsBuyerConfirmation = ['SUPPLIER_PROPOSED_RESOLUTION', 'WAITING_BUYER_RESPONSE', 'WAITING_BUYER_CONFIRMATION'].includes(item.status)
                   const allEvidence = item.evidenceUrls ?? (item.imageUrl ? [item.imageUrl] : [])
+                  const supplierEvidence = item.supplierEvidenceUrls ?? []
                   return (
-                    <div key={`i-${item.id}`} className="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm">
+                    <div key={`i-${item.id}`} className={`rounded-xl p-4 shadow-sm ${needsBuyerConfirmation ? 'border-2 border-orange-300 bg-orange-50 ring-2 ring-orange-100' : 'border border-red-200 bg-red-50'}`}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-red-900">{mapIncidentType(item.incidentType)}</p>
@@ -780,6 +875,20 @@ function DetailDrawer({ detail, onClose, onIncident, onConfirm, onUpdateIncident
                           <p className="mt-0.5 whitespace-pre-wrap text-xs font-medium text-red-800">{item.updateNote}</p>
                         </div>
                       )}
+                      {(item.supplierResponse || item.proposedResolution) && (
+                        <div className="mt-3 rounded-xl border border-emerald-200 bg-white p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Phương án từ nhà cung cấp</p>
+                          {item.supplierResponse ? <p className="mt-1 whitespace-pre-wrap text-sm font-medium text-slate-700">{item.supplierResponse}</p> : null}
+                          {item.proposedResolution ? <p className="mt-2 whitespace-pre-wrap rounded-lg bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">{item.proposedResolution}</p> : null}
+                          {needsBuyerConfirmation ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button onClick={() => void handleBuyerIncidentAction(item, 'ACCEPT_RESOLUTION')} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white">Đồng ý phương án</button>
+                              <button onClick={() => void handleBuyerIncidentAction(item, 'REJECT_RESOLUTION')} className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white">Không đồng ý</button>
+                              <button onClick={() => void handleBuyerIncidentAction(item, 'REQUEST_CONTINUE')} className="rounded-lg border border-orange-200 bg-white px-3 py-2 text-xs font-bold text-orange-700">Yêu cầu xử lý tiếp</button>
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
                       <p className="mt-2 text-xs text-red-700">Thời gian báo: {formatDate(item.createdAt)}</p>
                       {item.updatedAt && (
                         <p className="text-xs text-red-600">Cập nhật lần cuối: {formatDate(item.updatedAt)}</p>
@@ -791,6 +900,18 @@ function DetailDrawer({ detail, onClose, onIncident, onConfirm, onUpdateIncident
                             {allEvidence.map((url, idx) => (
                               <a key={idx} href={url} target="_blank" rel="noreferrer">
                                 <img src={url} className="h-16 w-16 rounded-lg object-cover border border-red-200 hover:opacity-80 transition" alt={`Bằng chứng ${idx + 1}`} />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {supplierEvidence.length > 0 && (
+                        <div className="mt-3">
+                          <p className="mb-1.5 text-xs font-semibold text-emerald-700">Bằng chứng từ nhà cung cấp ({supplierEvidence.length}):</p>
+                          <div className="flex flex-wrap gap-2">
+                            {supplierEvidence.map((url, idx) => (
+                              <a key={idx} href={url} target="_blank" rel="noreferrer">
+                                <img src={url} className="h-16 w-16 rounded-lg border border-emerald-200 object-cover transition hover:opacity-80" alt={`Bằng chứng nhà cung cấp ${idx + 1}`} />
                               </a>
                             ))}
                           </div>
@@ -841,10 +962,6 @@ function DetailDrawer({ detail, onClose, onIncident, onConfirm, onUpdateIncident
 
         {/* Footer */}
         <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 bg-white px-5 py-3">
-          <button className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-100 active:scale-95 border border-slate-200" onClick={onClose}>
-            Đóng
-          </button>
-
           <div className="flex gap-2">
             {hasOpenIncident ? (
               <button className="rounded-xl border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 px-4 py-2 text-xs font-bold transition active:scale-95" onClick={onIncident}>
@@ -1207,7 +1324,7 @@ function UpdateIncidentModal({
   onDone: () => void
 }) {
   const { showToast } = useToast()
-  const isEditable = incident.status === 'OPEN' || incident.status === 'PROCESSING'
+  const isEditable = ['OPEN', 'PENDING_SUPPLIER_RESPONSE', 'WAITING_SUPPLIER_RESPONSE', 'PROCESSING', 'NEGOTIATING'].includes(incident.status)
 
   const [note, setNote] = useState('')
   const [missingQty, setMissingQty] = useState(incident.missingQuantity != null ? String(incident.missingQuantity) : '')
@@ -1491,16 +1608,8 @@ function UpdateIncidentModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
-          <button
-            className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-100 active:scale-95"
-            onClick={onClose}
-            disabled={saving}
-          >
-            {isEditable ? 'Đóng' : 'Quay lại'}
-          </button>
-          {isEditable && (
+        {isEditable && (
+          <div className="flex items-center justify-end border-t border-slate-100 bg-white px-6 py-4">
             <button
               className="rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-amber-500/20 transition hover:opacity-90 active:scale-95 disabled:opacity-60"
               onClick={() => void submit()}
@@ -1508,8 +1617,8 @@ function UpdateIncidentModal({
             >
               {saving ? 'Đang lưu...' : 'Lưu cập nhật'}
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1557,7 +1666,7 @@ function ConfirmReceivedModal({ shipment, onClose, onDone }: { shipment: BuyerDe
         <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
         Tôi xác nhận thông tin nhận hàng là chính xác
       </label>
-      <SubmitRow saving={saving} onClose={onClose} onSubmit={() => void submit()} submitText="Xác nhận" />
+      <SubmitRow saving={saving} onSubmit={() => void submit()} submitText="Xác nhận" />
     </FormModal>
   )
 }
@@ -1582,10 +1691,9 @@ function ModalHeader({ title, onClose }: { title: string; onClose: () => void })
   )
 }
 
-function SubmitRow({ saving, onClose, onSubmit, submitText }: { saving: boolean; onClose: () => void; onSubmit: () => void; submitText: string }) {
+function SubmitRow({ saving, onSubmit, submitText }: { saving: boolean; onSubmit: () => void; submitText: string }) {
   return (
     <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
-      <button className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" onClick={onClose} disabled={saving}>Đóng</button>
       <button className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-60" onClick={onSubmit} disabled={saving}>{saving ? 'Đang gửi...' : submitText}</button>
     </div>
   )

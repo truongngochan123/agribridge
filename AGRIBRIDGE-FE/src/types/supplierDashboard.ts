@@ -106,7 +106,9 @@ export interface ShipmentItem {
   estimatedDeliveryTime?: string
   createdAt?: string
   rawOrderId?: number | null
+  rawShipmentId?: number | null
   shipmentEvents?: SupplierShipmentEvent[]
+  incidents?: SupplierShipmentIncident[]
 }
 
 export interface SupplierShipmentEvent {
@@ -115,6 +117,29 @@ export interface SupplierShipmentEvent {
   description?: string | null
   location?: string | null
   eventTime: string
+}
+
+export interface SupplierShipmentIncident {
+  id: number
+  incidentType: string
+  severity?: string | null
+  description: string
+  affectedQuantity?: number | null
+  missingQuantity?: number | null
+  damagedQuantity?: number | null
+  status: string
+  createdAt?: string | null
+  updatedAt?: string | null
+  resolvedAt?: string | null
+  resolutionNote?: string | null
+  buyerNotes?: string | null
+  supplierResponse?: string | null
+  proposedResolution?: string | null
+  resolutionType?: string | null
+  evidenceUrls?: string[]
+  supplierEvidenceUrls?: string[]
+  attachmentCount?: number
+  timeline?: SupplierShipmentEvent[]
 }
 
 export interface DebtCustomerItem {

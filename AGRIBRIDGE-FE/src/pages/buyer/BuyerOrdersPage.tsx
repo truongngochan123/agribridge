@@ -1,10 +1,30 @@
-import { AlertCircle, Eye, FileText, MapPin, Phone, Printer, Receipt, Truck, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  CircleDollarSign,
+  Clock3,
+  CreditCard,
+  Eye,
+  FileText,
+  MapPin,
+  Package,
+  Phone,
+  Printer,
+  Receipt,
+  ShieldAlert,
+  Truck,
+  UserRound,
+  Warehouse,
+  X,
+} from 'lucide-react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BuyerPanel, BuyerStatusPill, FilterTabBar, SearchInput } from '../../components/buyer/BuyerCommon'
+import { BuyerPanel, SearchInput } from '../../components/buyer/BuyerCommon'
 import { AlertTriangle } from 'lucide-react'
 import { BuyerOrderPaymentModal } from '../../components/buyer/BuyerOrderPaymentModal'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import type { BuyerPaymentMethod } from '../../components/buyer/buyerQuickOrderTypes'
 import { useBuyerOrderPayment } from '../../hooks/useBuyerOrderPayment'
 import { useToast } from '../../hooks/useToast'
@@ -18,6 +38,7 @@ import {
   type BuyerOrderPayment,
 } from '../../services/buyerOrderService'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
+import { getBranchContextFromSearchParams, matchesBranchContext } from '../../utils/branchContext'
 
 function formatCurrency(value?: number | null) {
   return `${Number(value ?? 0).toLocaleString('vi-VN')}đ`
@@ -30,26 +51,32 @@ function formatDate(value?: string | null) {
   return parsed.toLocaleDateString('vi-VN')
 }
 
+function cleanBatchCode(rawBatch?: string | null) {
+  if (!rawBatch) return ''
+  if (rawBatch.includes('http') || rawBatch.includes('/batch/')) {
+    const parts = rawBatch.split('/')
+    return `Lô #${parts[parts.length - 1]}`
+  }
+  return rawBatch.toLowerCase().startsWith('batch') ? rawBatch.replace(/^batch/i, 'Lô') : `Lô ${rawBatch}`
+}
+
 const ORDER_STATUS_LABELS: Record<string, string> = {
-  // Trạng thái cơ bản
+  PENDING_SUPPLIER_CONFIRMATION: 'Chờ NCC xác nhận',
   PENDING: 'Chờ xử lý',
   CONFIRMED: 'Đã xác nhận',
-  // Thanh toán
   PENDING_PAYMENT: 'Chờ thanh toán',
-  PENDING_DEPOSIT: 'Chờ thanh toán tiền cọ',
-  DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM: 'Đã cọ, chờ NCC xác nhận',
-  PAID_WAITING_SUPPLIER_CONFIRM: 'Đã thanh toán, chờ NCC xác nhận',
-  WAITING_FINAL_PAYMENT: 'Chờ thanh toán phần còn lại',
-  // Xác nhận / chuẩn bị
-  SUPPLIER_CONFIRMED: 'NCC đã xác nhận',
-  PREPARING: 'Đang chuẩn bị hàng',
-  READY_TO_SHIP: 'Sẵn sàng giao hàng',
-  // Giao hàng
+  PENDING_DEPOSIT: 'Chờ tiền cọc',
+  DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM: 'Chờ NCC xác nhận',
+  PAID_WAITING_SUPPLIER_CONFIRM: 'Chờ NCC xác nhận',
+  WAITING_FINAL_PAYMENT: 'Chờ thanh toán cuối',
+  SUPPLIER_CONFIRMED: 'Đã xác nhận',
+  PREPARING: 'Đang chuẩn bị',
+  READY_TO_SHIP: 'Sẵn sàng giao',
+  IN_DELIVERY: 'Đang giao hàng',
   SHIPPING: 'Đang giao hàng',
-  DELIVERED: 'Đã giao tới nơi',
-  WAITING_BUYER_CONFIRM: 'Chờ xác nhận nhận hàng',
+  DELIVERED: 'Đã giao hàng',
+  WAITING_BUYER_CONFIRM: 'Chờ nhận hàng',
   COMPLETED: 'Hoàn tất',
-  // Hủy / tranh chấp
   CANCELLED: 'Đã hủy',
   DISPUTED: 'Đang khiếu nại',
   REFUND_PENDING: 'Chờ hoàn tiền',
@@ -57,10 +84,10 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 }
 
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
-  WAITING_TRANSFER: 'Chờ chuyển khoản',
+  WAITING_TRANSFER: 'Chờ thanh toán',
   PENDING_VERIFY: 'Chờ xác minh',
-  PARTIALLY_PAID: 'Đã thanh toán một phần',
-  WAITING_REMAINING_PAYMENT: 'Chờ thanh toán số tiền còn lại',
+  PARTIALLY_PAID: 'Thanh toán 1 phần',
+  WAITING_REMAINING_PAYMENT: 'Chờ thanh toán cuối',
   PAID: 'Đã thanh toán',
   PENDING: 'Chờ xử lý',
   CONFIRMED: 'Đã xác nhận',
@@ -71,7 +98,7 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
 
 const ESCROW_STATUS_LABELS: Record<string, string> = {
   NOT_FUNDED: 'Sàn chưa nhận tiền',
-  PARTIALLY_HELD: 'Sàn đang giữ tiền cọ',
+  PARTIALLY_HELD: 'Sàn giữ tiền cọc',
   HELD: 'Sàn đang giữ tiền',
   RELEASE_PENDING: 'Chờ giải ngân',
   RELEASED: 'Sàn đã giải ngân',
@@ -82,16 +109,21 @@ const ESCROW_STATUS_LABELS: Record<string, string> = {
 
 const PAYMENT_TYPE_LABELS: Record<string, string> = {
   FULL: 'Thanh toán toàn bộ',
-  DEPOSIT: 'Tiền cọ',
+  FULL_PAYMENT: 'Thanh toán đầy đủ',
+  DEPOSIT: 'Tiền cọc',
   REMAINING: 'Phần còn lại',
-  BANK_TRANSFER_DEMO: 'Chuyển khoản (Demo)',
-  ESCROW_TRANSFER: 'Escrow / Chuyển khoản',
-  DEPOSIT_50: 'Cọ 50%',
+  BANK_TRANSFER_DEMO: 'Chuyển khoản',
+  ESCROW_TRANSFER: 'Ký quỹ / Chuyển khoản',
+  DEPOSIT_50: 'Cọc 50%',
+  CREDIT: 'Công nợ',
+  CREDIT_TERM: 'Công nợ',
+  CREDIT_OPEN: 'Công nợ',
 }
 
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   UNPAID: 'Chưa thanh toán',
   PARTIALLY_PAID: 'Đã thanh toán một phần',
+  PARTIAL: 'Đã thanh toán một phần',
   PAID: 'Đã thanh toán',
   OVERDUE: 'Quá hạn',
   CANCELLED: 'Đã hủy',
@@ -122,13 +154,17 @@ const SHIPMENT_STATUS_LABELS: Record<string, string> = {
   PREPARING: 'Đang chuẩn bị',
   SHIPPED: 'Đã rời kho',
   IN_TRANSIT: 'Đang vận chuyển',
-  WAITING_CONFIRMATION: 'Chờ buyer xác nhận',
+  WAITING_CONFIRMATION: 'Chờ bên mua xác nhận',
   FAILED: 'Thất bại',
 }
 
+void ESCROW_STATUS_LABELS
+void COMPLAINT_STATUS_LABELS
+void SEVERITY_LABELS
+void SHIPMENT_STATUS_LABELS
+
 function statusLabel(status?: string | null) {
   if (!status) return 'Chưa có trạng thái'
-  if (['DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM', 'PAID_WAITING_SUPPLIER_CONFIRM', 'SUPPLIER_CONFIRMED'].includes(status)) return 'Đã thanh toán'
   return ORDER_STATUS_LABELS[status] || status
 }
 
@@ -172,11 +208,710 @@ function payableAmountFor(order: BuyerOrder, payment?: BuyerOrderPayment | null)
   return order.totalAmount ?? 0
 }
 
+const ORDER_FILTERS = [
+  { key: 'all', label: 'Tất cả', statuses: null },
+  {
+    key: 'pendingSupplier',
+    label: 'Chờ NCC xác nhận',
+    statuses: ['PENDING_SUPPLIER_CONFIRMATION', 'DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM', 'PAID_WAITING_SUPPLIER_CONFIRM', 'PENDING'],
+  },
+  { key: 'confirmed', label: 'Đã xác nhận', statuses: ['CONFIRMED', 'SUPPLIER_CONFIRMED', 'PREPARING', 'READY_TO_SHIP'] },
+  { key: 'delivery', label: 'Đang giao hàng', statuses: ['IN_DELIVERY', 'SHIPPING', 'DELIVERED', 'WAITING_BUYER_CONFIRM'] },
+  { key: 'completed', label: 'Hoàn tất', statuses: ['COMPLETED'] },
+  { key: 'cancelled', label: 'Đã hủy', statuses: ['CANCELLED'] },
+] as const
+
+type OrderFilterKey = (typeof ORDER_FILTERS)[number]['key']
+type PaymentFilterKey = 'credit' | 'deposit' | 'final' | 'overdue' | 'paid'
+
+const PAYMENT_FILTERS: { key: PaymentFilterKey; label: string }[] = [
+  { key: 'credit', label: 'Công nợ' },
+  { key: 'deposit', label: 'Chờ tiền cọc' },
+  { key: 'final', label: 'Chờ thanh toán cuối' },
+  { key: 'overdue', label: 'Quá hạn' },
+  { key: 'paid', label: 'Đã thanh toán' },
+]
+
+function matchOrderFilter(order: BuyerOrder, key: OrderFilterKey) {
+  if (key === 'all') return true
+  const filter = ORDER_FILTERS.find((item) => item.key === key)
+  return Boolean((filter?.statuses as readonly string[] | null)?.includes(order.status))
+}
+
+function isOverdue(order: BuyerOrder) {
+  return String(order.invoiceStatus || order.paymentStatus || '') === 'OVERDUE'
+}
+
+function matchPaymentFilter(order: BuyerOrder, key: PaymentFilterKey | 'all') {
+  if (key === 'all') return true
+  if (key === 'credit') return order.paymentMethod === 'CREDIT' || order.paymentOption === 'CREDIT' || order.paymentOption === 'CREDIT_TERM'
+  if (key === 'deposit') return order.status === 'PENDING_DEPOSIT' || order.payments?.some((payment) => payment.paymentType === 'DEPOSIT' && payment.status !== 'PAID')
+  if (key === 'final') return order.status === 'WAITING_FINAL_PAYMENT' || order.payments?.some((payment) => payment.status === 'WAITING_REMAINING_PAYMENT')
+  if (key === 'overdue') return isOverdue(order)
+  if (key === 'paid') return order.invoiceStatus === 'PAID' || order.paymentStatus === 'PAID'
+  return true
+}
+
+function paymentMethodLabel(order: BuyerOrder) {
+  const paymentCode = order.paymentOption || order.paymentMethod || order.payments?.[0]?.paymentType || order.payments?.[0]?.paymentMethod
+  return PAYMENT_TYPE_LABELS[paymentCode || ''] ?? (paymentCode || 'Chuyển khoản')
+}
+
+function paymentStateLabel(order: BuyerOrder) {
+  if (isOverdue(order)) return 'Quá hạn'
+  if (order.status === 'PENDING_DEPOSIT') return 'Chờ tiền cọc'
+  if (order.status === 'WAITING_FINAL_PAYMENT') return 'Chờ thanh toán cuối'
+  if (order.invoiceStatus === 'PAID' || order.paymentStatus === 'PAID') return 'Đã thanh toán'
+  if (order.paymentStatus || order.invoiceStatus) {
+    return labeledStatus(order.paymentStatus || order.invoiceStatus, { ...PAYMENT_STATUS_LABELS, ...INVOICE_STATUS_LABELS })
+  }
+  const paymentCode = order.paymentOption || order.paymentMethod
+  if (paymentCode === 'CREDIT' || paymentCode === 'CREDIT_TERM' || paymentCode === 'CREDIT_OPEN') return 'Theo hạn công nợ'
+  return 'Chưa có'
+}
+
+function statusTone(status?: string | null) {
+  if (status === 'COMPLETED' || status === 'PAID' || status === 'CONFIRMED' || status === 'SUPPLIER_CONFIRMED' || status === 'DELIVERED') return 'success'
+  if (status === 'OVERDUE' || status === 'DISPUTED' || status === 'FAILED' || status === 'FAILED_DELIVERY') return 'danger'
+  if (status === 'CANCELLED' || status === 'REFUNDED') return 'muted'
+  if (status === 'IN_DELIVERY' || status === 'SHIPPING' || status === 'IN_TRANSIT') return 'info'
+  return 'pending'
+}
+
+function EnterpriseStatusPill({ label, tone = 'pending' }: { label: string; tone?: 'success' | 'pending' | 'danger' | 'muted' | 'info' }) {
+  const toneClass = {
+    success: 'bg-emerald-100 text-emerald-800',
+    pending: 'bg-amber-100 text-amber-800',
+    danger: 'bg-rose-100 text-rose-700',
+    muted: 'bg-slate-100 text-slate-600',
+    info: 'bg-blue-100 text-blue-800',
+  }[tone] || 'bg-slate-100 text-slate-600'
+
+  return (
+    <span className={`inline-flex max-w-full items-center rounded-full px-2.5 py-0.5 text-xs font-semibold leading-none ${toneClass}`}>
+      {label}
+    </span>
+  )
+}
+
+// FilterGroup removed in favor of inline rendering to match SupplierOrdersPage
+
+function BuyerOrderItemsPreview({ order }: { order: BuyerOrder }) {
+  if (order.items?.length) {
+    return (
+      <div className="space-y-2">
+        {order.items.slice(0, 2).map((item) => {
+          const cleanBatch = cleanBatchCode(item.batchCode)
+          return (
+            <div key={`${item.batchId}-${item.productId}`}>
+              <p className="max-w-[260px] truncate font-semibold text-slate-800" title={item.productName}>{item.productName}</p>
+              <p className="text-xs text-slate-500">
+                {[item.grade ? `Hạng ${item.grade}` : null, item.size ? `Cỡ ${item.size}` : null, `${item.quantity} ${item.unit}`]
+                  .filter(Boolean)
+                  .join(' • ')}
+              </p>
+              {cleanBatch ? <p className="mt-0.5 text-[11px] font-medium text-slate-400">{cleanBatch}</p> : null}
+            </div>
+          )
+        })}
+        {order.items.length > 2 ? <p className="text-xs font-semibold text-slate-500">+{order.items.length - 2} sản phẩm khác</p> : null}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <p className="max-w-[260px] truncate font-semibold text-slate-800" title={order.product}>{order.product || 'Chưa có'}</p>
+      <p className="text-xs text-slate-500">{order.quantity || 'Chưa có số lượng'}</p>
+    </div>
+  )
+}
+
+type BuyerOrderTab = 'info' | 'shipping' | 'invoice' | 'complaint'
+type ComplaintDraft = { title: string; description: string; severity: string }
+
+const EMPTY_TEXT = 'Chưa có'
+
+function cleanOrderStatusLabel(status?: string | null) {
+  const labels: Record<string, string> = {
+    PENDING_SUPPLIER_CONFIRMATION: 'Chờ NCC xác nhận',
+    PENDING: 'Chờ xử lý',
+    CONFIRMED: 'Đã xác nhận',
+    PENDING_PAYMENT: 'Chờ thanh toán',
+    PENDING_DEPOSIT: 'Chờ tiền cọc',
+    DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM: 'Chờ NCC xác nhận',
+    PAID_WAITING_SUPPLIER_CONFIRM: 'Chờ NCC xác nhận',
+    WAITING_FINAL_PAYMENT: 'Chờ thanh toán cuối',
+    SUPPLIER_CONFIRMED: 'Đã xác nhận',
+    PREPARING: 'Đang chuẩn bị',
+    READY_TO_SHIP: 'Sẵn sàng giao',
+    IN_DELIVERY: 'Đang giao hàng',
+    SHIPPING: 'Đang giao hàng',
+    DELIVERED: 'Đã giao hàng',
+    WAITING_BUYER_CONFIRM: 'Chờ nhận hàng',
+    COMPLETED: 'Hoàn tất',
+    CANCELLED: 'Đã hủy',
+    DISPUTED: 'Đang khiếu nại',
+    REFUND_PENDING: 'Chờ hoàn tiền',
+    REFUNDED: 'Đã hoàn tiền',
+  }
+  return status ? labels[status] || status : 'Chưa có trạng thái'
+}
+
+function cleanPaymentLabel(value?: string | null) {
+  const labels: Record<string, string> = {
+    WAITING_TRANSFER: 'Chờ thanh toán',
+    PENDING_VERIFY: 'Chờ xác minh',
+    PARTIALLY_PAID: 'Thanh toán một phần',
+    WAITING_REMAINING_PAYMENT: 'Chờ thanh toán cuối',
+    PAID: 'Đã thanh toán',
+    PENDING: 'Chờ xử lý',
+    CONFIRMED: 'Đã xác nhận',
+    FAILED: 'Thất bại',
+    REFUND_PENDING: 'Chờ hoàn tiền',
+    REFUNDED: 'Đã hoàn tiền',
+    UNPAID: 'Chưa thanh toán',
+    PARTIAL: 'Thanh toán một phần',
+    PARTIALLY_HELD: 'Sàn giữ tiền cọc',
+    NOT_FUNDED: 'Sàn chưa nhận tiền',
+    HELD: 'Sàn đang giữ tiền',
+    RELEASE_PENDING: 'Chờ giải ngân',
+    RELEASED: 'Đã giải ngân',
+    DISPUTED: 'Đang khiếu nại',
+    OVERDUE: 'Quá hạn',
+  }
+  return value ? labels[value] || value : EMPTY_TEXT
+}
+
+function cleanPaymentMethodLabel(order: BuyerOrder) {
+  const code = order.paymentOption || order.paymentMethod || order.payments?.[0]?.paymentType || order.payments?.[0]?.paymentMethod
+  const labels: Record<string, string> = {
+    FULL: 'Thanh toán toàn bộ',
+    FULL_PAYMENT: 'Thanh toán đầy đủ',
+    DEPOSIT: 'Tiền cọc',
+    REMAINING: 'Phần còn lại',
+    BANK_TRANSFER_DEMO: 'Chuyển khoản',
+    ESCROW_TRANSFER: 'Ký quỹ / Chuyển khoản',
+    DEPOSIT_50: 'Cọc 50%',
+    CREDIT: 'Công nợ',
+    CREDIT_TERM: 'Công nợ',
+    CREDIT_OPEN: 'Công nợ',
+  }
+  return code ? labels[code] || code : 'Chuyển khoản'
+}
+
+function cleanShipmentStatusLabel(status?: string | null) {
+  const labels: Record<string, string> = {
+    CREATED: 'Đã tạo vận đơn',
+    SHIPPING: 'Đang vận chuyển',
+    DELIVERED: 'Đã giao hàng',
+    FAILED_DELIVERY: 'Giao thất bại',
+    CANCELLED: 'Đã hủy',
+    PENDING: 'Chờ lấy hàng',
+    PREPARING: 'Đang chuẩn bị',
+    SHIPPED: 'Đã rời kho',
+    IN_TRANSIT: 'Đang vận chuyển',
+    WAITING_CONFIRMATION: 'Chờ bên mua xác nhận',
+    FAILED: 'Thất bại',
+  }
+  return status ? labels[status] || status : EMPTY_TEXT
+}
+
+function cleanComplaintStatusLabel(status?: string | null) {
+  const labels: Record<string, string> = {
+    OPEN: 'Đang xử lý',
+    PROCESSING: 'Đang xử lý',
+    RESOLVED: 'Đã giải quyết',
+    REJECTED: 'Từ chối',
+    CLOSED: 'Đã đóng',
+  }
+  return status ? labels[status] || status : EMPTY_TEXT
+}
+
+function cleanSeverityLabel(severity?: string | null) {
+  const labels: Record<string, string> = { LOW: 'Thấp', MEDIUM: 'Trung bình', HIGH: 'Cao', CRITICAL: 'Nghiêm trọng' }
+  return severity ? labels[severity] || severity : 'Trung bình'
+}
+
+function receiverAddress(order: BuyerOrder) {
+  return order.shipment?.receiverAddress || [order.deliveryAddress, order.deliveryWard, order.deliveryDistrict, order.deliveryProvince].filter(Boolean).join(', ') || EMPTY_TEXT
+}
+
+function orderQuantityLabel(order: BuyerOrder) {
+  if (order.items?.length) {
+    return order.items.map((item) => `${Number(item.quantity ?? 0).toLocaleString('vi-VN')} ${item.unit || ''}`.trim()).join(' + ')
+  }
+  return order.quantity || EMPTY_TEXT
+}
+
+function paymentProgress(order: BuyerOrder) {
+  const total = Number(order.totalAmount || 0)
+  if (!total) return 0
+  return Math.min(100, Math.round((Number(order.invoicePaidAmount || 0) / total) * 100))
+}
+
+function isDeliveryRisk(order: BuyerOrder) {
+  return ['FAILED', 'FAILED_DELIVERY', 'CANCELLED'].includes(String(order.shipment?.shipmentStatus || order.status || '')) || String(order.status || '').includes('DISPUT')
+}
+
+function WorkspaceCard({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/5 ${className}`}>{children}</div>
+}
+
+function DetailKpi({ icon, label, value, tone = 'emerald' }: { icon: ReactNode; label: string; value: string; tone?: 'emerald' | 'amber' | 'blue' | 'rose' | 'slate' }) {
+  const toneClass = {
+    emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+    amber: 'bg-amber-50 text-amber-700 ring-amber-100',
+    blue: 'bg-blue-50 text-blue-700 ring-blue-100',
+    rose: 'bg-rose-50 text-rose-700 ring-rose-100',
+    slate: 'bg-slate-50 text-slate-700 ring-slate-100',
+  }[tone]
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
+      <div className={`mb-2 inline-flex h-9 w-9 items-center justify-center rounded-xl ring-1 ${toneClass}`}>{icon}</div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mt-1 truncate text-sm font-extrabold text-slate-900" title={value}>{value}</p>
+    </div>
+  )
+}
+
+function DetailLine({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={`mt-1 truncate text-sm ${strong ? 'font-extrabold text-slate-950' : 'font-semibold text-slate-700'}`} title={value}>{value}</p>
+    </div>
+  )
+}
+
+function ProductOrderCard({ order }: { order: BuyerOrder }) {
+  const rows = order.items?.length ? order.items : []
+  if (!rows.length) {
+    return (
+      <WorkspaceCard>
+        <div className="flex gap-4">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-700">
+            <Package className="h-9 w-9" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600">Sản phẩm mua</p>
+            <h4 className="mt-1 truncate text-base font-extrabold text-slate-950">{order.product || EMPTY_TEXT}</h4>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <DetailLine label="Số lượng" value={order.quantity || EMPTY_TEXT} strong />
+              <DetailLine label="Nhà cung cấp" value={order.supplier || EMPTY_TEXT} />
+              <DetailLine label="Nguồn RFQ" value={order.rfqCode || 'Đặt nhanh'} />
+            </div>
+          </div>
+        </div>
+      </WorkspaceCard>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {rows.map((item) => {
+        const meta = [item.grade ? `Hạng ${item.grade}` : null, item.size ? `Cỡ ${item.size}` : null, cleanBatchCode(item.batchCode)].filter(Boolean)
+        return (
+          <WorkspaceCard key={`${item.batchId}-${item.productId}`} className="transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
+            <div className="flex gap-4">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-100 via-teal-50 to-lime-100 text-emerald-700">
+                <Package className="h-10 w-10" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600">{cleanBatchCode(item.batchCode) || 'Lô hàng'}</p>
+                    <h4 className="mt-1 truncate text-base font-extrabold text-slate-950" title={item.productName}>{item.productName || EMPTY_TEXT}</h4>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {meta.map((label) => (
+                        <span key={label} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-100">{label}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Thành tiền</p>
+                    <p className="text-lg font-extrabold text-emerald-700">{formatCurrency(item.subtotal)}</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                  <DetailLine label="Số lượng" value={`${Number(item.quantity ?? 0).toLocaleString('vi-VN')} ${item.unit || ''}`.trim()} strong />
+                  <DetailLine label="Đơn giá" value={formatCurrency(item.price)} />
+                  <DetailLine label="Ngày thu hoạch" value={formatDate(item.harvestDate)} />
+                  <DetailLine label="MOQ / SLA" value="Theo lô đã chốt" />
+                </div>
+              </div>
+            </div>
+          </WorkspaceCard>
+        )
+      })}
+    </div>
+  )
+}
+
+function BuyerOrderDetailModal({
+  order,
+  activeTab,
+  detailLoading,
+  complaintDraft,
+  onActiveTabChange,
+  onClose,
+  onComplaintDraftChange,
+  onCreateComplaint,
+  onOpenPaymentModal,
+  onConfirmReceived,
+}: {
+  order: BuyerOrder
+  activeTab: BuyerOrderTab
+  detailLoading: boolean
+  complaintDraft: ComplaintDraft
+  onActiveTabChange: (tab: BuyerOrderTab) => void
+  onClose: () => void
+  onComplaintDraftChange: (value: ComplaintDraft | ((current: ComplaintDraft) => ComplaintDraft)) => void
+  onCreateComplaint: () => void
+  onOpenPaymentModal: (order: BuyerOrder, isRemaining: boolean) => void
+  onConfirmReceived: () => void
+}) {
+  const payablePayment = findPayablePayment(order)
+  const remainingAmount = order.remainingAmount ?? Math.max(Number(order.totalAmount || 0) - Number(order.invoicePaidAmount || 0), 0)
+  const progress = paymentProgress(order)
+  const shipmentStatus = cleanShipmentStatusLabel(order.shipment?.shipmentStatus || order.status)
+  const risk = isDeliveryRisk(order)
+  const latestComplaint = order.complaints?.[0]
+  const tabs: Array<{ key: BuyerOrderTab; label: string; icon: ReactNode; count?: string }> = [
+    { key: 'info', label: 'Thông tin đơn', icon: <FileText className="h-4 w-4" /> },
+    { key: 'shipping', label: 'Theo dõi giao hàng', icon: <Truck className="h-4 w-4" /> },
+    { key: 'invoice', label: 'Hóa đơn & Thanh toán', icon: <Receipt className="h-4 w-4" /> },
+    { key: 'complaint', label: 'Khiếu nại', icon: <ShieldAlert className="h-4 w-4" />, count: order.complaints?.length ? String(order.complaints.length) : undefined },
+  ]
+
+  return (
+    <div className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-4" onClick={onClose}>
+      <div
+        className="mx-auto my-4 w-full max-w-6xl overflow-hidden rounded-3xl bg-slate-50 shadow-2xl shadow-slate-950/25"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-800 via-emerald-700 to-teal-600 p-5 text-white sm:p-6">
+          <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.18) 52%, transparent 53%)' }} />
+          <div className="relative flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-white/20 bg-white/15 px-3 py-1 text-xs font-bold text-white shadow-sm backdrop-blur">Procurement order</span>
+                <EnterpriseStatusPill label={cleanOrderStatusLabel(order.status)} tone={statusTone(order.status)} />
+              </div>
+              <h3 className="mt-3 truncate text-2xl font-extrabold tracking-normal text-white sm:text-3xl">Chi tiết đơn hàng {order.id}</h3>
+              <p className="mt-1 text-sm font-medium text-emerald-50/90">
+                {order.rfqCode ? `Tạo từ ${order.rfqCode}` : 'Đơn hàng đặt nhanh'}{order.quoteId ? ` · Báo giá ${order.quoteId}` : ''} · {order.supplier || EMPTY_TEXT}
+              </p>
+            </div>
+            <button className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 active:scale-95" onClick={onClose} aria-label="Đóng">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="relative mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/65">Sản phẩm</p>
+              <p className="mt-1 truncate text-sm font-extrabold">{order.product || order.items?.[0]?.productName || EMPTY_TEXT}</p>
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/65">Số lượng</p>
+              <p className="mt-1 truncate text-sm font-extrabold">{orderQuantityLabel(order)}</p>
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/65">ETA</p>
+              <p className="mt-1 truncate text-sm font-extrabold">{formatDate(order.shipment?.expectedDeliveryDate || order.expectedDeliveryDate || order.estimatedDeliveryTime)}</p>
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/65">Còn phải trả</p>
+              <p className="mt-1 truncate text-sm font-extrabold">{formatCurrency(remainingAmount)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-b border-slate-200 bg-white px-4 py-3">
+          <div className="flex flex-wrap gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-1">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition-all sm:flex-none ${
+                  activeTab === tab.key
+                    ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-100'
+                    : 'text-slate-600 hover:bg-white/70 hover:text-emerald-700'
+                }`}
+                onClick={() => onActiveTabChange(tab.key)}
+              >
+                {tab.icon}
+                {tab.label}
+                {tab.count ? <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] text-rose-700 ring-1 ring-rose-100">{tab.count}</span> : null}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="max-h-[62vh] overflow-y-auto p-4 sm:p-5">
+          {detailLoading ? (
+            <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">Đang tải chi tiết đơn hàng...</div>
+          ) : null}
+
+          {activeTab === 'info' ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <DetailKpi icon={<Warehouse className="h-5 w-5" />} label="Nhà cung cấp" value={order.supplier || EMPTY_TEXT} />
+                <DetailKpi icon={<Building2 className="h-5 w-5" />} label="Chi nhánh nhận" value={order.branch || EMPTY_TEXT} tone="blue" />
+                <DetailKpi icon={<CalendarDays className="h-5 w-5" />} label="Ngày tạo" value={formatDate(order.createdAt)} tone="slate" />
+                <DetailKpi icon={<CircleDollarSign className="h-5 w-5" />} label="Tổng phải trả" value={formatCurrency(order.totalAmount)} tone="emerald" />
+              </div>
+              <div className="grid gap-4 lg:grid-cols-[1.35fr_0.8fr]">
+                <ProductOrderCard order={order} />
+                <div className="space-y-4">
+                  <WorkspaceCard>
+                    <h4 className="text-sm font-extrabold text-slate-950">Tóm tắt thanh toán</h4>
+                    <div className="mt-3 space-y-3">
+                      <DetailLine label="Phương thức" value={cleanPaymentMethodLabel(order)} strong />
+                      <DetailLine label="Trạng thái tín dụng" value={cleanPaymentLabel(order.paymentStatus || order.invoiceStatus)} />
+                      <DetailLine label="Nguồn RFQ" value={order.rfqCode || 'Đặt nhanh'} />
+                    </div>
+                  </WorkspaceCard>
+                  <WorkspaceCard>
+                    <h4 className="text-sm font-extrabold text-slate-950">Người nhận & địa chỉ</h4>
+                    <div className="mt-3 space-y-3">
+                      <DetailLine label="Người nhận" value={order.shipment?.receiverName || order.deliveryName || EMPTY_TEXT} strong />
+                      <DetailLine label="Điện thoại" value={order.shipment?.receiverPhone || order.deliveryPhone || EMPTY_TEXT} />
+                      <DetailLine label="Địa chỉ giao" value={receiverAddress(order)} />
+                    </div>
+                  </WorkspaceCard>
+                </div>
+              </div>
+              <WorkspaceCard>
+                <h4 className="text-sm font-extrabold text-slate-950">Ghi chú nội bộ</h4>
+                <textarea className="mt-3 h-20 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-100" placeholder="Thêm ghi chú cho đơn hàng này..." />
+                <button className="mt-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 active:scale-95">Lưu ghi chú</button>
+              </WorkspaceCard>
+            </div>
+          ) : activeTab === 'shipping' ? (
+            <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+              <WorkspaceCard>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-base font-extrabold text-slate-950">Timeline vận hành giao hàng</h4>
+                    <p className="text-xs font-medium text-slate-500">Theo dõi trạng thái, ETA và điểm rủi ro giao nhận.</p>
+                  </div>
+                  <EnterpriseStatusPill label={risk ? 'Có rủi ro giao hàng' : shipmentStatus} tone={risk ? 'danger' : statusTone(order.shipment?.shipmentStatus || order.status)} />
+                </div>
+                <div className="space-y-4">
+                  {(order.trackingEvents?.length ? order.trackingEvents : [{ title: 'Đơn hàng được tạo', time: formatDate(order.createdAt), done: true }]).map((event, index, events) => (
+                    <div key={`${event.title}-${event.time}`} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <span className={`flex h-9 w-9 items-center justify-center rounded-2xl ring-4 ${event.done ? 'bg-emerald-600 text-white ring-emerald-50' : 'bg-white text-slate-400 ring-slate-100'}`}>
+                          {event.done ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
+                        </span>
+                        {index < events.length - 1 ? <span className="mt-1 h-8 w-px bg-slate-200" /> : null}
+                      </div>
+                      <div className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                        <p className="font-bold text-slate-900">{event.title}</p>
+                        <p className="mt-0.5 text-xs font-medium text-slate-500">{event.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </WorkspaceCard>
+              <div className="space-y-4">
+                <WorkspaceCard>
+                  <h4 className="text-sm font-extrabold text-slate-950">Thông tin logistics</h4>
+                  <div className="mt-3 grid gap-3">
+                    <DetailLine label="Đơn vị vận chuyển" value={order.shipment?.provider || order.shippingProviderName || order.shippingServiceName || 'Tự điều phối'} strong />
+                    <DetailLine label="Mã vận đơn" value={order.shipment?.trackingCode || order.trackingCode || EMPTY_TEXT} />
+                    <DetailLine label="ETA / SLA giao" value={formatDate(order.shipment?.expectedDeliveryDate || order.expectedDeliveryDate || order.estimatedDeliveryTime)} />
+                    <DetailLine label="Đã giao" value={formatDate(order.shipment?.deliveredAt)} />
+                  </div>
+                </WorkspaceCard>
+                <WorkspaceCard>
+                  <h4 className="text-sm font-extrabold text-slate-950">Điều phối nhận hàng</h4>
+                  <div className="mt-3 grid gap-3">
+                    <DetailLine label="Người nhận" value={order.shipment?.receiverName || order.deliveryName || EMPTY_TEXT} strong />
+                    <DetailLine label="Số điện thoại" value={order.shipment?.receiverPhone || order.deliveryPhone || EMPTY_TEXT} />
+                    <DetailLine label="Địa chỉ" value={receiverAddress(order)} />
+                    <DetailLine label="Tài xế / xe" value={[order.driverName, order.vehicleInfo].filter(Boolean).join(' · ') || EMPTY_TEXT} />
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"><MapPin className="h-3.5 w-3.5" /> Theo dõi</button>
+                    <button className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-emerald-200 hover:text-emerald-700 active:scale-95"><Phone className="h-3.5 w-3.5" /> Gọi</button>
+                  </div>
+                </WorkspaceCard>
+              </div>
+            </div>
+          ) : activeTab === 'invoice' ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <DetailKpi icon={<CircleDollarSign className="h-5 w-5" />} label="Tổng phải trả" value={formatCurrency(order.totalAmount)} />
+                <DetailKpi icon={<CheckCircle2 className="h-5 w-5" />} label="Đã thanh toán" value={formatCurrency(order.invoicePaidAmount)} tone="blue" />
+                <DetailKpi icon={<CreditCard className="h-5 w-5" />} label="Còn lại" value={formatCurrency(remainingAmount)} tone={remainingAmount > 0 ? 'amber' : 'emerald'} />
+                <DetailKpi icon={<CalendarDays className="h-5 w-5" />} label="Hạn thanh toán" value={formatDate(order.invoiceDueDate)} tone={isOverdue(order) ? 'rose' : 'slate'} />
+              </div>
+              <WorkspaceCard>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600">Hóa đơn</p>
+                    <h4 className="mt-1 text-xl font-extrabold text-slate-950">{order.invoiceCode || 'Chưa có hóa đơn'}</h4>
+                    <p className="mt-1 text-xs font-medium text-slate-500">Ngày phát hành: {formatDate(order.createdAt)}</p>
+                  </div>
+                  <EnterpriseStatusPill label={cleanPaymentLabel(order.invoiceStatus || 'UNPAID')} tone={order.invoiceStatus === 'PAID' ? 'success' : isOverdue(order) ? 'danger' : 'pending'} />
+                </div>
+                <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all" style={{ width: `${progress}%` }} />
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <DetailLine label="Phương thức" value={cleanPaymentMethodLabel(order)} strong />
+                  <DetailLine label="Thanh toán" value={cleanPaymentLabel(order.paymentStatus || order.invoiceStatus)} />
+                  <DetailLine label="Ký quỹ" value={cleanPaymentLabel(order.escrowStatus)} />
+                </div>
+              </WorkspaceCard>
+              {payablePayment ? (
+                <WorkspaceCard className="border-emerald-200 bg-emerald-50/80">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-extrabold text-emerald-950">Thông tin chuyển khoản demo</h4>
+                      <p className="mt-1 text-xs font-medium text-emerald-700">Sàn giữ tiền ký quỹ và giải ngân theo trạng thái nhận hàng.</p>
+                    </div>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">{cleanPaymentLabel(payablePayment.status)}</span>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <DetailLine label="Ngân hàng" value="DEMO BANK" />
+                    <DetailLine label="Tên tài khoản" value="AGRIBRIDGE PLATFORM" />
+                    <DetailLine label="Số tài khoản" value="123456789" />
+                    <DetailLine label="Số tiền cần thanh toán" value={formatCurrency(payableAmountFor(order, payablePayment))} strong />
+                    <div className="md:col-span-2"><DetailLine label="Nội dung chuyển khoản" value={transferContentFor(order, payablePayment)} strong /></div>
+                  </div>
+                </WorkspaceCard>
+              ) : null}
+              {order.payments?.length ? (
+                <WorkspaceCard>
+                  <h4 className="text-sm font-extrabold text-slate-950">Lịch sử thanh toán</h4>
+                  <div className="mt-3 space-y-2">
+                    {order.payments.map((payment) => (
+                      <div key={payment.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-bold text-slate-900">{cleanPaymentMethodLabel({ ...order, paymentOption: payment.paymentType || payment.paymentMethod } as BuyerOrder)}</p>
+                          <EnterpriseStatusPill label={cleanPaymentLabel(payment.status)} tone={statusTone(payment.status)} />
+                        </div>
+                        <p className="mt-1 text-sm font-extrabold text-emerald-700">{formatCurrency(payment.paidAmount || payment.amount)}</p>
+                        <p className="mt-1 text-xs font-medium text-slate-500">{cleanPaymentLabel(payment.escrowStatus)}{payment.transferContent ? ` · ${payment.transferContent}` : ''}</p>
+                      </div>
+                    ))}
+                  </div>
+                </WorkspaceCard>
+              ) : null}
+            </div>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+              <WorkspaceCard>
+                <h4 className="text-base font-extrabold text-slate-950">Tạo hồ sơ khiếu nại</h4>
+                <p className="mt-1 text-xs font-medium text-slate-500">Ghi nhận bằng chứng và bên đang chờ phản hồi để xử lý tranh chấp mua hàng.</p>
+                <div className="mt-4 space-y-3">
+                  <input
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                    value={complaintDraft.title}
+                    placeholder="Tiêu đề khiếu nại"
+                    onChange={(event) => onComplaintDraftChange((current) => ({ ...current, title: event.target.value }))}
+                  />
+                  <select
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                    value={complaintDraft.severity}
+                    onChange={(event) => onComplaintDraftChange((current) => ({ ...current, severity: event.target.value }))}
+                  >
+                    <option value="LOW">Thấp</option>
+                    <option value="MEDIUM">Trung bình</option>
+                    <option value="HIGH">Cao</option>
+                  </select>
+                  <textarea
+                    className="min-h-28 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                    value={complaintDraft.description}
+                    placeholder="Mô tả vấn đề, bằng chứng, đề xuất hoàn tiền hoặc thay thế..."
+                    onChange={(event) => onComplaintDraftChange((current) => ({ ...current, description: event.target.value }))}
+                  />
+                  <button className="w-full rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-extrabold text-rose-700 transition hover:bg-rose-100 active:scale-95" onClick={onCreateComplaint}>
+                    Tạo khiếu nại
+                  </button>
+                </div>
+              </WorkspaceCard>
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <DetailKpi icon={<ShieldAlert className="h-5 w-5" />} label="Trạng thái tranh chấp" value={latestComplaint ? cleanComplaintStatusLabel(latestComplaint.status) : 'Không có'} tone={latestComplaint ? 'rose' : 'emerald'} />
+                  <DetailKpi icon={<UserRound className="h-5 w-5" />} label="Bên chờ phản hồi" value={latestComplaint ? 'Nhà cung cấp / vận hành' : 'Không cần xử lý'} tone={latestComplaint ? 'amber' : 'slate'} />
+                  <DetailKpi icon={<Package className="h-5 w-5" />} label="Đề xuất xử lý" value={latestComplaint?.resolution || 'Hoàn tiền / thay thế khi có kết luận'} tone="blue" />
+                </div>
+                <WorkspaceCard>
+                  <h4 className="text-base font-extrabold text-slate-950">Dòng xử lý tranh chấp</h4>
+                  {order.complaints?.length ? (
+                    <div className="mt-4 space-y-3">
+                      {order.complaints.map((complaint) => (
+                        <div key={complaint.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="font-extrabold text-slate-950">{complaint.title || 'Khiếu nại đơn hàng'}</p>
+                              <p className="mt-1 text-xs font-medium text-slate-500">Buyer evidence · {formatDate(complaint.createdAt)} · Mức độ {cleanSeverityLabel(complaint.severity)}</p>
+                            </div>
+                            <EnterpriseStatusPill label={cleanComplaintStatusLabel(complaint.status)} tone={complaint.status === 'RESOLVED' ? 'success' : 'danger'} />
+                          </div>
+                          <p className="mt-3 rounded-2xl bg-white px-3 py-2 text-sm font-medium leading-6 text-slate-700">{complaint.description}</p>
+                          <div className="mt-3 grid gap-2 md:grid-cols-2">
+                            <div className="rounded-xl bg-white px-3 py-2">
+                              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Phản hồi NCC</p>
+                              <p className="mt-1 text-sm font-semibold text-slate-700">{complaint.resolution ? 'Đã có đề xuất xử lý' : 'Đang chờ phản hồi'}</p>
+                            </div>
+                            <div className="rounded-xl bg-white px-3 py-2">
+                              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Kết quả</p>
+                              <p className="mt-1 text-sm font-semibold text-emerald-700">{complaint.resolution || 'Chưa có kết luận'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex min-h-44 items-center justify-center rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/60 p-6 text-center">
+                      <div>
+                        <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-600" />
+                        <p className="mt-2 text-sm font-extrabold text-slate-900">Chưa có khiếu nại nào cho đơn hàng này</p>
+                        <p className="mt-1 text-xs font-medium text-slate-500">Nếu phát sinh thiếu hàng, sai chất lượng hoặc giao trễ, hồ sơ xử lý sẽ nằm tại đây.</p>
+                      </div>
+                    </div>
+                  )}
+                </WorkspaceCard>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+          <p className="text-xs font-semibold text-slate-500">Mã đơn: <span className="text-slate-800">{order.id}</span></p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-emerald-200 hover:text-emerald-700 active:scale-95"><Printer className="h-3.5 w-3.5" /> In đơn hàng</button>
+            {order.status === 'PENDING_PAYMENT' || order.status === 'PENDING_DEPOSIT' ? (
+              <button className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 active:scale-95" onClick={() => onOpenPaymentModal(order, false)}>
+                <Receipt className="h-3.5 w-3.5" /> Xác nhận thanh toán
+              </button>
+            ) : null}
+            {order.status === 'WAITING_FINAL_PAYMENT' ? (
+              <button className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 active:scale-95" onClick={() => onOpenPaymentModal(order, true)}>
+                <Receipt className="h-3.5 w-3.5" /> Thanh toán cuối
+              </button>
+            ) : null}
+            {order.status === 'WAITING_BUYER_CONFIRM' ? (
+              <button className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 active:scale-95" onClick={onConfirmReceived}>
+                <Truck className="h-3.5 w-3.5" /> Đã nhận hàng
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function BuyerOrdersPage() {
   usePageTitle('Đơn hàng')
   const { showToast } = useToast()
   const { confirmPayment, confirming } = useBuyerOrderPayment()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [orders, setOrders] = useState<BuyerOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -186,7 +921,9 @@ export function BuyerOrdersPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [complaintDraft, setComplaintDraft] = useState({ title: '', description: '', severity: 'MEDIUM' })
   const [searchKeyword, setSearchKeyword] = useState('')
-  const [filterStatus, setFilterStatus] = useState<'all' | string>('all')
+  const [orderFilter, setOrderFilter] = useState<OrderFilterKey>('all')
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilterKey | 'all'>('all')
+  const [filterMode, setFilterMode] = useState<'status' | 'payment'>('status')
   const [paymentModalData, setPaymentModalData] = useState<{
     orderId: number
     orderCode: string
@@ -200,6 +937,8 @@ export function BuyerOrdersPage() {
     transferContent?: string | null
     isRemaining: boolean
   } | null>(null)
+  const branchContext = getBranchContextFromSearchParams(searchParams)
+  const branchLabel = branchContext?.branchName || (branchContext?.branchId ? `Chi nhánh #${branchContext.branchId}` : '')
 
   const loadOrders = useCallback(async () => {
     try {
@@ -236,19 +975,29 @@ export function BuyerOrdersPage() {
     [orders, selectedOrderId],
   )
 
-  const allStatuses = useMemo(() => Array.from(new Set(orders.map((o) => o.status))), [orders])
-
   const filteredOrders = useMemo(() => {
     return orders
-      .filter((o) => filterStatus === 'all' || o.status === filterStatus)
+      .filter((o) => matchOrderFilter(o, orderFilter))
+      .filter((o) => matchPaymentFilter(o, paymentFilter))
+      .filter((o) => matchesBranchContext(o, branchContext))
       .filter((o) => {
         if (!searchKeyword.trim()) return true
         const kw = searchKeyword.trim().toLowerCase()
         return o.id.toLowerCase().includes(kw) || o.supplier.toLowerCase().includes(kw) || (o.product ?? '').toLowerCase().includes(kw)
       })
-  }, [orders, filterStatus, searchKeyword])
+  }, [branchContext, orders, orderFilter, paymentFilter, searchKeyword])
 
-  const refreshSelectedOrder = async (order: BuyerOrder) => {
+  const orderFilterItems = useMemo(
+    () => ORDER_FILTERS.map((item) => ({ ...item, count: orders.filter((order) => matchOrderFilter(order, item.key)).length })),
+    [orders],
+  )
+
+  const paymentFilterItems = useMemo(
+    () => PAYMENT_FILTERS.map((item) => ({ ...item, count: orders.filter((order) => matchPaymentFilter(order, item.key)).length })),
+    [orders],
+  )
+
+  const refreshSelectedOrder = useCallback(async (order: BuyerOrder) => {
     if (!order.orderId) return
     setDetailLoading(true)
     try {
@@ -260,6 +1009,24 @@ export function BuyerOrdersPage() {
     } finally {
       setDetailLoading(false)
     }
+  }, [showToast])
+
+  const refreshOrderState = useCallback(async () => {
+    await loadOrders()
+    if (openDetail && selectedOrder?.orderId) {
+      await refreshSelectedOrder(selectedOrder)
+    }
+  }, [loadOrders, openDetail, refreshSelectedOrder, selectedOrder])
+
+  useNotificationModuleRefresh(['ORDER', 'PAYMENT', 'DELIVERY', 'DEBT', 'COMPLAINT'], refreshOrderState)
+
+  const handleFilterModeChange = (mode: typeof filterMode) => {
+    setFilterMode(mode)
+    if (mode === 'status') {
+      setPaymentFilter('all')
+      return
+    }
+    setOrderFilter('all')
   }
 
   const openOrderDetail = async (order: BuyerOrder) => {
@@ -344,42 +1111,100 @@ export function BuyerOrdersPage() {
   }
 
   const tabClass = (tab: typeof activeTab) =>
-    `inline-flex items-center gap-1.5 rounded-t-lg border px-3 py-2 text-xs font-semibold ${
+    `inline-flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-bold transition-colors ${
       activeTab === tab
-        ? 'border-slate-300 border-b-white bg-white text-blue-600'
-        : 'border-transparent bg-transparent text-slate-600 hover:text-slate-900'
+        ? 'border-emerald-600 text-emerald-700'
+        : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800'
     }`
+  void tabClass
 
   return (
     <>
       <BuyerShell
         activeKey="orders"
-        title="Quản lý Đơn hàng"
-        subtitle="Theo dõi đơn hàng theo chi nhánh"
+        title={branchLabel ? `Quản lý Đơn hàng - ${branchLabel}` : 'Quản lý Đơn hàng'}
+        subtitle={branchLabel ? 'Đang xem đơn hàng trong phạm vi chi nhánh' : 'Theo dõi đơn hàng theo chi nhánh'}
         filterBar={
           <div className="flex flex-wrap items-center gap-2">
-            <SearchInput
-              value={searchKeyword}
-              onChange={setSearchKeyword}
-              placeholder="Tìm đơn, nhà cung cấp..."
-              className="min-w-[220px] max-w-sm"
-            />
-            <FilterTabBar
-              tabs={[
-                { key: 'all', label: 'Tất cả', count: orders.length },
-                ...allStatuses.map((s) => ({
-                  key: s,
-                  label: statusLabel(s),
-                  count: orders.filter((o) => o.status === s).length,
-                })),
-              ]}
-              activeKey={filterStatus}
-              onChange={setFilterStatus}
-            />
+              {branchLabel ? (
+                <button
+                  className="inline-flex h-9 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-white"
+                  onClick={() => setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev)
+                    next.delete('branchId')
+                    next.delete('branchName')
+                    return next
+                  }, { replace: true })}
+                >
+                  Chi nhánh: {branchLabel}
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+              <SearchInput
+                value={searchKeyword}
+                onChange={setSearchKeyword}
+                placeholder="Tìm đơn, nhà cung cấp, sản phẩm..."
+                className="min-w-[240px] max-w-sm"
+              />
+              <div className="inline-flex shrink-0 overflow-hidden rounded-full border border-emerald-100 bg-emerald-50 p-1 shadow-sm">
+                <button
+                  onClick={() => handleFilterModeChange('status')}
+                  className={`min-h-9 min-w-[88px] rounded-full px-4 text-sm font-extrabold transition ${
+                    filterMode === 'status' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-emerald-700 hover:bg-white/70'
+                  }`}
+                >
+                  Trạng thái đơn
+                </button>
+                <button
+                  onClick={() => handleFilterModeChange('payment')}
+                  className={`min-h-9 min-w-[88px] rounded-full px-4 text-sm font-extrabold transition ${
+                    filterMode === 'payment' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-emerald-700 hover:bg-white/70'
+                  }`}
+                >
+                  Thanh toán
+                </button>
+              </div>
+              {filterMode === 'status' && (
+                <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                  {orderFilterItems.map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setOrderFilter(tab.key as OrderFilterKey)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
+                        orderFilter === tab.key ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {tab.label}
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${
+                        orderFilter === tab.key ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-700'
+                      }`}>{tab.count}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {filterMode === 'payment' && (
+                <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                  {paymentFilterItems.map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setPaymentFilter(paymentFilter === tab.key ? 'all' : (tab.key as PaymentFilterKey))}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
+                        paymentFilter === tab.key ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {tab.label}
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${
+                        paymentFilter === tab.key ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-700'
+                      }`}>{tab.count}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
           </div>
         }
       >
-        <BuyerPanel title="Đơn hàng gần đây">
+        <BuyerPanel title="Danh sách đơn hàng">
         {loading && (
           <div className="mb-4 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
@@ -397,38 +1222,68 @@ export function BuyerOrdersPage() {
               Chưa có đơn hàng nào.
             </p>
           )}
+          {!loading && !error && orders.length > 0 && filteredOrders.length === 0 ? (
+            <p className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3 text-sm font-semibold text-emerald-800">
+              Không tìm thấy đơn hàng phù hợp.
+            </p>
+          ) : null}
           <div className="overflow-x-auto rounded-xl border border-slate-100">
-            <table className="min-w-full text-left text-sm">
+            <table className="w-full min-w-[1160px] text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  <th className="px-3 py-3">Mã đơn</th>
-                  <th className="px-3 py-3">Nhà cung cấp</th>
-                  <th className="px-3 py-3">Sản phẩm</th>
-                  <th className="px-3 py-3">Chi nhánh</th>
-                  <th className="px-3 py-3">Giá trị</th>
-                  <th className="px-3 py-3">Trạng thái</th>
-                  <th className="px-3 py-3">Thao tác</th>
+                <tr className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <th className="px-4 py-3">Mã đơn</th>
+                  <th className="px-4 py-3">Nhà cung cấp</th>
+                  <th className="px-4 py-3">Sản phẩm</th>
+                  <th className="px-4 py-3">Giá trị</th>
+                  <th className="px-4 py-3">Trạng thái đơn</th>
+                  <th className="px-4 py-3">Thanh toán</th>
+                  <th className="px-4 py-3">Ngày đặt</th>
+                  <th className="px-4 py-3">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {filteredOrders.map((row) => (
-                  <tr key={row.id} className="bg-white text-sm transition-colors hover:bg-emerald-50/30">
-                    <td className="px-3 py-2.5 font-bold text-slate-800">{row.id}</td>
-                    <td className="px-3 py-2.5 text-slate-700">{row.supplier}</td>
-                    <td className="px-3 py-2.5">
-                      <p className="font-medium text-slate-800">{row.product}</p>
-                      <p className="text-xs text-slate-400">{row.quantity}</p>
+                  <tr
+                    key={row.id}
+                    className="group cursor-pointer bg-white text-sm transition-colors hover:bg-emerald-50/30"
+                    onClick={() => { void openOrderDetail(row) }}
+                  >
+                    <td className="px-4 py-3">
+                      <p className="font-bold text-emerald-800">{row.id}</p>
                     </td>
-                    <td className="px-3 py-2.5 text-slate-700">{row.branch}</td>
-                    <td className="px-3 py-2.5 font-bold text-slate-900">{row.value}</td>
-                    <td className="px-3 py-2.5"><BuyerStatusPill status={statusLabel(row.status)} /></td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-slate-800">{row.supplier}</p>
+                      <p className="max-w-[180px] truncate text-xs text-slate-400" title={row.branch}>{row.branch}</p>
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">
+                      <BuyerOrderItemsPreview order={row} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-base font-extrabold text-slate-950">{row.value}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <EnterpriseStatusPill label={statusLabel(row.status)} tone={statusTone(row.status)} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="space-y-1">
+                        <p className="font-semibold text-slate-800">{paymentMethodLabel(row)}</p>
+                        <EnterpriseStatusPill label={paymentStateLabel(row)} tone={isOverdue(row) ? 'danger' : statusTone(row.paymentStatus || row.invoiceStatus)} />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-500">
+                      {formatDate(row.createdAt)}
+                    </td>
+                    <td className="px-4 py-3">
                       <button
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors active:scale-95"
-                        onClick={() => { void openOrderDetail(row) }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void openOrderDetail(row)
+                        }}
+                        aria-label={`Mở chi tiết đơn ${row.id}`}
                       >
                         <Eye className="h-3.5 w-3.5" />
-                        Xem
+                        Chi tiết
                       </button>
                     </td>
                   </tr>
@@ -440,293 +1295,20 @@ export function BuyerOrdersPage() {
       </BuyerShell>
 
       {openDetail && selectedOrder ? (
-        <div className="fixed inset-0 z-[80] bg-black/35 p-4" onClick={() => setOpenDetail(false)}>
-          <div
-            className="mx-auto mt-8 w-full max-w-5xl overflow-hidden rounded-2xl bg-white"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between border-b border-slate-200 bg-slate-50 p-4">
-              <div>
-                <h3 className="text-3xl font-extrabold text-slate-900">Chi tiết đơn hàng {selectedOrder.id}</h3>
-                <p className="text-xs text-slate-500">
-                  {selectedOrder.rfqCode ? `Tạo từ ${selectedOrder.rfqCode}` : 'Đơn hàng đặt nhanh'}{selectedOrder.quoteId ? ` - Quote ${selectedOrder.quoteId}` : ''}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="rounded-md bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-600">{statusLabel(selectedOrder.status)}</span>
-                <button className="text-slate-500" onClick={() => setOpenDetail(false)}>
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="border-b border-slate-200 px-4 pt-3">
-              <div className="flex flex-wrap gap-1">
-                <button className={tabClass('info')} onClick={() => setActiveTab('info')}><FileText className="h-3.5 w-3.5" /> Thông tin đơn</button>
-                <button className={tabClass('shipping')} onClick={() => setActiveTab('shipping')}><Truck className="h-3.5 w-3.5" /> Theo dõi giao hàng</button>
-                <button className={tabClass('invoice')} onClick={() => setActiveTab('invoice')}><Receipt className="h-3.5 w-3.5" /> Hóa đơn & Thanh toán</button>
-                <button className={tabClass('complaint')} onClick={() => setActiveTab('complaint')}><AlertCircle className="h-3.5 w-3.5" /> Khiếu nại</button>
-              </div>
-            </div>
-
-            <div className="max-h-[58vh] overflow-y-auto p-4">
-              {detailLoading ? <p className="mb-3 text-sm font-semibold text-blue-600">Đang tải chi tiết đơn hàng...</p> : null}
-              {activeTab === 'info' ? (
-                <div className="space-y-4">
-                  <div className="grid gap-2 md:grid-cols-3">
-                    <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">Nhà cung cấp</p><p className="text-sm font-semibold">{selectedOrder.supplier}</p></div>
-                    <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">Chi nhánh nhận hàng</p><p className="text-sm font-semibold">{selectedOrder.branch}</p></div>
-                    <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">Ngày tạo</p><p className="text-sm font-semibold">{formatDate(selectedOrder.createdAt)}</p></div>
-                  </div>
-
-                  <div>
-                    <h4 className="mb-2 text-sm font-bold">Sản phẩm trong đơn</h4>
-                    <div className="overflow-x-auto rounded-lg border border-slate-200">
-                      <table className="min-w-full text-xs">
-                        <thead className="bg-slate-50 text-slate-600">
-                          <tr>
-                            <th className="px-3 py-2 text-left">Mã lô</th>
-                            <th className="px-3 py-2 text-left">Sản phẩm</th>
-                            <th className="px-3 py-2 text-left">Grade/Size</th>
-                            <th className="px-3 py-2 text-left">Ngày thu hoạch</th>
-                            <th className="px-3 py-2 text-left">SL</th>
-                            <th className="px-3 py-2 text-left">Đơn giá</th>
-                            <th className="px-3 py-2 text-left">Thành tiền</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(selectedOrder.items ?? []).map((item) => (
-                            <tr key={`${item.batchId}-${item.productId}`} className="border-t border-slate-200">
-                              <td className="px-3 py-2 text-blue-600">{item.batchCode}</td>
-                              <td className="px-3 py-2">{item.productName}</td>
-                              <td className="px-3 py-2">{[item.grade, item.size].filter(Boolean).join(' / ') || 'N/A'}</td>
-                              <td className="px-3 py-2">{formatDate(item.harvestDate)}</td>
-                              <td className="px-3 py-2">{item.quantity} {item.unit}</td>
-                              <td className="px-3 py-2">{formatCurrency(item.price)}</td>
-                              <td className="px-3 py-2 font-semibold">{formatCurrency(item.subtotal)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <p className="mt-2 text-right text-sm font-bold">Tổng cộng: <span className="text-blue-600">{formatCurrency(selectedOrder.totalAmount)}</span></p>
-                  </div>
-
-                  <div>
-                    <h4 className="mb-2 text-sm font-bold">Lịch giao hàng</h4>
-                    <div className="rounded-lg bg-slate-50 p-3 text-sm">
-                      <p className="font-semibold">{selectedOrder.shippingServiceName || selectedOrder.shippingProviderName || 'Chưa có đơn vị vận chuyển'}</p>
-                      <p className="text-xs text-slate-500">Dự kiến giao: {selectedOrder.estimatedDeliveryTime || 'Chưa có'}</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className="mb-2 text-sm font-bold">Ghi chú nội bộ</h4>
-                    <textarea className="h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Thêm ghi chú cho đơn hàng này..." />
-                    <button className="mt-2 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white">Lưu ghi chú</button>
-                  </div>
-                </div>
-              ) : activeTab === 'shipping' ? (
-                <div className="space-y-4">
-                  <div className="space-y-3">
-                    {(selectedOrder.trackingEvents?.length ? selectedOrder.trackingEvents : [{ title: 'Đơn hàng được tạo', time: formatDate(selectedOrder.createdAt), done: true }]).map((event) => (
-                      <div key={`${event.title}-${event.time}`} className="flex items-start gap-2">
-                        <span className="mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-600">•</span>
-                        <div>
-                          <p className="text-sm font-semibold">{event.title}</p>
-                          <p className="text-xs text-slate-500">{event.time}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <h4 className="mb-2 text-sm font-bold">Thông tin vận chuyển</h4>
-                    {selectedOrder.shipment ? (
-                      <div className="mb-3 grid gap-2 rounded-lg border border-slate-200 bg-white p-3 text-xs md:grid-cols-3">
-                        <p><span className="text-slate-500">Provider:</span> <span className="font-bold">{selectedOrder.shipment.provider || 'MANUAL'}</span></p>
-                        <p><span className="text-slate-500">Tracking:</span> <span className="font-bold">{selectedOrder.shipment.trackingCode || selectedOrder.trackingCode || 'Chưa có'}</span></p>
-                        <p><span className="text-slate-500">Trạng thái:</span> <span className="font-bold">{labeledStatus(selectedOrder.shipment.shipmentStatus, SHIPMENT_STATUS_LABELS)}</span></p>
-                        <p><span className="text-slate-500">Dự kiến:</span> <span className="font-bold">{formatDate(selectedOrder.shipment.expectedDeliveryDate || selectedOrder.expectedDeliveryDate)}</span></p>
-                        <p><span className="text-slate-500">Đã giao:</span> <span className="font-bold">{formatDate(selectedOrder.shipment.deliveredAt)}</span></p>
-                        <p><span className="text-slate-500">Người nhận:</span> <span className="font-bold">{selectedOrder.shipment.receiverName || selectedOrder.deliveryName || 'Chưa có'}</span></p>
-                      </div>
-                    ) : null}
-                    <div className="grid gap-2 md:grid-cols-3 text-sm">
-                      <p><span className="text-slate-500">Tài xế:</span> {selectedOrder.driverName || 'Chưa có'}</p>
-                      <p><span className="text-slate-500">Số điện thoại:</span> {selectedOrder.driverPhone || selectedOrder.deliveryPhone || 'Chưa có'}</p>
-                      <p><span className="text-slate-500">Biển số xe:</span> {selectedOrder.vehicleInfo || selectedOrder.trackingCode || 'Chưa có'}</p>
-                    </div>
-                    <div className="mt-3 flex gap-2">
-                      <button className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-semibold text-white inline-flex items-center justify-center gap-1"><MapPin className="h-3.5 w-3.5" /> Xem bản đồ theo dõi</button>
-                      <button className="flex-1 rounded-lg border border-slate-300 py-2 text-xs font-semibold text-slate-700 inline-flex items-center justify-center gap-1"><Phone className="h-3.5 w-3.5" /> Gọi tài xế</button>
-                    </div>
-                  </div>
-                </div>
-              ) : activeTab === 'invoice' ? (
-                <div className="space-y-3">
-                  {findPayablePayment(selectedOrder) ? (
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-extrabold text-emerald-900">Thông tin chuyển khoản demo</p>
-                          <p className="text-xs text-emerald-700">Sàn giữ tiền escrow và chỉ giải ngân sau khi buyer xác nhận nhận hàng.</p>
-                        </div>
-                        <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-emerald-700">
-                          {labeledStatus(findPayablePayment(selectedOrder)?.status, PAYMENT_STATUS_LABELS)}
-                        </span>
-                      </div>
-                      <div className="grid gap-2 text-xs text-slate-700 md:grid-cols-2">
-                        <p><span className="text-slate-500">Ngân hàng:</span> <span className="font-bold">DEMO BANK</span></p>
-                        <p><span className="text-slate-500">Tên tài khoản:</span> <span className="font-bold">AGRIBRIDGE PLATFORM</span></p>
-                        <p><span className="text-slate-500">Số tài khoản:</span> <span className="font-bold">123456789</span></p>
-                        <p><span className="text-slate-500">Số tiền:</span> <span className="font-bold text-emerald-700">{formatCurrency(payableAmountFor(selectedOrder, findPayablePayment(selectedOrder)))}</span></p>
-                        <p className="md:col-span-2"><span className="text-slate-500">Nội dung chuyển khoản:</span> <span className="font-bold text-blue-700">{transferContentFor(selectedOrder, findPayablePayment(selectedOrder))}</span></p>
-                      </div>
-                      <div className="mt-3 flex flex-wrap justify-end gap-2">
-                        {selectedOrder.status === 'PENDING_PAYMENT' || selectedOrder.status === 'PENDING_DEPOSIT' ? (
-                          <button
-                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"
-                            onClick={() => openPaymentModal(selectedOrder, false)}
-                          >
-                            <Receipt className="h-3.5 w-3.5" /> Thanh toán
-                          </button>
-                        ) : null}
-                        {selectedOrder.status === 'WAITING_FINAL_PAYMENT' ? (
-                          <button
-                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"
-                            onClick={() => openPaymentModal(selectedOrder, true)}
-                          >
-                            <Receipt className="h-3.5 w-3.5" /> Thanh toán phần còn lại
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
-                  <div className="rounded-lg border border-slate-200 p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-lg font-extrabold">{selectedOrder.invoiceCode || 'Chưa có hóa đơn'}</p>
-                      <span className="rounded-full bg-red-100 px-2 py-1 text-[11px] font-semibold text-red-600">{INVOICE_STATUS_LABELS[selectedOrder.invoiceStatus || 'UNPAID'] ?? (selectedOrder.invoiceStatus || 'Chưa thanh toán')}</span>
-                    </div>
-                    <p className="text-xs text-slate-500">Ngày phát hành: {formatDate(selectedOrder.createdAt)}</p>
-                    <div className="mt-3 grid gap-2 md:grid-cols-3">
-                      <div className="rounded-md bg-slate-50 p-2"><p className="text-xs text-slate-500">Tổng tiền</p><p className="font-bold">{formatCurrency(selectedOrder.totalAmount)}</p></div>
-                      <div className="rounded-md bg-slate-50 p-2"><p className="text-xs text-slate-500">Đã thanh toán</p><p className="font-bold text-emerald-600">{formatCurrency(selectedOrder.invoicePaidAmount)}</p></div>
-                      <div className="rounded-md bg-slate-50 p-2"><p className="text-xs text-slate-500">Còn lại</p><p className="font-bold text-red-600">{formatCurrency((selectedOrder.totalAmount ?? 0) - (selectedOrder.invoicePaidAmount ?? 0))}</p></div>
-                    </div>
-                    <p className="mt-3 text-xs text-slate-600">Hạn thanh toán: <span className="font-semibold">{formatDate(selectedOrder.invoiceDueDate)}</span></p>
-                    <div className="mt-3 grid gap-2 md:grid-cols-3">
-                      <div className="rounded-md bg-slate-50 p-2 text-xs">
-                        <p className="text-slate-500">Phương thức</p>
-                        <p className="font-bold text-slate-800">{PAYMENT_TYPE_LABELS[selectedOrder.paymentOption || selectedOrder.paymentMethod || ''] ?? (selectedOrder.paymentOption || selectedOrder.paymentMethod || 'Chuyển khoản')}</p>
-                      </div>
-                      <div className="rounded-md bg-slate-50 p-2 text-xs">
-                        <p className="text-slate-500">Thanh toán</p>
-                        <p className="font-bold text-slate-800">{labeledStatus(selectedOrder.paymentStatus, PAYMENT_STATUS_LABELS)}</p>
-                      </div>
-                      <div className="rounded-md bg-slate-50 p-2 text-xs">
-                        <p className="text-slate-500">Escrow</p>
-                        <p className="font-bold text-slate-800">{labeledStatus(selectedOrder.escrowStatus, ESCROW_STATUS_LABELS)}</p>
-                      </div>
-                    </div>
-                    {selectedOrder.payments?.length ? (
-                      <div className="mt-3 space-y-2">
-                        {selectedOrder.payments.map((payment) => (
-                          <div key={payment.id} className="rounded-md bg-slate-50 p-2 text-xs text-slate-600">
-                            <span className="font-semibold">{PAYMENT_TYPE_LABELS[payment.paymentType || payment.paymentMethod || ''] ?? (payment.paymentType || payment.paymentMethod)}</span> · {labeledStatus(payment.status, PAYMENT_STATUS_LABELS)} · {formatCurrency(payment.paidAmount || payment.amount)}
-                            <p className="mt-1 text-[11px] text-slate-500">
-                              {labeledStatus(payment.status, PAYMENT_STATUS_LABELS)} · {labeledStatus(payment.escrowStatus, ESCROW_STATUS_LABELS)}
-                              {payment.transferContent ? <span className="ml-1 font-semibold text-blue-700">· {payment.transferContent}</span> : null}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-3">
-                    <input
-                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                      value={complaintDraft.title}
-                      placeholder="Tiêu đề khiếu nại"
-                      onChange={(event) => setComplaintDraft((current) => ({ ...current, title: event.target.value }))}
-                    />
-                    <select
-                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                      value={complaintDraft.severity}
-                      onChange={(event) => setComplaintDraft((current) => ({ ...current, severity: event.target.value }))}
-                    >
-                      <option value="LOW">Thấp</option>
-                      <option value="MEDIUM">Trung bình</option>
-                      <option value="HIGH">Cao</option>
-                    </select>
-                    <button className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white" onClick={() => void handleCreateComplaint()}>
-                      Tạo khiếu nại
-                    </button>
-                    <textarea
-                      className="min-h-20 rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-3"
-                      value={complaintDraft.description}
-                      placeholder="Mô tả vấn đề cần xử lý..."
-                      onChange={(event) => setComplaintDraft((current) => ({ ...current, description: event.target.value }))}
-                    />
-                  </div>
-                  {selectedOrder.complaints?.length ? (
-                    <div className="space-y-2">
-                      {selectedOrder.complaints.map((complaint) => (
-                        <div key={complaint.id} className="rounded-lg border border-slate-200 p-3 text-sm">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="font-bold text-slate-900">{complaint.title || 'Khiếu nại đơn hàng'}</p>
-                            <span className="rounded-full bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-600">{COMPLAINT_STATUS_LABELS[complaint.status || ''] ?? complaint.status}</span>
-                          </div>
-                          <p className="mt-1 text-slate-600">{complaint.description}</p>
-                          {complaint.resolution ? <p className="mt-2 text-xs font-semibold text-emerald-700">Kết quả: {complaint.resolution}</p> : null}
-                          <p className="mt-2 text-xs text-slate-500">Mức độ: {SEVERITY_LABELS[complaint.severity || 'MEDIUM'] ?? complaint.severity} · {formatDate(complaint.createdAt)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex h-40 items-center justify-center rounded-lg border border-slate-200 text-sm text-slate-500">
-                      Chưa có khiếu nại nào cho đơn hàng này
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 p-3">
-              <button className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700" onClick={() => setOpenDetail(false)}>
-                Đóng
-              </button>
-              <div className="flex gap-2">
-                <button className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700"><Printer className="h-3.5 w-3.5" /> In đơn hàng</button>
-                {selectedOrder.status === 'PENDING_PAYMENT' || selectedOrder.status === 'PENDING_DEPOSIT' ? (
-                  <button
-                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white"
-                    onClick={() => openPaymentModal(selectedOrder, false)}
-                  >
-                    <Receipt className="h-3.5 w-3.5" /> Xác nhận thanh toán
-                  </button>
-                ) : null}
-                {selectedOrder.status === 'WAITING_FINAL_PAYMENT' ? (
-                  <button
-                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white"
-                    onClick={() => openPaymentModal(selectedOrder, true)}
-                  >
-                    <Receipt className="h-3.5 w-3.5" /> Thanh toán phần còn lại
-                  </button>
-                ) : null}
-                {selectedOrder.status === 'WAITING_BUYER_CONFIRM' ? (
-                  <button className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white" onClick={() => void handleConfirmReceived()}>
-                    <Truck className="h-3.5 w-3.5" /> Đã nhận hàng
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </div>
+        <BuyerOrderDetailModal
+          order={selectedOrder}
+          activeTab={activeTab}
+          detailLoading={detailLoading}
+          complaintDraft={complaintDraft}
+          onActiveTabChange={setActiveTab}
+          onClose={() => setOpenDetail(false)}
+          onComplaintDraftChange={setComplaintDraft}
+          onCreateComplaint={() => void handleCreateComplaint()}
+          onOpenPaymentModal={openPaymentModal}
+          onConfirmReceived={() => void handleConfirmReceived()}
+        />
       ) : null}
+
       {paymentModalData ? (
         <BuyerOrderPaymentModal
           open={Boolean(paymentModalData)}

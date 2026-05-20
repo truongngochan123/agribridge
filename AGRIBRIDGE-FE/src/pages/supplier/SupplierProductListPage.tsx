@@ -1709,15 +1709,6 @@ export function SupplierProductListPage() {
               )}
             </div>
 
-            {/* ── Footer ── */}
-            <div className="flex items-center justify-end border-t border-slate-100 bg-slate-50 px-5 py-3">
-              <button
-                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
-                onClick={() => setOpenProductDetailModal(false)}
-              >
-                Đóng
-              </button>
-            </div>
           </div>
         </div>
       ) : null}

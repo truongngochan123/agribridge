@@ -3,6 +3,7 @@ import type { AuthResponse } from './authService'
 type AuthStatus = AuthResponse['status']
 
 const PAYLOAD_KEY = 'agribridge.auth.payload'
+const REMEMBERED_AUTH_KEYS = new Set(['agribridge.auth.rememberEmail', 'agribridge.auth.rememberEnabled'])
 
 export function getStoredAuthSession(): AuthResponse | null {
   const raw = localStorage.getItem(PAYLOAD_KEY)
@@ -43,7 +44,7 @@ export function clearAuthSession() {
   const keysToDelete: string[] = []
   for (let index = 0; index < localStorage.length; index += 1) {
     const key = localStorage.key(index)
-    if (key?.startsWith('agribridge.')) {
+    if (key?.startsWith('agribridge.') && !REMEMBERED_AUTH_KEYS.has(key)) {
       keysToDelete.push(key)
     }
   }

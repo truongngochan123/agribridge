@@ -1,4 +1,7 @@
 {
+    "files.encoding": "utf8",
+    "files.autoGuessEncoding": false,
+    "files.eol": "\n",
     "java.jdt.ls.java.home": "D:\\JDK",
     "java.configuration.runtimes": [
         {

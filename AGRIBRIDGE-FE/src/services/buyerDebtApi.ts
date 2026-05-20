@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient'
+import { dispatchStateSync } from './stateSyncService'
 
 export type BuyerDebtKpi = {
   id: string
@@ -24,6 +25,7 @@ export type BuyerDebtSupplier = {
   limitUsage: number
   isBlocked: boolean
   blockedReason?: string | null
+  creditStatus?: string | null
   status: 'OVERDUE' | 'WARNING' | 'BLOCKED' | 'NORMAL'
   statusLabel: string
 }
@@ -33,6 +35,8 @@ export type BuyerDebtInvoice = {
   invoiceNumber: string
   orderId: number
   orderRef: string
+  branchId?: number | null
+  branchName?: string | null
   productName?: string | null
   quantity?: number | null
   unit?: string | null
@@ -122,7 +126,12 @@ export async function fetchBuyerDebtSupplierDetail(supplierId: number): Promise<
 
 export async function createBuyerDebtPayment(payload: BuyerDebtPaymentPayload) {
   const response = await apiClient.post('/api/buyer/debts/payments', payload)
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['DEBT', 'PAYMENT', 'ORDER', 'DELIVERY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-debt:create-payment',
+    entityId: payload.invoiceId,
+  })
+  return data
 }
 
 export async function exportBuyerDebts(params: { supplierId?: number; status?: string; fromDate?: string; toDate?: string } = {}) {
