@@ -20,7 +20,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(@NonNull StompEndpointRegistry registry) {
         registry.addEndpoint("/ws-chat")
-                .setAllowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")
+                .setAllowedOriginPatterns(
+                        "http://localhost:*",
+                        "http://127.0.0.1:*",
+                        "https://www.agribridge.systems",
+                        "https://agribridge.systems"
+                )
                 .withSockJS();
     }
 }

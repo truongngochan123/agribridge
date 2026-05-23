@@ -11,7 +11,12 @@ public class CorsConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(@NonNull CorsRegistry registry) {
         registry.addMapping("/api/**")
-                .allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")
+                .allowedOriginPatterns(
+                        "http://localhost:*",
+                        "http://127.0.0.1:*",
+                        "https://www.agribridge.systems",
+                        "https://agribridge.systems"
+                )
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .exposedHeaders("Content-Type", "Content-Length", "Authorization")
