@@ -47,7 +47,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -704,10 +703,6 @@ private Integer paymentTermDays(InvoiceEntity invoice) {
                 .filter(payment -> nullToZero(allocatedByPaymentId.get(payment.getId())).compareTo(BigDecimal.ZERO) <= 0)
                 .forEach(payment -> paidByInvoice.merge(payment.getInvoiceId(), paymentAmount(payment), BigDecimal::add));
         return paidByInvoice;
-    }
-
-    private String json(String value) {
-        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private String csv(String value) {

@@ -8,5 +8,9 @@ public interface RfqMessageService {
 
     List<RfqMessageDto> getMessagesByRfq(Long rfqId);
 
+    List<RfqMessageDto> getMessagesForCurrentUser(Long rfqId, Long supplierCompanyId);
+
     RfqMessageDto saveMessage(SendRfqMessageDto request);
+
+    RfqMessageDto saveMessageForCurrentUser(Long rfqId, Long supplierCompanyId, String message);
 }

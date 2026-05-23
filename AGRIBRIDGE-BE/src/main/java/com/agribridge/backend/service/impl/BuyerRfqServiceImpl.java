@@ -73,8 +73,6 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
     private static final String QUOTE_ACCEPTED = "ACCEPTED";
     private static final String QUOTE_REJECTED = "REJECTED";
     private static final String QUOTE_CANCELLED = "CANCELLED";
-    private static final String TYPE_DIRECT = "DIRECT";
-    private static final String TYPE_MARKETPLACE = "MARKETPLACE";
     private static final Set<String> TERMINAL_QUOTES = Set.of(QUOTE_ACCEPTED, QUOTE_REJECTED, QUOTE_CANCELLED);
     private static final DateTimeFormatter INVOICE_TS = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 

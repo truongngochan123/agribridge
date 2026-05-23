@@ -67,8 +67,15 @@ ghn:
 
 app:
   public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:5173}
+  backend-public-base-url: ${APP_BACKEND_PUBLIC_BASE_URL:http://localhost:8025}
   mail:
     enabled: ${APP_MAIL_ENABLED:false}
   database:
     unicode-migration:
       enabled: ${APP_DB_UNICODE_MIGRATION_ENABLED:true}
+
+momo:
+  endpoint: ${MOMO_ENDPOINT:https://test-payment.momo.vn/v2/gateway/api}
+  access-key: ${MOMO_ACCESS_KEY:mTCKt9W3eU1m39TW}
+  partner-code: ${MOMO_PARTNER_CODE:MOMOLRJZ20181206}
+  secret-key: ${MOMO_SECRET_KEY:SetA5RDnLHvt51AULf51DyauxUo3kDU6}

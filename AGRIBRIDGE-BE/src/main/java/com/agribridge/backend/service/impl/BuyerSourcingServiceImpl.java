@@ -348,14 +348,6 @@ public class BuyerSourcingServiceImpl implements BuyerSourcingService {
                                                                 Collectors.toList())));
         }
 
-        private Map<Long, String> firstProductImages(Collection<Long> productIds) {
-                Map<Long, String> result = new LinkedHashMap<>();
-                for (ProductImageEntity image : productImageRepository.findByProductIdIn(productIds)) {
-                        result.putIfAbsent(image.getProductId(), image.getImageUrl());
-                }
-                return result;
-        }
-
         private Map<Long, String> firstBatchImages(List<BatchEntity> batches) {
                 List<Long> batchIds = batches.stream().map(BatchEntity::getId).filter(Objects::nonNull).toList();
                 if (batchIds.isEmpty()) {

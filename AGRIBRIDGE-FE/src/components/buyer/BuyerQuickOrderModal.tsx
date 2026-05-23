@@ -259,6 +259,7 @@
     const [shippingLoading, setShippingLoading] = useState(false)
     const [shippingError, setShippingError] = useState('')          // receiver-side hard error
     const [senderAddressWarning, setSenderAddressWarning] = useState('') // supplier-side soft warning
+    const [shippingQuoteVersion, setShippingQuoteVersion] = useState(0)
     const inFlightShippingQuoteKeyRef = useRef('')
     const [supplierCreditLimit, setSupplierCreditLimit] = useState<BuyerCreditLimit | null>(creditLimit ?? null)
 
@@ -379,6 +380,16 @@
   }, [draftDistrictCode])
 
     useEffect(() => {
+      if (!draftDistrict.trim() || draftDistrictCode.trim() || districtOptions.length === 0) return
+      const matchedDistrict = districtOptions.find((district) => addressNamesMatch(district.name, draftDistrict))
+      if (matchedDistrict) {
+        setDraftDistrictCode(String(matchedDistrict.code))
+        setDraftDistrict(matchedDistrict.name)
+        setDistrictSearch(matchedDistrict.name)
+      }
+    }, [draftDistrict, draftDistrictCode, districtOptions])
+
+    useEffect(() => {
       if (!draftWard.trim() || draftWardCode.trim() || wardOptions.length === 0) return
       const matchedWard = wardOptions.find((ward) => addressNamesMatch(ward.name, draftWard))
       if (matchedWard) {
@@ -458,7 +469,7 @@
       return () => {
         ignore = true
       }
-    }, [buyerInfo.province, buyerInfo.ward, provinceOptions])
+    }, [buyerInfo.province, buyerInfo.district, buyerInfo.ward, provinceOptions])
 
     // ── Derived ──
     const quantityNumber = Number(quantity)
@@ -615,13 +626,28 @@
                       ? 'Vui lòng cập nhật số điện thoại người nhận.'
                       : !buyerInfo.province?.trim()
                         ? 'Vui lòng chọn tỉnh/thành giao hàng.'
-                        : !buyerInfo.ward?.trim()
-                          ? 'Vui lòng chọn xã/phường giao hàng.'
-                          : !buyerInfo.address?.trim()
-                            ? 'Vui lòng nhập địa chỉ chi tiết.'
-                            : ''
+                        : !buyerInfo.district?.trim()
+                          ? 'Vui lòng chọn quận/huyện giao hàng.'
+                          : !buyerInfo.ward?.trim()
+                            ? 'Vui lòng chọn xã/phường giao hàng.'
+                            : !buyerInfo.address?.trim()
+                              ? 'Vui lòng nhập địa chỉ chi tiết.'
+                              : ''
+    const shippingQuoteIssue =
+      validationIssue
+        ? ''
+        : shippingLoading
+          ? 'Đang tính phí vận chuyển, vui lòng chờ trong giây lát.'
+          : shippingError
+            ? shippingError
+            : senderAddressWarning
+              ? senderAddressWarning
+              : !effectiveShippingQuote || shippingFee == null || Number.isNaN(Number(shippingFee))
+                ? 'Chưa có phí vận chuyển. Vui lòng chờ hệ thống tính phí hoặc kiểm tra lại địa chỉ giao hàng.'
+                : ''
     const canSubmit =
       !validationIssue &&
+      !shippingQuoteIssue &&
       !targetExpired &&
       !showStockError &&
       quantityNumber > 0 &&
@@ -648,6 +674,7 @@
       const hasValidQuantity = quantityNumber > 0 && !Number.isNaN(quantityNumber)
       const hasDeliveryAddress = Boolean(
         buyerInfo.province?.trim() &&
+        buyerInfo.district?.trim() &&
         buyerInfo.ward?.trim() &&
         buyerInfo.address?.trim(),
       )
@@ -655,6 +682,7 @@
       if (!hasValidQuantity || !hasDeliveryAddress || subtotal == null) {
         setShippingQuote(null)
         setShippingError(deliveryAddressWarning || '')
+        setSenderAddressWarning('')
         setShippingLoading(false)
         inFlightShippingQuoteKeyRef.current = ''
         return
@@ -662,6 +690,7 @@
 
       if (!deliveryAddressValid) {
         setShippingQuote(null)
+        setSenderAddressWarning('')
         setShippingError(
           deliveryAddressWarning ||
             'Vui lòng chọn lại tỉnh/thành và xã/phường hợp lệ để tính phí vận chuyển',
@@ -680,6 +709,7 @@
         productId: target.productId,
         batchId: target.batchId ?? null,
         subtotal,
+        version: shippingQuoteVersion,
       })
       if (inFlightShippingQuoteKeyRef.current === shippingQuoteKey) {
         return
@@ -688,7 +718,9 @@
       let ignore = false
       inFlightShippingQuoteKeyRef.current = shippingQuoteKey
       setShippingLoading(true)
+      setShippingQuote(null)
       setShippingError('')
+      setSenderAddressWarning('')
 
       const timeoutId = window.setTimeout(() => {
         quoteBuyerShipping({
@@ -724,6 +756,7 @@
                 setShippingError('')
               } else {
                 setShippingQuote(null)
+                setSenderAddressWarning('')
                 setShippingError('Không thể tính phí vận chuyển. Vui lòng kiểm tra địa chỉ hoặc thử lại.')
               }
             }
@@ -731,6 +764,7 @@
           .catch((error) => {
             if (!ignore) {
               setShippingQuote(null)
+              setSenderAddressWarning('')
               setShippingError(
                 error instanceof Error && error.message
                   ? error.message
@@ -764,22 +798,23 @@
       quantityNumber,
       supplierId,
       subtotal,
+      shippingQuoteVersion,
       target.batchId,
       target.productId,
       target.unit,
     ])
 
     // ── Handlers ──
-    const handleSaveAddress = () => {
+    const handleSaveAddress = async () => {
       if (!draftProvinceCode.trim() || !draftProvince.trim()) {
         setAddressEditError('Vui lòng chọn tỉnh/thành từ danh sách.')
         return
       }
-      if (!draftDistrictCode.trim() || !draftDistrict.trim()) {
+      if (!draftDistrict.trim()) {
         setAddressEditError('Vui lòng chọn quận/huyện từ danh sách sau khi chọn tỉnh/thành.')
         return
       }
-      if (!draftWardCode.trim() || !draftWard.trim()) {
+      if (!draftWard.trim()) {
         setAddressEditError('Vui lòng chọn xã/phường từ danh sách sau khi chọn quận/huyện.')
         return
       }
@@ -787,16 +822,62 @@
         setAddressEditError('Vui lòng nhập địa chỉ chi tiết.')
         return
       }
+
+      let resolvedDistrictCode = draftDistrictCode.trim()
+      let resolvedDistrictName = draftDistrict.trim()
+      let resolvedWardName = draftWard.trim()
+
+      try {
+        const districts = districtOptions.length
+          ? districtOptions
+          : await fetchVietnamDistrictsByProvinceCode(Number(draftProvinceCode))
+        const matchedDistrict = districts.find((district) => addressNamesMatch(district.name, resolvedDistrictName))
+        if (!matchedDistrict) {
+          setAddressEditError('Vui lòng chọn quận/huyện từ danh sách sau khi chọn tỉnh/thành.')
+          return
+        }
+
+        resolvedDistrictCode = String(matchedDistrict.code)
+        resolvedDistrictName = matchedDistrict.name
+        setDraftDistrictCode(resolvedDistrictCode)
+        setDraftDistrict(resolvedDistrictName)
+        setDistrictSearch(resolvedDistrictName)
+        setDistrictOptions(districts)
+
+        const wards = wardOptions.length && draftDistrictCode.trim() === resolvedDistrictCode
+          ? wardOptions
+          : await fetchVietnamWardsByDistrictCode(matchedDistrict.code)
+        const matchedWard = wards.find((ward) => addressNamesMatch(ward.name, resolvedWardName))
+        if (!matchedWard) {
+          setAddressEditError('Vui lòng chọn xã/phường từ danh sách sau khi chọn quận/huyện.')
+          return
+        }
+
+        resolvedWardName = matchedWard.name
+        setDraftWardCode(String(matchedWard.code))
+        setDraftWard(resolvedWardName)
+        setWardSearch(resolvedWardName)
+        setWardOptions(wards)
+      } catch {
+        setAddressEditError('Không thể kiểm tra địa chỉ. Vui lòng thử lại.')
+        return
+      }
+
       setAddressEditError('')
       setDeliveryAddressWarning('')
+      setSenderAddressWarning('')
+      setShippingQuote(null)
       setShippingError('')
+      setShippingLoading(true)
+      inFlightShippingQuoteKeyRef.current = ''
+      setShippingQuoteVersion((current) => current + 1)
       setBuyerInfo({
         fullName: draftName.trim() || buyerInfo.fullName,
         companyName: buyerInfo.companyName,
         phone: draftPhone.trim() || buyerInfo.phone,
         province: draftProvince.trim(),
-        district: draftDistrict.trim(),
-        ward: draftWard.trim(),
+        district: resolvedDistrictName,
+        ward: resolvedWardName,
         address: draftAddress.trim(),
       })
       setEditingAddress(false)
@@ -848,6 +929,10 @@
     }
 
     const handleSubmit = () => {
+      if (shippingQuoteIssue || !effectiveShippingQuote || shippingFee == null || Number.isNaN(Number(shippingFee))) {
+        setShippingError(shippingQuoteIssue || 'Chưa có phí vận chuyển. Vui lòng chờ hệ thống tính phí hoặc kiểm tra lại địa chỉ giao hàng.')
+        return
+      }
       if (!canSubmit) return
 
       const payload: BuyerQuickOrderPayload = {
@@ -1142,6 +1227,10 @@
                               setProvinceSearch(e.target.value)
                               setDraftProvince('')
                               setDraftProvinceCode('')
+                              setDraftDistrict('')
+                              setDraftDistrictCode('')
+                              setDistrictSearch('')
+                              setDistrictOptions([])
                               setDraftWard('')
                               setDraftWardCode('')
                               setWardSearch('')
@@ -1164,6 +1253,10 @@
                                       setDraftProvinceCode(String(province.code))
                                       setDraftProvince(province.name)
                                       setProvinceSearch(province.name)
+                                      setDraftDistrict('')
+                                      setDraftDistrictCode('')
+                                      setDistrictSearch('')
+                                      setDistrictOptions([])
                                       setDraftWard('')
                                       setDraftWardCode('')
                                       setWardSearch('')
@@ -1187,7 +1280,7 @@
                       </div>
                       
                       <div>
-                        <label className="mb-1 block text-xs font-semibold text-slate-600">Qu\u1eadn / Huy\u1ec7n</label>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">Quận / Huyện</label>
                         <div className="relative">
                           <input
                             value={districtSearch || draftDistrict}
@@ -1246,7 +1339,7 @@
                         <div className="relative">
                           <input
                             value={wardSearch || draftWard}
-                            disabled={!draftProvinceCode.trim()}
+                            disabled={!draftDistrictCode.trim()}
                             onFocus={() => {
                               setWardSearch('')
                               setShowWardOptions(true)
@@ -1260,9 +1353,9 @@
                               setShowWardOptions(true)
                             }}
                             className="h-10 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                            placeholder={draftProvinceCode.trim() ? 'Chọn hoặc tìm xã/phường' : 'Chọn tỉnh trước'}
+                            placeholder={draftDistrictCode.trim() ? 'Chọn hoặc tìm xã/phường' : 'Chọn quận/huyện trước'}
                           />
-                          {showWardOptions && draftProvinceCode.trim() ? (
+                          {showWardOptions && draftDistrictCode.trim() ? (
                             <div className="absolute z-30 mt-1 max-h-[220px] w-full overflow-y-auto rounded-lg border border-emerald-100 bg-white py-1 text-sm shadow-lg">
                               {filteredWardOptions.length > 0 ? (
                                 filteredWardOptions.map((ward) => (
@@ -1555,7 +1648,7 @@
           {/* ── Footer ── */}
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-3">
             <p className="min-w-0 flex-1 text-xs font-semibold text-rose-600">
-              {validationIssue || (targetExpired ? 'Lô hàng này đã hết hạn hoặc không còn khả dụng.' : '') || (showStockError ? 'Số lượng đặt vượt quá tồn kho hiện có.' : '')}
+              {validationIssue || shippingQuoteIssue || (targetExpired ? 'Lô hàng này đã hết hạn hoặc không còn khả dụng.' : '') || (showStockError ? 'Số lượng đặt vượt quá tồn kho hiện có.' : '')}
             </p>
             <div className="flex shrink-0 items-center gap-2">
             <button
@@ -1600,4 +1693,3 @@
     BuyerQuickOrderPayload,
     BuyerQuickOrderTarget,
   } from './buyerQuickOrderTypes'
-

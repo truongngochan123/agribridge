@@ -61,6 +61,7 @@ type BuyerSourcingProductDetail = BuyerSourcingProduct & {
 
 type QuickOrderPaymentModalData = {
   orderId: number
+  paymentId?: number | null
   orderCode: string
   productName: string
   quantity: number
@@ -589,6 +590,7 @@ export function BuyerSourcingPage() {
       if (currentTarget) {
         setPaymentModalData({
           orderId: result.orderId,
+          paymentId: result.paymentId,
           orderCode: result.orderCode,
           productName: currentTarget.productName,
           quantity: payload.quantity,
@@ -617,7 +619,7 @@ export function BuyerSourcingPage() {
 
   const handleConfirmPayment = async () => {
     if (!paymentModalData) return
-    const updated = await confirmPayment({ orderId: paymentModalData.orderId })
+    const updated = await confirmPayment({ orderId: paymentModalData.orderId, paymentId: paymentModalData.paymentId })
     if (updated) {
       setPaymentModalData(null)
       navigate(`/buyer/orders?orderId=${paymentModalData.orderId}`)
@@ -931,135 +933,257 @@ export function BuyerSourcingPage() {
       ) : null}
 
       {rfqProduct && rfqForm ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/50 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 bg-white px-5 py-4">
-              <div>
-                <h3 className="text-xl font-extrabold text-emerald-950">Tạo RFQ theo sản phẩm</h3>
-                <p className="text-sm text-emerald-700/70">{rfqProduct.productName} · {rfqProduct.categoryName || '--'}</p>
-              </div>
-              <button onClick={() => setRfqProduct(null)} className="rounded-lg p-1 text-emerald-700 hover:bg-emerald-50"><X className="h-5 w-5" /></button>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/60 p-4 backdrop-blur-md">
+          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_32px_80px_rgba(0,0,0,0.3)]">
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-              <div className="flex items-start gap-3">
-                <img
-                  src={resolveUploadedFileUrl(rfqProduct.imageUrl || '') || placeholderImage}
-                  alt={rfqProduct.productName}
-                  className="h-16 w-16 shrink-0 rounded-xl object-cover"
-                />
-                <div className="min-w-0 flex-1">
-                  <h4 className="truncate text-base font-black text-slate-900">{rfqProduct.productName}</h4>
-                  <p className="mt-0.5 truncate text-xs font-semibold text-slate-600">{rfqProduct.supplierName || 'Nhà cung cấp'}</p>
-                  <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
-                    <BuyerInfoChip label="Giá tham khảo" value={formatPrice(rfqProduct)} highlight />
-                    <BuyerInfoChip label="MOQ" value={formatQuantity(rfqProduct.minMoq, rfqProduct.unit)} />
-                    <BuyerInfoChip label="Tồn kho" value={formatQuantity(rfqProduct.totalAvailableQuantity, rfqProduct.unit)} />
-                    <BuyerInfoChip label="Xuất xứ" value={rfqProduct.originRegion || '--'} />
-                    <BuyerInfoChip label="Danh mục" value={rfqProduct.categoryName || '--'} />
-                    <BuyerInfoChip label="Đơn vị" value={rfqProduct.unit || '--'} />
+            {/* ── Header ── */}
+            <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-emerald-800 via-emerald-700 to-teal-600 px-6 py-5">
+              <div
+                className="pointer-events-none absolute inset-0 opacity-20"
+                style={{ backgroundImage: 'radial-gradient(ellipse at 85% 10%, rgba(255,255,255,0.6) 0%, transparent 60%)' }}
+              />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 border-white/25 shadow-lg overflow-hidden bg-white/10">
+                    <img
+                      src={resolveUploadedFileUrl(rfqProduct.imageUrl || '') || placeholderImage}
+                      alt={rfqProduct.productName}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="truncate text-lg font-black text-white drop-shadow">Tạo yêu cầu báo giá</h3>
+                      <span className="inline-flex items-center rounded-full bg-amber-400/20 px-2.5 py-0.5 text-[10px] font-bold text-amber-200 ring-1 ring-amber-300/30">
+                        RFQ
+                      </span>
+                    </div>
+                    <p className="mt-0.5 truncate text-sm text-white/70">
+                      {rfqProduct.productName}
+                      {rfqProduct.categoryName ? <span className="opacity-60"> · {rfqProduct.categoryName}</span> : null}
+                    </p>
                   </div>
                 </div>
+                <button
+                  onClick={() => setRfqProduct(null)}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white/80 transition hover:bg-white/25"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Product stats chips */}
+              <div className="relative mt-4 flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/80 ring-1 ring-white/15 backdrop-blur-sm">
+                  Giá tham khảo: <span className="font-black text-emerald-200">{formatPrice(rfqProduct)}</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/80 ring-1 ring-white/15 backdrop-blur-sm">
+                  MOQ: <span className="font-black text-white">{formatQuantity(rfqProduct.minMoq, rfqProduct.unit)}</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/80 ring-1 ring-white/15 backdrop-blur-sm">
+                  Tồn: <span className="font-black text-white">{formatQuantity(rfqProduct.totalAvailableQuantity, rfqProduct.unit)}</span>
+                </span>
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ring-1 backdrop-blur-sm ${rfqProduct.hasAvailableStock ? 'bg-emerald-400/20 text-emerald-200 ring-emerald-300/30' : 'bg-rose-400/20 text-rose-200 ring-rose-300/30'}`}>
+                  {rfqProduct.hasAvailableStock ? 'Còn hàng' : 'Hết hàng'}
+                </span>
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-semibold text-emerald-950">Số lượng *</label>
-                <input
-                  value={rfqForm.quantity}
-                  onChange={(event) => setRfqForm({ ...rfqForm, quantity: event.target.value })}
-                  type="number"
-                  min="0"
-                  className="h-11 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm"
-                  placeholder={`Tối thiểu ${formatQuantity(rfqProduct.minMoq, rfqProduct.unit)}`}
-                />
-                {rfqProduct.minMoq != null && Number(rfqForm.quantity) > 0 && Number(rfqForm.quantity) < rfqProduct.minMoq ? (
-                  <p className="mt-1 text-xs font-semibold text-amber-600">
-                    Số lượng đang thấp hơn MOQ {formatQuantity(rfqProduct.minMoq, rfqProduct.unit)}. Nhà cung cấp có thể không chấp nhận.
+            {/* ── Body ── */}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <div className="space-y-4 p-5">
+
+                {/* Section 1: Số lượng & Đơn vị */}
+                <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100">
+                      <span className="text-sm">📦</span>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">Thông tin sản phẩm</p>
+                      <p className="text-[10px] text-slate-400">Số lượng và đơn vị tính cần mua</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 p-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                        Số lượng <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        value={rfqForm.quantity}
+                        onChange={(e) => setRfqForm({ ...rfqForm, quantity: e.target.value })}
+                        type="number"
+                        min="0"
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                        placeholder={`Min: ${formatQuantity(rfqProduct.minMoq, rfqProduct.unit)}`}
+                      />
+                      {rfqProduct.minMoq != null && Number(rfqForm.quantity) > 0 && Number(rfqForm.quantity) < rfqProduct.minMoq ? (
+                        <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-amber-600">
+                          ⚠ Thấp hơn MOQ {formatQuantity(rfqProduct.minMoq, rfqProduct.unit)}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div>
+                      <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                        Đơn vị <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        value={rfqForm.unit}
+                        onChange={(e) => setRfqForm({ ...rfqForm, unit: e.target.value })}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                        placeholder="kg, thùng, tấn..."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Thời gian */}
+                <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100">
+                      <span className="text-sm">📅</span>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">Thời gian</p>
+                      <p className="text-[10px] text-slate-400">Hạn báo giá và ngày giao hàng dự kiến</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 p-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                        Hạn nhận báo giá <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        value={rfqForm.expiredDate}
+                        onChange={(e) => setRfqForm({ ...rfqForm, expiredDate: e.target.value })}
+                        type="date"
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                      />
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <button type="button" onClick={() => setRfqForm({ ...rfqForm, expiredDate: dateAfterDays(0) })} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700">Hôm nay</button>
+                        {[3, 7].map((d) => (
+                          <button key={d} type="button" onClick={() => setRfqForm({ ...rfqForm, expiredDate: dateAfterDays(d) })} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700">+{d} ngày</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                        Ngày giao dự kiến <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        value={rfqForm.deliveryDate}
+                        onChange={(e) => setRfqForm({ ...rfqForm, deliveryDate: e.target.value })}
+                        type="date"
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                      />
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {[3, 7, 14].map((d) => (
+                          <button key={d} type="button" onClick={() => setRfqForm({ ...rfqForm, deliveryDate: dateAfterDays(d) })} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700">+{d} ngày</button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3: Địa điểm & Mô tả */}
+                <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100">
+                      <span className="text-sm">📍</span>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">Địa điểm & Yêu cầu</p>
+                      <p className="text-[10px] text-slate-400">Nơi giao hàng và chi tiết nhu cầu</p>
+                    </div>
+                  </div>
+                  <div className="space-y-4 p-4">
+                    <div>
+                      <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                        Tỉnh/Khu vực giao hàng <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        value={rfqForm.province}
+                        onChange={(e) => setRfqForm({ ...rfqForm, province: e.target.value })}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                        placeholder="Ví dụ: TP. Hồ Chí Minh"
+                      />
+                      {isRfqProvinceAutoFilled ? (
+                        <p className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-400">
+                          <span className="inline-block h-3.5 w-3.5 rounded-full bg-emerald-100 text-center text-[9px] font-bold leading-[14px] text-emerald-600">✓</span>
+                          Tự động điền từ chi nhánh của bạn — có thể chỉnh nếu cần.
+                        </p>
+                      ) : null}
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Mô tả nhu cầu</label>
+                      <textarea
+                        value={rfqForm.description}
+                        onChange={(e) => setRfqForm({ ...rfqForm, description: e.target.value })}
+                        rows={3}
+                        className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                        placeholder="Ví dụ: cần loại A, đóng thùng 20kg, giao trước 8h sáng, ưu tiên VietGAP..."
+                      />
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {descriptionSuggestions.map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => {
+                              const cur = rfqForm.description.trim()
+                              setRfqForm({ ...rfqForm, description: cur ? `${cur}; ${s}` : s })
+                            }}
+                            className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                          >
+                            + {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live summary banner */}
+                <div className="rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600 mb-1">📋 Tóm tắt yêu cầu</p>
+                  <p className="text-xs leading-relaxed text-emerald-900">
+                    Cần mua <span className="font-extrabold text-emerald-700">{rfqForm.quantity || '--'} {rfqForm.unit || rfqProduct.unit || ''}</span> {rfqProduct.productName} · giao tại <span className="font-bold">{rfqForm.province || '--'}</span> · hạn báo giá <span className="font-bold">{rfqForm.expiredDate || '--'}</span> · ngày giao <span className="font-bold">{rfqForm.deliveryDate || '--'}</span>.
                   </p>
-                ) : null}
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-semibold text-emerald-950">Đơn vị *</label>
-                <input value={rfqForm.unit} onChange={(event) => setRfqForm({ ...rfqForm, unit: event.target.value })} className="h-11 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm" placeholder="kg, thùng, tấn..." />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-semibold text-emerald-950">Ngày giao dự kiến *</label>
-                <input value={rfqForm.deliveryDate} onChange={(event) => setRfqForm({ ...rfqForm, deliveryDate: event.target.value })} type="date" className="h-11 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm" />
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {[3, 7, 14].map((days) => (
-                    <button key={days} type="button" onClick={() => setRfqForm({ ...rfqForm, deliveryDate: dateAfterDays(days) })} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50">
-                      {days} ngày
-                    </button>
-                  ))}
                 </div>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-semibold text-emerald-950">Hạn báo giá *</label>
-                <input value={rfqForm.expiredDate} onChange={(event) => setRfqForm({ ...rfqForm, expiredDate: event.target.value })} type="date" className="h-11 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm" />
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <button type="button" onClick={() => setRfqForm({ ...rfqForm, expiredDate: dateAfterDays(0) })} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50">Hôm nay</button>
-                  {[3, 7].map((days) => (
-                    <button key={days} type="button" onClick={() => setRfqForm({ ...rfqForm, expiredDate: dateAfterDays(days) })} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50">
-                      {days} ngày
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-semibold text-emerald-950">Tỉnh/khu vực giao hàng *</label>
-                <input
-                  value={rfqForm.province}
-                  onChange={(event) => setRfqForm({ ...rfqForm, province: event.target.value })}
-                  className="h-11 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 text-sm"
-                  placeholder="Nhập tỉnh/khu vực nhận hàng, ví dụ: TP. Hồ Chí Minh"
-                />
-                {isRfqProvinceAutoFilled ? (
-                  <p className="mt-1 text-xs font-medium text-slate-500">
-                    Mặc định lấy từ địa chỉ/chi nhánh của bạn, có thể chỉnh nếu muốn giao nơi khác.
-                  </p>
-                ) : null}
-              </div>
-              <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-semibold text-emerald-950">Mô tả nhu cầu</label>
-                <textarea
-                  value={rfqForm.description}
-                  onChange={(event) => setRfqForm({ ...rfqForm, description: event.target.value })}
-                  className="h-24 w-full rounded-lg border border-emerald-200 bg-emerald-50/30 px-3 py-2 text-sm"
-                  placeholder="Ví dụ: cần loại A, đóng thùng xốp 20kg, giao trước 8h sáng, ưu tiên có chứng chỉ VietGAP/QC."
-                />
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {descriptionSuggestions.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      onClick={() => {
-                        const current = rfqForm.description.trim()
-                        setRfqForm({ ...rfqForm, description: current ? `${current}; ${suggestion}` : suggestion })
-                      }}
-                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
+
               </div>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 text-sm text-emerald-900">
-              Bạn sắp gửi RFQ: Cần mua <span className="font-bold">{rfqForm.quantity || '--'} {rfqForm.unit || rfqProduct.unit || ''}</span> {rfqProduct.productName}, giao tại <span className="font-bold">{rfqForm.province || '--'}</span>, hạn báo giá <span className="font-bold">{rfqForm.expiredDate || '--'}</span>, ngày giao <span className="font-bold">{rfqForm.deliveryDate || '--'}</span>.
+            {/* ── Footer ── */}
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-5 py-4">
+              <p className="text-[11px] text-slate-400">
+                <span className="text-rose-500">*</span> Trường bắt buộc
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setRfqProduct(null)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
+                >
+                  Hủy
+                </button>
+                <button
+                  disabled={submittingRfq}
+                  onClick={submitRfq}
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-5 py-2 text-sm font-bold text-white shadow-md transition hover:opacity-90 active:scale-95 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {submittingRfq ? (
+                    <>
+                      <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Đang gửi...
+                    </>
+                  ) : (
+                    <>
+                      Gửi RFQ
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
-            </div>
-
-            <div className="flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
-              <button onClick={() => setRfqProduct(null)} className="rounded-lg border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700">Hủy</button>
-              <button disabled={submittingRfq} onClick={submitRfq} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-wait disabled:bg-emerald-300">
-                {submittingRfq ? 'Đang gửi...' : 'Gửi RFQ'}
-              </button>
-            </div>
           </div>
         </div>
       ) : null}

@@ -5,6 +5,7 @@ export type SupplierMenuKey =
   | 'orders'
   | 'delivery'
   | 'debt'
+  | 'wallet'
   | 'reports'
 
 export interface SupplierMenuItem {

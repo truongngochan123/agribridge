@@ -1,4 +1,4 @@
-import { CreditCard, Landmark, QrCode, X } from 'lucide-react'
+import { CreditCard, Landmark, X } from 'lucide-react'
 import type { BuyerPaymentMethod } from './buyerQuickOrderTypes'
 
 export type BuyerPaymentInstructionModalProps = {
@@ -167,9 +167,9 @@ export function BuyerPaymentInstructionModal({
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-slate-700">
                   <span className="text-slate-500">Ngân hàng</span>
-                  <span className="font-semibold">DEMO BANK</span>
+                  <span className="font-semibold">MoMo ATM</span>
                   <span className="text-slate-500">Số tài khoản</span>
-                  <span className="font-semibold">123456789</span>
+                  <span className="font-semibold">AGRIBRIDGE ESCROW</span>
                   <span className="text-slate-500">Chủ tài khoản</span>
                   <span className="font-semibold">AGRIBRIDGE PLATFORM</span>
                   <span className="text-slate-500">Nội dung</span>
@@ -185,7 +185,7 @@ export function BuyerPaymentInstructionModal({
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 rounded-xl border border-dashed border-slate-300 p-3.5">
+              {/* <div className="flex items-center gap-3 rounded-xl border border-dashed border-slate-300 p-3.5">
                 <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50">
                   <QrCode className="h-10 w-10 text-slate-400" />
                 </div>
@@ -198,7 +198,7 @@ export function BuyerPaymentInstructionModal({
                     </p>
                   ) : null}
                 </div>
-              </div>
+              </div> */}
             </>
           )}
 
@@ -210,7 +210,7 @@ export function BuyerPaymentInstructionModal({
                 disabled={submitting}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
               >
-                {submitting ? 'Đang xác nhận...' : '[Demo] Xác nhận đã thanh toán'}
+                {submitting ? 'Đang xác nhận...' : 'Xác nhận đã thanh toán'}
               </button>
             </div>
           ) : null}

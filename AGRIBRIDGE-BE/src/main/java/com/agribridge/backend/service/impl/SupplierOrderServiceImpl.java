@@ -11,8 +11,6 @@ import com.agribridge.backend.entity.BranchEntity;
 import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.OrderEntity;
 import com.agribridge.backend.entity.OrderItemEntity;
-import com.agribridge.backend.entity.InvoiceEntity;
-import com.agribridge.backend.entity.PaymentEntity;
 import com.agribridge.backend.entity.ProductEntity;
 import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.ShipmentEventEntity;
@@ -26,8 +24,6 @@ import com.agribridge.backend.repository.BranchRepository;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.OrderItemRepository;
 import com.agribridge.backend.repository.OrderRepository;
-import com.agribridge.backend.repository.InvoiceRepository;
-import com.agribridge.backend.repository.PaymentRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.ShipmentEventRepository;
 import com.agribridge.backend.repository.ShipmentIncidentRepository;
@@ -72,8 +68,6 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
     private final OrderItemRepository orderItemRepository;
     private final CompanyRepository companyRepository;
     private final BranchRepository branchRepository;
-    private final InvoiceRepository invoiceRepository;
-    private final PaymentRepository paymentRepository;
     private final BatchRepository batchRepository;
     private final ProductRepository productRepository;
     private final ShipmentRepository shipmentRepository;
@@ -849,23 +843,6 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         };
     }
 
-    private String normalizeIncidentStatus(String rawStatus) {
-        String status = normalizeText(rawStatus);
-        if (status == null) {
-            return "UNDER_REVIEW";
-        }
-        return switch (status.toUpperCase(Locale.ROOT)) {
-            case "OPEN", "PENDING_SUPPLIER_RESPONSE", "WAITING_SUPPLIER_RESPONSE", "BUYER_REPORTED" -> "WAITING_SUPPLIER_RESPONSE";
-            case "UNDER_REVIEW", "PROCESSING", "INVESTIGATING", "SUPPLIER_PROPOSED_RESOLUTION" -> "SUPPLIER_PROPOSED_RESOLUTION";
-            case "WAITING_BUYER_RESPONSE", "WAITING_BUYER", "WAITING_BUYER_CONFIRMATION" -> "WAITING_BUYER_CONFIRMATION";
-            case "NEGOTIATING" -> "NEGOTIATING";
-            case "ESCALATED" -> "ESCALATED";
-            case "RESOLVED" -> "RESOLVED";
-            case "REJECTED" -> "REJECTED";
-            case "COMPENSATED" -> "COMPENSATED";
-            default -> throw new IllegalArgumentException("Incident status is invalid");
-        };
-    }
 
     private String incidentEventDescription(String action, String status, String resolutionType, String note, BigDecimal compensationAmount) {
         String normalizedAction = action == null ? "RESPOND" : action.trim().toUpperCase(Locale.ROOT);
@@ -1060,50 +1037,6 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         return value == null ? BigDecimal.ZERO : value;
     }
 
-    private void syncOrderFinancialsWithGhnFee(OrderEntity order, BigDecimal shippingFee, LocalDateTime now) {
-        BigDecimal subtotal = safeAmount(order.getSubtotal());
-        BigDecimal grandTotal = subtotal.add(safeAmount(shippingFee));
-        order.setShippingFee(safeAmount(shippingFee));
-        order.setTotalAmount(grandTotal);
-        if ("DEPOSIT_50".equals(order.getPaymentOption())) {
-            BigDecimal deposit = grandTotal.multiply(new BigDecimal("0.50"));
-            BigDecimal balance = grandTotal.subtract(deposit);
-            order.setDepositAmount(deposit);
-            order.setBalanceAmount(balance);
-            order.setRemainingAmount(balance);
-        }
-        order.setUpdatedAt(now);
-        orderRepository.save(order);
-
-        InvoiceEntity invoice = invoiceRepository.findTopByOrderIdOrderByCreatedAtDesc(order.getId()).orElse(null);
-        if (invoice != null) {
-            invoice.setShippingFee(safeAmount(shippingFee));
-            invoice.setTotalAmount(grandTotal);
-            invoice.setAdjustedAmount(grandTotal);
-            if ("DEPOSIT_50".equals(order.getPaymentOption())) {
-                invoice.setDepositAmount(order.getDepositAmount());
-                invoice.setBalanceAmount(order.getBalanceAmount());
-            }
-            invoiceRepository.save(invoice);
-        }
-
-        List<PaymentEntity> payments = paymentRepository.findByOrderIdOrderByPaymentDateDesc(order.getId());
-        for (PaymentEntity payment : payments) {
-            if (!"WAITING_TRANSFER".equals(payment.getStatus())) {
-                continue;
-            }
-            if ("REMAINING".equals(payment.getPaymentType())) {
-                continue;
-            }
-            if ("DEPOSIT".equals(payment.getPaymentType())) {
-                payment.setAmount(order.getDepositAmount());
-            } else {
-                payment.setAmount(grandTotal);
-            }
-            payment.setUpdatedAt(now);
-            paymentRepository.save(payment);
-        }
-    }
 
     private String safeText(String value) {
         return value == null || value.isBlank() ? "N/A" : value;

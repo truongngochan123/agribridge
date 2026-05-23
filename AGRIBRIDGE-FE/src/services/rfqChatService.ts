@@ -19,6 +19,7 @@ function isRfqMessage(value: unknown): value is RfqMessage {
   return (
     typeof value.id === 'number'
     && typeof value.rfqId === 'number'
+    && typeof value.supplierCompanyId === 'number'
     && typeof value.senderUserId === 'number'
     && typeof value.senderCompanyId === 'number'
     && (value.senderRole === 'BUYER' || value.senderRole === 'SUPPLIER' || value.senderRole === 'ADMIN')
@@ -36,13 +37,21 @@ function parseRfqMessage(frame: IMessage): RfqMessage | null {
   }
 }
 
-export async function fetchRfqMessages(rfqId: number): Promise<RfqMessage[]> {
-  const response = await apiClient.get<RfqMessage[]>(`/api/rfqs/${rfqId}/messages`)
+export async function fetchRfqMessages(rfqId: number, supplierCompanyId?: number | null): Promise<RfqMessage[]> {
+  const response = await apiClient.get<RfqMessage[]>(`/api/rfqs/${rfqId}/messages`, {
+    params: supplierCompanyId ? { supplierCompanyId } : undefined,
+  })
+  return response.data
+}
+
+export async function sendRfqMessage(rfqId: number, payload: SendRfqMessagePayload): Promise<RfqMessage> {
+  const response = await apiClient.post<RfqMessage>(`/api/rfqs/${rfqId}/messages`, payload)
   return response.data
 }
 
 export function createRfqChatClient(
   rfqId: number,
+  supplierCompanyId: number,
   onMessage: RfqMessageHandler,
   onError?: RfqChatErrorHandler,
   onConnected?: () => void,
@@ -55,7 +64,7 @@ export function createRfqChatClient(
     heartbeatOutgoing: 10000,
     webSocketFactory: () => new SockJS(`${API_BASE_URL}/ws-chat`),
     onConnect: () => {
-      subscription = client.subscribe(`/topic/rfq.${rfqId}`, (frame) => {
+      subscription = client.subscribe(`/topic/rfq.${rfqId}.supplier.${supplierCompanyId}`, (frame) => {
         const message = parseRfqMessage(frame)
         if (message) {
           onMessage(message)
@@ -82,11 +91,4 @@ export function createRfqChatClient(
   }
 
   return client
-}
-
-export function sendRfqMessage(client: Client, payload: SendRfqMessagePayload): void {
-  client.publish({
-    destination: '/app/chat.send',
-    body: JSON.stringify(payload),
-  })
 }

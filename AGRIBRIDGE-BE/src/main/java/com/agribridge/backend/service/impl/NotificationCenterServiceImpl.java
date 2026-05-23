@@ -576,6 +576,19 @@ public class NotificationCenterServiceImpl implements NotificationCenterService 
         return value == null || value.isBlank() ? fallback : value.trim();
     }
 
+    private String firstText(String value, String second, String... fallbacks) {
+        String cleaned = firstText(value, null);
+        if (cleaned != null) return cleaned;
+        cleaned = firstText(second, null);
+        if (cleaned != null) return cleaned;
+        if (fallbacks == null) return null;
+        for (String fallback : fallbacks) {
+            cleaned = firstText(fallback, null);
+            if (cleaned != null) return cleaned;
+        }
+        return null;
+    }
+
     private String stringValue(Object value, String fallback) {
         return value instanceof String text && !text.isBlank() ? text : fallback;
     }

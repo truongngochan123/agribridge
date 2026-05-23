@@ -18,7 +18,7 @@ import {
   Warehouse,
   X,
 } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { BuyerPanel, SearchInput } from '../../components/buyer/BuyerCommon'
 import { AlertTriangle } from 'lucide-react'
@@ -31,6 +31,7 @@ import { useToast } from '../../hooks/useToast'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   confirmBuyerOrderReceived,
+  confirmMomoReturn,
   createBuyerOrderComplaint,
   fetchBuyerOrder,
   fetchBuyerOrders,
@@ -39,6 +40,57 @@ import {
 } from '../../services/buyerOrderService'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
 import { getBranchContextFromSearchParams, matchesBranchContext } from '../../utils/branchContext'
+
+const windows1252ByteMap: Record<number, number> = {
+  0x20ac: 0x80,
+  0x201a: 0x82,
+  0x0192: 0x83,
+  0x201e: 0x84,
+  0x2026: 0x85,
+  0x2020: 0x86,
+  0x2021: 0x87,
+  0x02c6: 0x88,
+  0x2030: 0x89,
+  0x0160: 0x8a,
+  0x2039: 0x8b,
+  0x0152: 0x8c,
+  0x017d: 0x8e,
+  0x2018: 0x91,
+  0x2019: 0x92,
+  0x201c: 0x93,
+  0x201d: 0x94,
+  0x2022: 0x95,
+  0x2013: 0x96,
+  0x2014: 0x97,
+  0x02dc: 0x98,
+  0x2122: 0x99,
+  0x0161: 0x9a,
+  0x203a: 0x9b,
+  0x0153: 0x9c,
+  0x017e: 0x9e,
+  0x0178: 0x9f,
+}
+
+function normalizeVietnameseText(value?: string | number | null) {
+  if (value == null) return ''
+  const text = String(value).normalize('NFC')
+  if (!/[\u00c2-\u00c4\u00c6-\u00cf\u00e1\u00e2\u00e3\u00e8-\u00ef\u00f2-\u00f5\u00f9-\u00fd\u2018-\u201d\u2022\ufffd]/.test(text)) return text
+  if (text.includes('\ufffd')) return text
+
+  const bytes: number[] = []
+  for (const char of text) {
+    const code = char.charCodeAt(0)
+    const byte = code <= 0xff ? code : windows1252ByteMap[code]
+    if (byte == null) return text
+    bytes.push(byte)
+  }
+
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(bytes)).normalize('NFC')
+  } catch {
+    return text
+  }
+}
 
 function formatCurrency(value?: number | null) {
   return `${Number(value ?? 0).toLocaleString('vi-VN')}đ`
@@ -175,10 +227,13 @@ function labeledStatus(status?: string | null, labels: Record<string, string> = 
 
 function findPayablePayment(order?: BuyerOrder | null): BuyerOrderPayment | null {
   if (!order) return null
+  if (isOrderAlreadyPaid(order)) return null
   if (order.status === 'WAITING_FINAL_PAYMENT') {
+    const remaining = remainingPayableFor(order)
+    if (remaining <= 0) return null
     return {
       id: 0,
-      amount: order.remainingAmount ?? Math.max((order.totalAmount ?? 0) - (order.invoicePaidAmount ?? 0), 0),
+      amount: remaining,
       paidAmount: 0,
       paymentMethod: 'BANK_TRANSFER_DEMO',
       paymentType: 'REMAINING',
@@ -189,9 +244,9 @@ function findPayablePayment(order?: BuyerOrder | null): BuyerOrderPayment | null
   }
   if (!order.payments?.length) return null
   if (order.status === 'PENDING_PAYMENT' || order.status === 'PENDING_DEPOSIT') {
-    return order.payments.find((payment) => payment.status === 'WAITING_TRANSFER') ?? order.payments[0]
+    return order.payments.find((payment) => isPayablePayment(payment)) ?? null
   }
-  return order.payments.find((payment) => payment.status === 'WAITING_REMAINING_PAYMENT') ?? null
+  return order.payments.find((payment) => payment.status === 'WAITING_REMAINING_PAYMENT' && isPayablePayment(payment)) ?? null
 }
 
 function transferContentFor(order: BuyerOrder, payment?: BuyerOrderPayment | null) {
@@ -202,10 +257,33 @@ function transferContentFor(order: BuyerOrder, payment?: BuyerOrderPayment | nul
 }
 
 function payableAmountFor(order: BuyerOrder, payment?: BuyerOrderPayment | null) {
-  if (payment?.amount != null) return payment.amount
-  if (order.status === 'WAITING_FINAL_PAYMENT') return order.remainingAmount ?? Math.max((order.totalAmount ?? 0) - (order.invoicePaidAmount ?? 0), 0)
+  if (payment?.amount != null) return Math.max((payment.amount ?? 0) - (payment.paidAmount ?? 0), 0)
+  if (order.status === 'WAITING_FINAL_PAYMENT') return remainingPayableFor(order)
   if (order.status === 'PENDING_DEPOSIT') return order.depositAmount ?? (order.totalAmount ?? 0) * 0.5
-  return order.totalAmount ?? 0
+  return Math.max((order.totalAmount ?? 0) - (order.invoicePaidAmount ?? 0), 0)
+}
+
+function remainingPayableFor(order: BuyerOrder) {
+  return Math.max(order.remainingAmount ?? ((order.totalAmount ?? 0) - (order.invoicePaidAmount ?? 0)), 0)
+}
+
+function isPaidStatus(status?: string | null) {
+  return ['PAID', 'PARTIALLY_PAID', 'COMPLETED', 'CONFIRMED', 'SUCCESS'].includes((status || '').trim().toUpperCase())
+}
+
+function isPayablePayment(payment?: BuyerOrderPayment | null) {
+  if (!payment || isPaidStatus(payment.status)) return false
+  return Math.max((payment.amount ?? 0) - (payment.paidAmount ?? 0), 0) > 0
+}
+
+function isOrderAlreadyPaid(order: BuyerOrder) {
+  if (order.invoiceStatus === 'PAID' || order.paymentStatus === 'PAID') return true
+  if ((order.invoicePaidAmount ?? 0) >= (order.totalAmount ?? Number.POSITIVE_INFINITY)) return true
+  return order.payments?.some((payment) => isPaidStatus(payment.status) || (payment.amount ?? 0) > 0 && (payment.paidAmount ?? 0) >= (payment.amount ?? 0)) ?? false
+}
+
+function canPayInitialOrder(order: BuyerOrder) {
+  return (order.status === 'PENDING_PAYMENT' || order.status === 'PENDING_DEPOSIT') && Boolean(findPayablePayment(order))
 }
 
 const ORDER_FILTERS = [
@@ -698,20 +776,24 @@ function BuyerOrderDetailModal({
                   <EnterpriseStatusPill label={risk ? 'Có rủi ro giao hàng' : shipmentStatus} tone={risk ? 'danger' : statusTone(order.shipment?.shipmentStatus || order.status)} />
                 </div>
                 <div className="space-y-4">
-                  {(order.trackingEvents?.length ? order.trackingEvents : [{ title: 'Đơn hàng được tạo', time: formatDate(order.createdAt), done: true }]).map((event, index, events) => (
-                    <div key={`${event.title}-${event.time}`} className="flex gap-3">
-                      <div className="flex flex-col items-center">
-                        <span className={`flex h-9 w-9 items-center justify-center rounded-2xl ring-4 ${event.done ? 'bg-emerald-600 text-white ring-emerald-50' : 'bg-white text-slate-400 ring-slate-100'}`}>
-                          {event.done ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
-                        </span>
-                        {index < events.length - 1 ? <span className="mt-1 h-8 w-px bg-slate-200" /> : null}
+                  {(order.trackingEvents?.length ? order.trackingEvents : [{ title: 'Đơn hàng được tạo', time: formatDate(order.createdAt), done: true }]).map((event, index, events) => {
+                    const title = normalizeVietnameseText(event.title)
+                    const time = normalizeVietnameseText(event.time)
+                    return (
+                      <div key={`${title}-${time}`} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <span className={`flex h-9 w-9 items-center justify-center rounded-2xl ring-4 ${event.done ? 'bg-emerald-600 text-white ring-emerald-50' : 'bg-white text-slate-400 ring-slate-100'}`}>
+                            {event.done ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
+                          </span>
+                          {index < events.length - 1 ? <span className="mt-1 h-8 w-px bg-slate-200" /> : null}
+                        </div>
+                        <div className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                          <p className="font-bold text-slate-900">{title}</p>
+                          <p className="mt-0.5 text-xs font-medium text-slate-500">{time}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-                        <p className="font-bold text-slate-900">{event.title}</p>
-                        <p className="mt-0.5 text-xs font-medium text-slate-500">{event.time}</p>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </WorkspaceCard>
               <div className="space-y-4">
@@ -769,7 +851,7 @@ function BuyerOrderDetailModal({
                 <WorkspaceCard className="border-emerald-200 bg-emerald-50/80">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <h4 className="text-sm font-extrabold text-emerald-950">Thông tin chuyển khoản demo</h4>
+                      <h4 className="text-sm font-extrabold text-emerald-950">Thông tin chuyển khoản </h4>
                       <p className="mt-1 text-xs font-medium text-emerald-700">Sàn giữ tiền ký quỹ và giải ngân theo trạng thái nhận hàng.</p>
                     </div>
                     <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">{cleanPaymentLabel(payablePayment.status)}</span>
@@ -885,12 +967,12 @@ function BuyerOrderDetailModal({
           <p className="text-xs font-semibold text-slate-500">Mã đơn: <span className="text-slate-800">{order.id}</span></p>
           <div className="flex flex-wrap justify-end gap-2">
             <button className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-emerald-200 hover:text-emerald-700 active:scale-95"><Printer className="h-3.5 w-3.5" /> In đơn hàng</button>
-            {order.status === 'PENDING_PAYMENT' || order.status === 'PENDING_DEPOSIT' ? (
+            {canPayInitialOrder(order) ? (
               <button className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 active:scale-95" onClick={() => onOpenPaymentModal(order, false)}>
                 <Receipt className="h-3.5 w-3.5" /> Xác nhận thanh toán
               </button>
             ) : null}
-            {order.status === 'WAITING_FINAL_PAYMENT' ? (
+            {order.status === 'WAITING_FINAL_PAYMENT' && Boolean(findPayablePayment(order)) ? (
               <button className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 active:scale-95" onClick={() => onOpenPaymentModal(order, true)}>
                 <Receipt className="h-3.5 w-3.5" /> Thanh toán cuối
               </button>
@@ -924,8 +1006,10 @@ export function BuyerOrdersPage() {
   const [orderFilter, setOrderFilter] = useState<OrderFilterKey>('all')
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilterKey | 'all'>('all')
   const [filterMode, setFilterMode] = useState<'status' | 'payment'>('status')
+  const processedMomoReturnRef = useRef('')
   const [paymentModalData, setPaymentModalData] = useState<{
     orderId: number
+    paymentId?: number | null
     orderCode: string
     productName: string
     quantity: number
@@ -945,7 +1029,7 @@ export function BuyerOrdersPage() {
       setLoading(true)
       setError('')
       const data = await fetchBuyerOrders()
-      const targetOrderId = Number(searchParams.get('orderId') || '')
+      const targetOrderId = Number(searchParams.get('localOrderId') || searchParams.get('orderId') || '')
       if (Number.isFinite(targetOrderId) && targetOrderId > 0) {
         const detail = await fetchBuyerOrder(targetOrderId)
         const merged = data.some((item) => item.orderId === detail.orderId)
@@ -969,6 +1053,54 @@ export function BuyerOrdersPage() {
   useEffect(() => {
     void loadOrders()
   }, [loadOrders])
+
+  useEffect(() => {
+    if (!searchParams.get('resultCode') || !searchParams.get('requestId')) return
+    const returnKey = `${searchParams.get('requestId') || ''}:${searchParams.get('transId') || ''}:${searchParams.get('resultCode') || ''}`
+    if (processedMomoReturnRef.current === returnKey) return
+    processedMomoReturnRef.current = returnKey
+    const payload: Record<string, string> = {}
+    searchParams.forEach((value, key) => {
+      payload[key] = value
+    })
+    const momoOrderIds = searchParams.getAll('orderId').filter((value) => value.startsWith('AGRI-'))
+    if (momoOrderIds.length > 0) payload.orderId = momoOrderIds[momoOrderIds.length - 1]
+    const cleanupMomoReturnParams = () => {
+      const next = new URLSearchParams(searchParams)
+      const localOrderId = searchParams.get('localOrderId') || searchParams.getAll('orderId').find((value) => /^\d+$/.test(value))
+      next.delete('payment')
+      next.delete('partnerCode')
+      next.delete('requestId')
+      next.delete('amount')
+      next.delete('orderInfo')
+      next.delete('orderType')
+      next.delete('transId')
+      next.delete('resultCode')
+      next.delete('message')
+      next.delete('payType')
+      next.delete('responseTime')
+      next.delete('extraData')
+      next.delete('signature')
+      next.delete('localOrderId')
+      next.delete('orderId')
+      if (localOrderId) next.set('orderId', localOrderId)
+      setSearchParams(next, { replace: true })
+    }
+    if (!payload.orderId || !payload.requestId || !payload.amount || !payload.resultCode) {
+      cleanupMomoReturnParams()
+      return
+    }
+    void confirmMomoReturn(payload)
+      .then(async () => {
+        showToast('MoMo da xac nhan thanh toan. Don hang dang duoc cap nhat.', 'success')
+        cleanupMomoReturnParams()
+        await loadOrders()
+      })
+      .catch(() => {
+        showToast('Da quay ve tu MoMo nhung chua xac minh duoc thanh toan.', 'error')
+        cleanupMomoReturnParams()
+      })
+  }, [loadOrders, searchParams, setSearchParams, showToast])
 
   const selectedOrder = useMemo(
     () => orders.find((item) => item.id === selectedOrderId) ?? orders[0],
@@ -1063,6 +1195,7 @@ export function BuyerOrdersPage() {
 
     setPaymentModalData({
       orderId: order.orderId || 0,
+      paymentId: payment?.id || null,
       orderCode: order.id,
       productName: primaryItem?.productName || order.product || 'Sản phẩm',
       quantity: quantityNumber,
@@ -1080,6 +1213,7 @@ export function BuyerOrdersPage() {
     if (!paymentModalData) return
     const updated = await confirmPayment({
       orderId: paymentModalData.orderId,
+      paymentId: paymentModalData.paymentId,
       mode: paymentModalData.isRemaining ? 'remaining' : 'full',
     })
     if (updated) {

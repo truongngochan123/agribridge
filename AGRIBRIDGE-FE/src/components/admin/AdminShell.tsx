@@ -4,6 +4,8 @@ import {
   FileCheck2,
   LayoutGrid,
   LogOut,
+  Tags,
+  Wallet,
   Users,
   UserCircle2,
 } from 'lucide-react'
@@ -28,7 +30,9 @@ const iconByKey = {
   overview: LayoutGrid,
   users: Users,
   registrations: FileCheck2,
+  categories: Tags,
   disputes: AlertTriangle,
+  withdrawals: Wallet,
   profile: UserCircle2,
 }
 

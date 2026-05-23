@@ -57,10 +57,9 @@ function getResetPasswordRules(value: string) {
   ]
 }
 
-function getPasswordStrength(value: string): number {
-  if (!value) return 0
-  return getResetPasswordRules(value).filter((rule) => rule.passed).length
-}
+// Dùng trong ForgotPasswordModal (màn hình reset mật khẩu)
+const STRENGTH_LABELS = ['', 'Rất yếu', 'Yếu', 'Trung bình', 'Khá', 'Mạnh']
+const STRENGTH_COLORS = ['', '#EF4444', '#F97316', '#F59E0B', '#3B82F6', '#22C55E']
 
 function getApiError(error: unknown, fallback: string) {
   if (typeof error === 'object' && error !== null && 'response' in error) {
@@ -70,8 +69,7 @@ function getApiError(error: unknown, fallback: string) {
   return fallback
 }
 
-const STRENGTH_LABELS = ['', 'Rất yếu', 'Yếu', 'Trung bình', 'Khá', 'Mạnh']
-const STRENGTH_COLORS = ['', '#EF4444', '#F97316', '#F59E0B', '#3B82F6', '#22C55E']
+
 
 export function LoginPage() {
   usePageTitle('Đăng nhập')
@@ -96,7 +94,6 @@ export function LoginPage() {
   const passwordInputRef = useRef<HTMLInputElement>(null)
   const emailInputRef = useRef<HTMLInputElement>(null)
 
-  const passwordStrength = getPasswordStrength(password)
   const emailValid = emailTouched && !emailError && email.length > 0
   const passwordValid = passwordTouched && !passwordError && password.length > 0
 
@@ -388,28 +385,7 @@ export function LoginPage() {
                   </div>
                 </div>
 
-                {password.length > 0 ? (
-                  <div className="mt-2 space-y-1">
-                    <div className="flex gap-1">
-                      {[1, 2, 3, 4, 5].map((level) => (
-                        <div key={level} className="h-1 flex-1 overflow-hidden rounded-full bg-[#E5E7EB]">
-                          <div
-                            className="h-full rounded-full transition-all duration-300"
-                            style={{
-                              width: passwordStrength >= level ? '100%' : '0%',
-                              background: STRENGTH_COLORS[passwordStrength],
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    {passwordStrength > 0 ? (
-                      <p className="text-xs font-medium" style={{ color: STRENGTH_COLORS[passwordStrength] }}>
-                        Độ mạnh: {STRENGTH_LABELS[passwordStrength]}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
+
 
                 {passwordTouched && passwordError ? (
                   <p className="field-error mt-1.5 flex items-center gap-1 text-sm font-medium text-[#EF4444]">

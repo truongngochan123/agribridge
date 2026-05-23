@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, X } from 'lucide-react'
+import { AlertTriangle, MessageCircle, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { BuyerPanel, SearchInput } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import { RfqChatModal } from '../../components/rfq/RfqChatModal'
 import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import {
@@ -22,6 +23,7 @@ import { getBranchContextFromSearchParams } from '../../utils/branchContext'
 import type { CategoryOption } from '../../types/supplierCreateFlow'
 import type {
   BuyerQuoteCompareItem,
+  BuyerRfqCompareInfo,
   BuyerRfqCompareResponse,
   BuyerRfqDetail,
   BuyerRfqListItem,
@@ -43,6 +45,14 @@ type RfqFormState = {
   deliveryDate: string
   expiredAt: string
   description: string
+}
+
+type BuyerChatTarget = {
+  rfqId: number
+  rfqCode: string
+  supplierCompanyId: number
+  supplierName: string
+  subtitle?: string
 }
 
 const emptyForm: RfqFormState = {
@@ -83,6 +93,7 @@ export function BuyerRFQPage() {
   const [ordersRfqId, setOrdersRfqId] = useState<number | null>(null)
   const [ordersError, setOrdersError] = useState<string | null>(null)
   const [loadingOrders, setLoadingOrders] = useState(false)
+  const [chatTarget, setChatTarget] = useState<BuyerChatTarget | null>(null)
 
   const [formMode, setFormMode] = useState<RfqFormMode | null>(null)
   const [editingRfqId, setEditingRfqId] = useState<number | null>(null)
@@ -332,6 +343,20 @@ export function BuyerRFQPage() {
     }
   }
 
+  const openChatForRfqSupplier = (rfq: BuyerRfqListItem | BuyerRfqDetail | BuyerRfqCompareInfo, supplierCompanyId?: number | null, supplierName?: string | null) => {
+    if (!supplierCompanyId) {
+      alert('RFQ này có nhiều nhà cung cấp. Vui lòng mở "Xem báo giá" rồi bấm Chat trên từng nhà cung cấp.')
+      return
+    }
+    setChatTarget({
+      rfqId: rfq.id,
+      rfqCode: rfq.code || rfqCode(rfq.id),
+      supplierCompanyId,
+      supplierName: supplierName || 'Nhà cung cấp',
+      subtitle: `${rfq.product || rfq.productName || 'Sản phẩm'} · ${formatNumber(rfq.quantity)} ${rfq.unit || ''}`.trim(),
+    })
+  }
+
   const formTitle = formMode === 'create' ? 'Tạo RFQ mới' : 'Sửa RFQ'
   const formSubmitting = submittingCreate || submittingUpdate
 
@@ -501,6 +526,7 @@ export function BuyerRFQPage() {
             setSelectedQuoteId(null)
           }}
           onConvert={handleConvert}
+          onChat={(rfq, quote) => openChatForRfqSupplier(rfq, quote.supplierId, quote.supplierName)}
         />
       ) : null}
 
@@ -551,6 +577,17 @@ export function BuyerRFQPage() {
           }}
         />
       ) : null}
+
+      {chatTarget ? (
+        <RfqChatModal
+          rfqId={chatTarget.rfqId}
+          supplierCompanyId={chatTarget.supplierCompanyId}
+          rfqCode={chatTarget.rfqCode}
+          title={`Chat với ${chatTarget.supplierName}`}
+          subtitle={chatTarget.subtitle}
+          onClose={() => setChatTarget(null)}
+        />
+      ) : null}
     </>
   )
 }
@@ -563,6 +600,7 @@ function CompareModal({
   onSelect,
   onClose,
   onConvert,
+  onChat,
 }: {
   data: BuyerRfqCompareResponse
   error: string | null
@@ -571,80 +609,258 @@ function CompareModal({
   onSelect: (quoteId: number) => void
   onClose: () => void
   onConvert: () => void
+  onChat: (rfq: BuyerRfqCompareInfo, quote: BuyerQuoteCompareItem) => void
 }) {
+  // Find best price for highlighting
+  const bestPrice = data.quotes.length > 0
+    ? Math.min(...data.quotes.map((q) => q.price ?? Infinity))
+    : null
+
   return (
-    <div className="fixed inset-0 z-[80] bg-black/35 p-4" onClick={onClose}>
-      <div className="mx-auto mt-3 max-h-[92vh] w-[96vw] max-w-[1180px] overflow-y-auto rounded-2xl bg-white" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-start justify-between border-b border-slate-200 p-3">
-          <div>
-            <h3 className="text-2xl font-extrabold text-slate-900">So sánh báo giá - {data.rfq.code || rfqCode(data.rfq.id)}</h3>
-            <p className="mt-0.5 text-xs text-slate-600">{data.rfq.product || 'Chưa có sản phẩm'} - {formatNumber(data.rfq.quantity)} {data.rfq.unit || ''}</p>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      {/* flex-col so only body scrolls, header+footer stay fixed */}
+      <div
+        className="flex max-h-[calc(100vh-2rem)] w-full max-w-[1200px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_32px_80px_rgba(0,0,0,0.3)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* ── Header ── */}
+        <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-emerald-800 via-emerald-700 to-teal-600 px-6 py-4">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-15"
+            style={{ backgroundImage: 'radial-gradient(ellipse at 85% 0%, rgba(255,255,255,0.8) 0%, transparent 55%)' }}
+          />
+          <div className="relative flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="truncate text-xl font-black text-white drop-shadow">So sánh báo giá</h3>
+                <span className="shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-bold text-white ring-1 ring-white/25">
+                  {data.rfq.code || rfqCode(data.rfq.id)}
+                </span>
+              </div>
+              <p className="mt-0.5 text-sm text-white/70">
+                {data.rfq.product || 'Chưa có sản phẩm'} · {formatNumber(data.rfq.quantity)} {data.rfq.unit || ''}
+              </p>
+            </div>
+            <button
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white/80 transition hover:bg-white/25"
+              onClick={onClose}
+              aria-label="Đóng"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Đóng"><X className="h-4 w-4" /></button>
+
+          {/* RFQ summary chips */}
+          <div className="relative mt-3 flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/80 ring-1 ring-white/15">
+              Giá mục tiêu: <span className="font-black text-amber-200">{data.rfq.targetPrice == null ? 'Chưa đặt' : formatCurrency(data.rfq.targetPrice)}</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/80 ring-1 ring-white/15">
+              Hạn chót: <span className="font-bold text-white">{formatDate(data.rfq.deadline)}</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/80 ring-1 ring-white/15">
+              Giao: <span className="font-bold text-white">{data.rfq.deliveryAddress || data.rfq.province || 'Chưa có'}</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/25 px-3 py-1 text-[11px] font-bold text-emerald-100 ring-1 ring-emerald-300/30">
+              {data.quotes.length} báo giá nhận được
+            </span>
+          </div>
         </div>
 
-        <div className="grid gap-2 border-b border-slate-200 p-3 text-xs md:grid-cols-4">
-          <p>Giá mục tiêu: <span className="font-bold">{data.rfq.targetPrice == null ? 'Chưa đặt' : formatCurrency(data.rfq.targetPrice)}</span></p>
-          <p>Hạn chót: <span className="font-bold">{formatDate(data.rfq.deadline)}</span></p>
-          <p>Địa chỉ giao: <span className="font-bold">{data.rfq.deliveryAddress || data.rfq.province || 'Chưa có'}</span></p>
-          <p>Nhận: <span className="font-bold text-emerald-700">{data.quotes.length} báo giá</span></p>
+        {/* ── Body (scrollable) ── */}
+        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 p-4">
+          {error ? (
+            <div className="mb-3 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {error}
+            </div>
+          ) : null}
+
+          {data.quotes.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-md">
+                <span className="text-3xl">📋</span>
+              </div>
+              <p className="text-sm font-bold text-slate-600">Chưa có báo giá nào cho RFQ này</p>
+              <p className="text-xs text-slate-400">Nhà cung cấp sẽ gửi báo giá sau khi xem xét yêu cầu của bạn</p>
+            </div>
+          ) : (
+            <div className={`grid gap-3 ${
+              data.quotes.length === 1 ? 'max-w-sm mx-auto' :
+              data.quotes.length === 2 ? 'sm:grid-cols-2' :
+              'sm:grid-cols-2 lg:grid-cols-3'
+            }`}>
+              {data.quotes.map((quote) => (
+                <QuoteCard
+                  key={quote.id}
+                  quote={quote}
+                  checked={selectedQuoteId === quote.id}
+                  isBest={bestPrice !== null && quote.price === bestPrice && data.quotes.length > 1}
+                  onSelect={() => onSelect(quote.id)}
+                  onChat={() => onChat(data.rfq, quote)}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
-        {error ? <p className="mx-3 mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{error}</p> : null}
-        {data.quotes.length === 0 ? (
-          <StateBox text="Chưa có báo giá nào cho RFQ này" />
-        ) : (
-          <div className="grid gap-2 p-3 lg:grid-cols-3">
-            {data.quotes.map((quote) => (
-              <QuoteCard key={quote.id} quote={quote} checked={selectedQuoteId === quote.id} onSelect={() => onSelect(quote.id)} />
-            ))}
+        {/* ── Footer (sticky) ── */}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-4">
+          <p className="text-xs text-slate-400">
+            {selectedQuoteId ? (
+              <span className="font-semibold text-emerald-700">✓ Đã chọn 1 báo giá để chuyển đơn hàng</span>
+            ) : (
+              'Chọn một báo giá để chuyển thành đơn hàng'
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
+              onClick={onClose}
+            >
+              Đóng
+            </button>
+            <button
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-5 py-2 text-sm font-bold text-white shadow-md transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!selectedQuoteId || converting}
+              onClick={onConvert}
+            >
+              {converting ? (
+                <><span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Đang chuyển...</>
+              ) : (
+                '🛒 Chuyển thành đơn hàng'
+              )}
+            </button>
           </div>
-        )}
-
-        <div className="flex justify-end border-t border-slate-200 p-3">
-          <button className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white disabled:bg-slate-200 disabled:text-slate-500" disabled={!selectedQuoteId || converting} onClick={onConvert}>
-            {converting ? 'Đang chuyển...' : 'Chuyển thành đơn hàng'}
-          </button>
         </div>
       </div>
     </div>
   )
 }
 
-function QuoteCard({ quote, checked, onSelect }: { quote: BuyerQuoteCompareItem; checked: boolean; onSelect: () => void }) {
+function QuoteCard({
+  quote,
+  checked,
+  isBest,
+  onSelect,
+  onChat,
+}: {
+  quote: BuyerQuoteCompareItem
+  checked: boolean
+  isBest: boolean
+  onSelect: () => void
+  onChat: () => void
+}) {
   return (
-    <article className="rounded-xl border border-slate-200 p-2.5">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-lg font-extrabold text-slate-900">{quote.supplierName || 'Nhà cung cấp'}</p>
-          <p className="text-xs text-slate-500">
-            {quote.supplierRating == null ? 'Chưa có đánh giá' : `${quote.supplierRating}/5`} {quote.supplierOrderCount ? `(${quote.supplierOrderCount} đơn)` : ''}
-          </p>
+    <article
+      className={`relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border-2 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+        checked
+          ? 'border-emerald-500 shadow-emerald-100 ring-4 ring-emerald-100'
+          : isBest
+          ? 'border-amber-300 shadow-amber-50'
+          : 'border-slate-200 hover:border-emerald-300'
+      }`}
+      onClick={onSelect}
+    >
+      {/* Best price badge */}
+      {isBest ? (
+        <div className="absolute left-0 right-0 top-0 flex items-center justify-center gap-1 bg-gradient-to-r from-amber-400 to-orange-400 py-1">
+          <span className="text-[10px] font-black text-white">🏆 GIÁ TỐT NHẤT</span>
         </div>
-        <input type="radio" name="selectedQuote" checked={checked} onChange={onSelect} className="mt-1.5 h-4 w-4 accent-emerald-600" />
-      </div>
+      ) : null}
 
-      <div className="mt-2 flex flex-wrap gap-1">
-        {(quote.tags ?? []).map((tag) => (
-          <span key={tag} className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700">{tag}</span>
-        ))}
-      </div>
+      <div className={`flex flex-1 flex-col p-4 ${isBest ? 'pt-7' : ''}`}>
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-black text-slate-900">{quote.supplierName || 'Nhà cung cấp'}</p>
+            {quote.supplierRating != null ? (
+              <div className="mt-0.5 flex items-center gap-1">
+                <div className="flex">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <span key={i} className={`text-[11px] ${i < Math.round(quote.supplierRating ?? 0) ? 'text-amber-400' : 'text-slate-200'}`}>★</span>
+                  ))}
+                </div>
+                <span className="text-[10px] font-semibold text-slate-500">
+                  {quote.supplierRating}/5{quote.supplierOrderCount ? ` · ${quote.supplierOrderCount} đơn` : ''}
+                </span>
+              </div>
+            ) : (
+              <p className="text-[10px] text-slate-400">Chưa có đánh giá</p>
+            )}
+          </div>
+          <div
+            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${
+              checked ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 bg-white'
+            }`}
+            onClick={(e) => { e.stopPropagation(); onSelect() }}
+          >
+            {checked ? <span className="text-[10px] font-black text-white">✓</span> : null}
+          </div>
+        </div>
 
-      <div className="mt-2 rounded-lg bg-blue-50 p-2 text-center">
-        <p className="text-[28px] font-extrabold text-blue-600">{formatCurrency(quote.price)}</p>
-        <p className="text-xs">mỗi kg</p>
-        <p className="text-xs text-slate-500">Tổng: {formatCurrency(quote.total)}</p>
-      </div>
+        {/* Tags */}
+        {(quote.tags ?? []).length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {(quote.tags ?? []).map((tag) => (
+              <span key={tag} className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">{tag}</span>
+            ))}
+          </div>
+        ) : null}
 
-      <div className="mt-2 space-y-1 text-xs">
-        <InfoRow label="Mã lô" value={quote.batchCode || 'Chưa có'} />
-        <InfoRow label="Grade/Size" value={quote.gradeSize || 'Chưa có'} />
-        <InfoRow label="Thu hoạch" value={formatDate(quote.harvestDate)} />
-        <InfoRow label="Giao hàng" value={formatDate(quote.estimatedDeliveryDate)} />
-        <InfoRow label="Thời gian" value={quote.deliveryDays == null ? 'Chưa có' : `${quote.deliveryDays} ngày`} />
-        <InfoRow label="Phí ship" value={quote.shippingFee == null ? 'Chưa cập nhật' : formatCurrency(quote.shippingFee)} />
-        <InfoRow label="Thanh toán" value={quote.paymentTerm || quote.note || 'Chưa có'} />
-        <InfoRow label="Trạng thái" value={rfqStatusLabel(quote.status)} />
+        {/* Price block */}
+        <div className={`mt-3 rounded-xl px-3 py-3 text-center ${
+          isBest
+            ? 'bg-gradient-to-br from-amber-50 to-orange-50 ring-1 ring-amber-200'
+            : checked
+            ? 'bg-gradient-to-br from-emerald-50 to-teal-50 ring-1 ring-emerald-200'
+            : 'bg-slate-50'
+        }`}>
+          <p className={`text-2xl font-black ${
+            isBest ? 'text-orange-600' : checked ? 'text-emerald-700' : 'text-slate-800'
+          }`}>
+            {formatCurrency(quote.price)}
+          </p>
+          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">mỗi {quote.unit || 'kg'}</p>
+          <p className="mt-1 text-xs font-bold text-slate-600">Tổng: {formatCurrency(quote.total)}</p>
+        </div>
+
+        {/* Details */}
+        <div className="mt-3 space-y-1.5 text-xs">
+          {[
+            { label: 'Mã lô', value: quote.batchCode || 'Chưa có' },
+            { label: 'Grade/Size', value: quote.gradeSize || 'Chưa có' },
+            { label: 'Thu hoạch', value: formatDate(quote.harvestDate) },
+            { label: 'Giao hàng', value: formatDate(quote.estimatedDeliveryDate) },
+            { label: 'Thời gian', value: quote.deliveryDays == null ? 'Chưa có' : `${quote.deliveryDays} ngày` },
+            { label: 'Phí ship', value: quote.shippingFee == null ? 'Chưa cập nhật' : formatCurrency(quote.shippingFee) },
+            { label: 'Thanh toán', value: quote.paymentTerm || quote.note || 'Chưa có' },
+          ].map((row) => (
+            <div key={row.label} className="flex items-baseline justify-between gap-2">
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{row.label}</span>
+              <span className="truncate text-right font-semibold text-slate-700">{row.value}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Status badge */}
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+            quote.status === 'ACCEPTED' ? 'bg-emerald-100 text-emerald-700' :
+            quote.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' :
+            'bg-slate-100 text-slate-600'
+          }`}>
+            {rfqStatusLabel(quote.status)}
+          </span>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100 active:scale-95"
+            onClick={(e) => { e.stopPropagation(); onChat() }}
+          >
+            <MessageCircle className="h-3 w-3" />
+            Chat
+          </button>
+        </div>
       </div>
     </article>
   )
@@ -733,42 +949,273 @@ function FormModal({
   onSubmit: () => void
 }) {
   const setField = (field: keyof RfqFormState, value: string) => onChange({ ...form, [field]: value })
+  const isCreate = title.includes('Tạo')
+
+  function dateAfterDays(days: number) {
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    return d.toISOString().slice(0, 10)
+  }
+
+  function datetimeAfterDays(days: number) {
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    d.setHours(23, 59, 0, 0)
+    return d.toISOString().slice(0, 16)
+  }
+
   return (
-    <div className="fixed inset-0 z-[90] bg-black/35 p-4" onClick={onClose}>
-      <div className="mx-auto mt-6 max-h-[92vh] w-[94vw] max-w-2xl overflow-y-auto rounded-2xl bg-white p-4" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-          <h3 className="text-xl font-extrabold text-slate-900">{title}</h3>
-          <button className="rounded-lg p-1 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Đóng"><X className="h-4 w-4" /></button>
-        </div>
-        {error ? <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p> : null}
-        {optionsError ? <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">{optionsError}</p> : null}
-        {optionsLoading ? <p className="mt-2 text-xs font-semibold text-slate-500">Đang tải danh sách danh mục/chi nhánh...</p> : null}
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <FormField label="Tiêu đề *" value={form.title} onChange={(value) => setField('title', value)} />
-          <FormField label="Sản phẩm cần mua *" value={form.productName} onChange={(value) => setField('productName', value)} />
-          <SelectField
-            label="Danh mục *"
-            value={form.categoryId}
-            onChange={(value) => setField('categoryId', value)}
-            placeholder="Chọn danh mục"
-            options={categories.map((item) => ({
-              value: String(item.id),
-              label: item.name,
-            }))}
+    <div className="fixed inset-0 z-[90] flex items-center justify-center overflow-hidden bg-black/60 p-4 backdrop-blur-md" onClick={onClose}>
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_32px_80px_rgba(0,0,0,0.3)]" onClick={(e) => e.stopPropagation()}>
+
+        {/* ── Header ── */}
+        <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-emerald-800 via-emerald-700 to-teal-600 px-6 py-5">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-20"
+            style={{ backgroundImage: 'radial-gradient(ellipse at 85% 10%, rgba(255,255,255,0.6) 0%, transparent 60%)' }}
           />
-          <FormField label="Số lượng *" type="number" value={form.quantity} onChange={(value) => setField('quantity', value)} />
-          <FormField label="Đơn vị *" value={form.unit} onChange={(value) => setField('unit', value)} />
-          <FormField label="Địa điểm giao hàng *" value={form.province} onChange={(value) => setField('province', value)} />
-          <FormField label="Ngày giao mong muốn *" type="date" value={form.deliveryDate} onChange={(value) => setField('deliveryDate', value)} />
-          <FormField label="Hạn nhận báo giá *" type="datetime-local" value={form.expiredAt} onChange={(value) => setField('expiredAt', value)} />
-          <label className="md:col-span-2">
-            <span className="text-xs font-semibold text-slate-600">Mô tả / Yêu cầu thêm</span>
-            <textarea value={form.description} onChange={(event) => setField('description', event.target.value)} className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400" />
-          </label>
+          <div className="relative flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-2 ring-white/20">
+                <span className="text-xl">{isCreate ? '📋' : '✏️'}</span>
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="truncate text-lg font-black text-white drop-shadow">{title}</h3>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ring-1 ${isCreate ? 'bg-emerald-400/20 text-emerald-200 ring-emerald-300/30' : 'bg-amber-400/20 text-amber-200 ring-amber-300/30'}`}>
+                    {isCreate ? 'MỚI' : 'CẬP NHẬT'}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-sm text-white/65">
+                  {isCreate ? 'Gửi yêu cầu để nhận báo giá từ nhà cung cấp' : 'Chỉnh sửa thông tin yêu cầu báo giá'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white/80 transition hover:bg-white/25"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-        <div className="mt-4 flex justify-end gap-2">
-          <button className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-60" onClick={onSubmit} disabled={submitting}>{submitting ? 'Đang lưu...' : 'Lưu RFQ'}</button>
+
+        {/* ── Body ── */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="space-y-4 p-5">
+
+            {/* Error banners */}
+            {error ? (
+              <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {error}
+              </div>
+            ) : null}
+            {optionsError ? (
+              <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-700">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                {optionsError}
+              </div>
+            ) : null}
+            {optionsLoading ? (
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-700">
+                <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+                Đang tải danh mục / chi nhánh...
+              </div>
+            ) : null}
+
+            {/* Section 1: Thông tin cơ bản */}
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100">
+                  <span className="text-sm">📦</span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Thông tin cơ bản</p>
+                  <p className="text-[10px] text-slate-400">Tiêu đề, sản phẩm, danh mục và số lượng</p>
+                </div>
+              </div>
+              <div className="grid gap-4 p-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    Tiêu đề <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    value={form.title}
+                    onChange={(e) => setField('title', e.target.value)}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                    placeholder="Ví dụ: Cần mua cà hồi tươi 200kg/tuần"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    Sản phẩm cần mua <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    value={form.productName}
+                    onChange={(e) => setField('productName', e.target.value)}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                    placeholder="Tên sản phẩm..."
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    Danh mục <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={form.categoryId}
+                    onChange={(e) => setField('categoryId', e.target.value)}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                  >
+                    <option value="">Chọn danh mục</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={String(c.id)}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    Số lượng <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    value={form.quantity}
+                    onChange={(e) => setField('quantity', e.target.value)}
+                    type="number"
+                    min="0"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    Đơn vị <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    value={form.unit}
+                    onChange={(e) => setField('unit', e.target.value)}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                    placeholder="kg, thùng, tấn..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Thời gian */}
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100">
+                  <span className="text-sm">📅</span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Thời gian</p>
+                  <p className="text-[10px] text-slate-400">Hạn nhận báo giá và ngày giao hàng mong muốn</p>
+                </div>
+              </div>
+              <div className="grid gap-4 p-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    Hạn nhận báo giá <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    value={form.expiredAt}
+                    onChange={(e) => setField('expiredAt', e.target.value)}
+                    type="datetime-local"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                  />
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <button type="button" onClick={() => setField('expiredAt', datetimeAfterDays(0))} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700">Hôm nay</button>
+                    {[3, 7, 14].map((d) => (
+                      <button key={d} type="button" onClick={() => setField('expiredAt', datetimeAfterDays(d))} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700">+{d} ngày</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    Ngày giao mong muốn <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    value={form.deliveryDate}
+                    onChange={(e) => setField('deliveryDate', e.target.value)}
+                    type="date"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                  />
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {[7, 14, 30].map((d) => (
+                      <button key={d} type="button" onClick={() => setField('deliveryDate', dateAfterDays(d))} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700">+{d} ngày</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Địa điểm & Mô tả */}
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100">
+                  <span className="text-sm">📍</span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Địa điểm & Mô tả</p>
+                  <p className="text-[10px] text-slate-400">Nơi nhận hàng và yêu cầu chi tiết</p>
+                </div>
+              </div>
+              <div className="space-y-4 p-4">
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    Địa điểm giao hàng <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    value={form.province}
+                    onChange={(e) => setField('province', e.target.value)}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                    placeholder="Ví dụ: TP. Hồ Chí Minh"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Mô tả / Yêu cầu thêm</label>
+                  <textarea
+                    value={form.description}
+                    onChange={(e) => setField('description', e.target.value)}
+                    rows={3}
+                    className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                    placeholder="Ví dụ: cần loại A, đóng thùng 20kg, giao trước 8h, ưu tiên VietGAP..."
+                  />
+                </div>
+              </div>
+            </div>
+
+          </div>
         </div>
+
+        {/* ── Footer ── */}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-5 py-4">
+          <p className="text-[11px] text-slate-400">
+            <span className="text-rose-500">*</span> Trường bắt buộc
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={onSubmit}
+              disabled={submitting}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-5 py-2 text-sm font-bold text-white shadow-md transition hover:opacity-90 active:scale-95 disabled:cursor-wait disabled:opacity-70"
+            >
+              {submitting ? (
+                <>
+                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Đang lưu...
+                </>
+              ) : (
+                isCreate ? '🚀 Gửi yêu cầu' : '💾 Lưu thay đổi'
+              )}
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   )
@@ -812,45 +1259,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <span className="text-slate-500">{label}</span>
       <span className="font-semibold text-slate-800">{value}</span>
     </p>
-  )
-}
-
-function FormField({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
-  return (
-    <label>
-      <span className="text-xs font-semibold text-slate-600">{label}</span>
-      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400" />
-    </label>
-  )
-}
-
-function SelectField({
-  label,
-  value,
-  onChange,
-  placeholder,
-  options,
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-  placeholder: string
-  options: Array<{ value: string; label: string }>
-}) {
-  return (
-    <label>
-      <span className="text-xs font-semibold text-slate-600">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-400"
-      >
-        <option value="">{placeholder}</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </select>
-    </label>
   )
 }
 

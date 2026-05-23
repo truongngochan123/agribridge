@@ -782,10 +782,6 @@ public class SupplierDebtServiceImpl implements SupplierDebtService {
         return first == null || first.isBlank() ? fallback : first.trim();
     }
 
-    private String json(String value) {
-        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
     private String formatQuantity(BigDecimal quantity, String unit) {
         BigDecimal safe = nullToZero(quantity).stripTrailingZeros();
         String number = safe.scale() <= 0 ? safe.toPlainString() : safe.toPlainString();

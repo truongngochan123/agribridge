@@ -38,6 +38,7 @@ const iconByKey = {
   orders: Package,
   delivery: Truck,
   debt: Wallet,
+  wallet: Wallet,
   reports: BarChart3,
 }
 
@@ -46,6 +47,7 @@ const notificationModuleByMenuKey: Partial<Record<SupplierMenuKey, string[]>> = 
   orders: ['ORDER', 'PAYMENT', 'DELIVERY'],
   delivery: ['DELIVERY'],
   debt: ['DEBT', 'PAYMENT'],
+  wallet: ['PAYMENT'],
 }
 
 function moduleCounts(items: AppNotification[]) {

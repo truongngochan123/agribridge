@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react'
-import { demoConfirmBuyerOrderPayment, demoPayBuyerOrderRemaining, type BuyerOrder } from '../services/buyerOrderService'
+import { createMomoPayment, createMomoRemainingPayment, type MomoPaymentResponse } from '../services/buyerOrderService'
 import { useToast } from './useToast'
 
 type PaymentMode = 'full' | 'remaining'
 
 type ConfirmPaymentArgs = {
   orderId: number
+  paymentId?: number | null
   mode?: PaymentMode
   successMessage?: string
 }
@@ -14,22 +15,25 @@ export function useBuyerOrderPayment() {
   const { showToast } = useToast()
   const [confirming, setConfirming] = useState(false)
 
-  const confirmPayment = useCallback(async ({ orderId, mode = 'full', successMessage }: ConfirmPaymentArgs) => {
+  const confirmPayment = useCallback(async ({ orderId, paymentId, mode = 'full', successMessage }: ConfirmPaymentArgs) => {
     if (!orderId) return null
     setConfirming(true)
     try {
-      const updated: BuyerOrder =
-        mode === 'remaining'
-          ? await demoPayBuyerOrderRemaining(orderId)
-          : await demoConfirmBuyerOrderPayment(orderId)
-      showToast(
-        successMessage ||
-          'Thanh toán đã được ghi nhận. Sàn đang tạm giữ tiền và đơn hàng đang chờ nhà cung cấp xác nhận.',
-        'success',
-      )
-      return updated
-    } catch (error) {
-      showToast('Không thể ghi nhận thanh toán. Vui lòng thử lại.', 'error')
+      const payment: MomoPaymentResponse | null = mode === 'remaining'
+        ? await createMomoRemainingPayment(orderId)
+        : paymentId
+          ? await createMomoPayment(paymentId)
+          : null
+      if (payment?.status === 'PAID') {
+        showToast('MoMo da xac nhan thanh toan. Don hang dang duoc cap nhat.', 'success')
+        return payment
+      }
+      if (!payment?.payUrl) throw new Error('MOMO_PAY_URL_MISSING')
+      showToast(successMessage || 'Dang chuyen sang MoMo de thanh toan. Sau khi MoMo xac nhan, san se tam giu tien.', 'success')
+      window.location.href = payment.payUrl
+      return payment
+    } catch {
+      showToast('Khong the tao thanh toan MoMo. Vui long thu lai.', 'error')
       return null
     } finally {
       setConfirming(false)

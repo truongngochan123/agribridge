@@ -79,6 +79,18 @@ export type BuyerQuickOrderResponse = {
   message?: string | null
 }
 
+export type MomoPaymentResponse = {
+  paymentId: number
+  orderId?: number | null
+  momoOrderId?: string | null
+  requestId?: string | null
+  amount?: number | null
+  payUrl?: string | null
+  deeplink?: string | null
+  qrCodeUrl?: string | null
+  status?: string | null
+}
+
 export async function createQuickOrder(payload: BuyerQuickOrderPayload): Promise<BuyerQuickOrderResponse> {
   const response = await apiClient.post('/api/buyer/orders/quick-order', payload, {
     timeout: 20000,
@@ -127,6 +139,36 @@ export async function demoPayBuyerOrderRemaining(orderId: number): Promise<Buyer
     entityId: orderId,
   })
   return data
+}
+
+export async function createMomoPayment(paymentId: number): Promise<MomoPaymentResponse> {
+  const response = await apiClient.post(`/api/buyer/payments/${paymentId}/momo`)
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['ORDER', 'PAYMENT', 'DEBT', 'DELIVERY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-payment:momo-create',
+    entityId: paymentId,
+  })
+  return data
+}
+
+export async function createMomoRemainingPayment(orderId: number): Promise<MomoPaymentResponse> {
+  const response = await apiClient.post(`/api/buyer/orders/${orderId}/remaining-payment/momo`)
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['ORDER', 'PAYMENT', 'DEBT', 'DELIVERY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-payment:momo-remaining-create',
+    entityId: orderId,
+  })
+  return data
+}
+
+export async function confirmMomoReturn(payload: Record<string, string>): Promise<void> {
+  const response = await apiClient.post('/api/payments/momo/ipn', payload)
+  const data = response.data?.data ?? response.data
+  if (data?.resultCode !== 0) throw new Error(data?.message || 'MOMO_RETURN_NOT_CONFIRMED')
+  dispatchStateSync(['ORDER', 'PAYMENT', 'DEBT', 'DELIVERY', 'DASHBOARD', 'NOTIFICATION'], {
+    source: 'buyer-payment:momo-return',
+    entityId: payload.orderId,
+  })
 }
 
 export async function createBuyerOrderComplaint(

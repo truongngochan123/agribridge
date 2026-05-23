@@ -11,6 +11,7 @@ import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.CreditLimitEntity;
 import com.agribridge.backend.entity.EscrowTransactionEntity;
 import com.agribridge.backend.entity.InvoiceEntity;
+import com.agribridge.backend.entity.MomoPaymentAttemptEntity;
 import com.agribridge.backend.entity.OrderEntity;
 import com.agribridge.backend.entity.OrderItemEntity;
 import com.agribridge.backend.entity.PaymentAllocationEntity;
@@ -18,7 +19,6 @@ import com.agribridge.backend.entity.PaymentEntity;
 import com.agribridge.backend.entity.ProductEntity;
 import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.ShipmentEventEntity;
-import com.agribridge.backend.entity.SupplierPayoutEntity;
 import com.agribridge.backend.entity.enums.BatchStatusEnum;
 import com.agribridge.backend.entity.enums.ComplaintStatusEnum;
 import com.agribridge.backend.entity.enums.CreditLimitStatusEnum;
@@ -32,6 +32,7 @@ import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.CreditLimitRepository;
 import com.agribridge.backend.repository.EscrowTransactionRepository;
 import com.agribridge.backend.repository.InvoiceRepository;
+import com.agribridge.backend.repository.MomoPaymentAttemptRepository;
 import com.agribridge.backend.repository.OrderItemRepository;
 import com.agribridge.backend.repository.OrderRepository;
 import com.agribridge.backend.repository.PaymentAllocationRepository;
@@ -39,13 +40,12 @@ import com.agribridge.backend.repository.PaymentRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.ShipmentEventRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
-import com.agribridge.backend.repository.SupplierPayoutRepository;
-import com.agribridge.backend.repository.UserRepository;
 import com.agribridge.backend.service.BatchAvailabilityService;
 import com.agribridge.backend.service.BuyerOrderService;
 import com.agribridge.backend.service.CurrentUserService;
 import com.agribridge.backend.service.NotificationCenterService;
 import com.agribridge.backend.service.ShipmentStatusTransitionService;
+import com.agribridge.backend.service.WalletService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -91,15 +91,15 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
     private final BranchRepository branchRepository;
     private final ComplaintRepository complaintRepository;
     private final EscrowTransactionRepository escrowTransactionRepository;
-    private final SupplierPayoutRepository supplierPayoutRepository;
-    private final UserRepository userRepository;
+    private final MomoPaymentAttemptRepository momoPaymentAttemptRepository;
     private final CurrentUserService currentUserService;
     private final BatchAvailabilityService batchAvailabilityService;
     private final NotificationCenterService notificationCenterService;
     private final ShipmentStatusTransitionService shipmentStatusTransitionService;
+    private final WalletService walletService;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<BuyerOrderDto> getCurrentBuyerOrders() {
         Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
         List<OrderEntity> orders = orderRepository.findByBuyerCompanyIdOrderByCreatedAtDesc(buyerCompanyId);
@@ -107,7 +107,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public BuyerOrderDto getCurrentBuyerOrder(Long orderId) {
         Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
         OrderEntity order = orderRepository.findById(orderId)
@@ -261,7 +261,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                     .shipmentId(shipment.getId())
                     .status(shipment.getStatus().name())
                     .description(
-                            "ÄÃ£ lÆ°u thÃ´ng tin váº­n chuyá»ƒn dá»± kiáº¿n. GHN sandbox chá»‰ quote phÃ­, chÆ°a táº¡o váº­n Ä‘Æ¡n tháº­t.")
+                            "Đã lưu thông tin vận chuyển dự kiến. GHN sandbox chỉ báo phí")
                     .eventTime(now)
                     .build());
 
@@ -284,7 +284,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 order.getRemainingAmount(),
                 null,
                 grandTotal,
-                "Táº¡o Ä‘Æ¡n hÃ ng thÃ nh cÃ´ng");
+                "Tạo đơn hàng thành công");
     }
 
     @Override
@@ -358,7 +358,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .verifiedAt(now)
                 .createdAt(now)
                 .updatedAt(now)
-                .note("Buyer thanh toÃ¡n pháº§n cÃ²n láº¡i qua demo")
+                .note("Buyer thanh toán phần còn lại qua demo")
                 .build());
         createPaymentAllocationIfMissing(payment, remaining, now);
         order.setPaymentStatus("PAID");
@@ -472,6 +472,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 ? Map.of()
                 : paymentRepository.findByOrderIdInOrderByPaymentDateDesc(orderIds).stream()
                         .collect(Collectors.groupingBy(PaymentEntity::getOrderId));
+        reconcilePaymentState(orders, invoiceByOrder, paymentsByOrder);
         Map<Long, ShipmentEntity> shipmentByOrder = latestByOrder(
                 shipmentRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds), ShipmentEntity::getOrderId,
                 ShipmentEntity::getCreatedAt);
@@ -527,6 +528,120 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                         productsById,
                         batchesById))
                 .toList();
+    }
+
+    private void reconcilePaymentState(
+            List<OrderEntity> orders,
+            Map<Long, InvoiceEntity> invoiceByOrder,
+            Map<Long, List<PaymentEntity>> paymentsByOrder) {
+        if (orders.isEmpty()) return;
+        List<Long> orderIds = orders.stream().map(OrderEntity::getId).filter(Objects::nonNull).toList();
+        Map<Long, List<MomoPaymentAttemptEntity>> attemptsByPayment = momoPaymentAttemptRepository.findByOrderIdIn(orderIds).stream()
+                .collect(Collectors.groupingBy(MomoPaymentAttemptEntity::getPaymentId));
+        LocalDateTime now = LocalDateTime.now();
+        for (OrderEntity order : orders) {
+            List<PaymentEntity> payments = paymentsByOrder.getOrDefault(order.getId(), List.of());
+            if (payments.isEmpty()) continue;
+            boolean changed = false;
+            for (PaymentEntity payment : payments) {
+                if (isPaymentSettled(payment, attemptsByPayment.getOrDefault(payment.getId(), List.of()))) {
+                    BigDecimal amount = safeAmount(payment.getAmount());
+                    if (safeAmount(payment.getPaidAmount()).compareTo(amount) < 0) {
+                        payment.setPaidAmount(amount);
+                        changed = true;
+                    }
+                    if (!isPaidPayment(payment)) {
+                        payment.setStatus("PAID");
+                        changed = true;
+                    }
+                    if (!"HELD".equals(payment.getEscrowStatus())) {
+                        payment.setEscrowStatus("HELD");
+                        changed = true;
+                    }
+                    if (payment.getPaidAt() == null) {
+                        payment.setPaidAt(now);
+                        changed = true;
+                    }
+                    if (payment.getVerifiedAt() == null) {
+                        payment.setVerifiedAt(now);
+                        changed = true;
+                    }
+                    payment.setUpdatedAt(now);
+                }
+            }
+            if (changed) {
+                paymentRepository.saveAll(payments);
+            }
+
+            InvoiceEntity invoice = invoiceByOrder.get(order.getId());
+            BigDecimal paid = payments.stream()
+                    .filter(this::isPaidPayment)
+                    .map(payment -> safeAmount(payment.getPaidAmount()).compareTo(BigDecimal.ZERO) > 0
+                            ? payment.getPaidAmount()
+                            : payment.getAmount())
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal total = invoice == null ? safeAmount(order.getTotalAmount())
+                    : safeAmount(invoice.getAdjustedAmount()).compareTo(BigDecimal.ZERO) > 0
+                    ? invoice.getAdjustedAmount()
+                    : invoice.getTotalAmount();
+            if (paid.compareTo(BigDecimal.ZERO) <= 0) continue;
+            boolean fullyPaid = paid.compareTo(safeAmount(total)) >= 0;
+            boolean depositOnly = !fullyPaid && "DEPOSIT_50".equalsIgnoreCase(order.getPaymentOption());
+
+            if (invoice != null) {
+                InvoiceStatusEnum nextInvoiceStatus = fullyPaid ? InvoiceStatusEnum.PAID : InvoiceStatusEnum.PARTIAL;
+                if (invoice.getStatus() != nextInvoiceStatus) {
+                    invoice.setStatus(nextInvoiceStatus);
+                    invoiceRepository.save(invoice);
+                }
+            }
+            String nextPaymentStatus = fullyPaid ? "PAID" : "PARTIALLY_PAID";
+            boolean orderChanged = false;
+            if (!nextPaymentStatus.equals(order.getPaymentStatus())) {
+                order.setPaymentStatus(nextPaymentStatus);
+                orderChanged = true;
+            }
+            if (!"HELD".equals(order.getEscrowStatus())) {
+                order.setEscrowStatus("HELD");
+                orderChanged = true;
+            }
+            OrderStatusEnum nextStatus = null;
+            if (order.getStatus() == OrderStatusEnum.PENDING_PAYMENT
+                    || order.getStatus() == OrderStatusEnum.PENDING_DEPOSIT
+                    || order.getStatus() == OrderStatusEnum.PENDING
+                    || order.getStatus() == OrderStatusEnum.PENDING_SUPPLIER_CONFIRMATION) {
+                nextStatus = depositOnly
+                        ? OrderStatusEnum.DEPOSIT_PAID_WAITING_SUPPLIER_CONFIRM
+                        : OrderStatusEnum.PAID_WAITING_SUPPLIER_CONFIRM;
+            }
+            if (nextStatus != null && order.getStatus() != nextStatus) {
+                order.setStatus(nextStatus);
+                orderChanged = true;
+            }
+            if (fullyPaid && safeAmount(order.getRemainingAmount()).compareTo(BigDecimal.ZERO) > 0) {
+                order.setRemainingAmount(BigDecimal.ZERO);
+                orderChanged = true;
+            }
+            if (orderChanged) {
+                order.setUpdatedAt(now);
+                orderRepository.save(order);
+            }
+        }
+    }
+
+    private boolean isPaymentSettled(PaymentEntity payment, List<MomoPaymentAttemptEntity> attempts) {
+        if (isPaidPayment(payment)) return true;
+        BigDecimal amount = safeAmount(payment.getAmount());
+        if (amount.compareTo(BigDecimal.ZERO) > 0 && safeAmount(payment.getPaidAmount()).compareTo(amount) >= 0) return true;
+        return attempts.stream().anyMatch(attempt -> "PAID".equalsIgnoreCase(attempt.getStatus()));
+    }
+
+    private boolean isPaidPayment(PaymentEntity payment) {
+        if (payment == null) return false;
+        String status = payment.getStatus() == null ? "" : payment.getStatus().trim().toUpperCase(Locale.ROOT);
+        if (List.of("PAID", "PARTIALLY_PAID", "COMPLETED", "CONFIRMED", "SUCCESS").contains(status)) return true;
+        BigDecimal amount = safeAmount(payment.getAmount());
+        return amount.compareTo(BigDecimal.ZERO) > 0 && safeAmount(payment.getPaidAmount()).compareTo(amount) >= 0;
     }
 
     private BuyerOrderDto mapOrder(
@@ -723,24 +838,6 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         parsePaymentMethod(firstText(request.paymentOption(), request.paymentMethod()));
     }
 
-    private void validateDeposit(BuyerQuickOrderRequestDto request, BigDecimal grandTotal) {
-        if (request.depositAmount() == null || request.balanceAmount() == null) {
-            throw new IllegalArgumentException("depositAmount and balanceAmount are required for DEPOSIT_50");
-        }
-        if (request.depositAmount().compareTo(BigDecimal.ZERO) <= 0
-                || request.balanceAmount().compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Deposit amounts are invalid");
-        }
-        BigDecimal expectedDeposit = grandTotal.multiply(new BigDecimal("0.50"));
-        if (expectedDeposit.subtract(request.depositAmount()).abs().compareTo(SUBTOTAL_TOLERANCE) > 0) {
-            throw new IllegalArgumentException("depositAmount must equal 50% of grandTotal");
-        }
-        if (request.depositAmount().add(request.balanceAmount()).subtract(grandTotal).abs()
-                .compareTo(SUBTOTAL_TOLERANCE) > 0) {
-            throw new IllegalArgumentException("depositAmount + balanceAmount must equal grandTotal");
-        }
-    }
-
     private LocalDate validateCreditLimit(Long supplierCompanyId, Long buyerCompanyId, BigDecimal grandTotal) {
         CreditLimitEntity creditLimit = creditLimitRepository
                 .findBySupplierCompanyIdAndBuyerCompanyId(supplierCompanyId, buyerCompanyId)
@@ -764,7 +861,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         BigDecimal outstanding = calculateOutstandingCredit(supplierCompanyId, buyerCompanyId);
         BigDecimal remaining = safeAmount(creditLimit.getCreditLimit()).subtract(outstanding);
         if (grandTotal.compareTo(remaining) > 0) {
-            throw new IllegalArgumentException("KhÃ´ng Ä‘á»§ háº¡n má»©c cÃ´ng ná»£.");
+            throw new IllegalArgumentException("Không đủ hạn mức công nợ.");
         }
         return LocalDate.now().plusDays(creditLimit.getPaymentTermDays());
     }
@@ -824,10 +921,6 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private String json(String value) {
-        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
     private OrderEntity requireBuyerOrder(Long buyerCompanyId, Long orderId) {
         OrderEntity order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found"));
@@ -882,9 +975,6 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                         "SUCCESS")) {
             throw new IllegalArgumentException("Escrow already released");
         }
-        if (supplierPayoutRepository.existsByOrderId(order.getId())) {
-            throw new IllegalArgumentException("Payout already exists");
-        }
         LocalDateTime now = LocalDateTime.now();
         ShipmentEntity shipment = shipmentRepository.findTopByOrderIdOrderByCreatedAtDesc(order.getId()).orElse(null);
         if (shipment != null) {
@@ -911,16 +1001,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .description("Platform releases payment to supplier")
                 .createdAt(now)
                 .build());
-        supplierPayoutRepository.save(SupplierPayoutEntity.builder()
-                .orderId(order.getId())
-                .supplierCompanyId(order.getSupplierCompanyId())
-                .amount(heldAmount)
-                .payoutStatus("PAID")
-                .transactionCode("PAYOUT-" + order.getId())
-                .paidAt(now)
-                .createdAt(now)
-                .updatedAt(now)
-                .build());
+        walletService.releaseEscrowToSupplier(order, heldAmount, now);
     }
 
     private PaymentEntity buildInitialPayment(
@@ -954,46 +1035,8 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .note(credit
                         ? "Buyer chon cong no, khong yeu cau thanh toan ngay"
                         : paymentMethod == PaymentMethod.DEPOSIT_50
-                        ? "Buyer chá»n Ä‘áº·t cá»c 50%, chá» chuyá»ƒn khoáº£n demo"
-                        : "Buyer chá»n thanh toÃ¡n 100% qua sÃ n, chá» chuyá»ƒn khoáº£n demo")
-                .build();
-    }
-
-    private PaymentEntity buildInitialPayment(
-            InvoiceEntity invoice,
-            PaymentMethod paymentMethod,
-            BuyerQuickOrderRequestDto request,
-            BigDecimal grandTotal,
-            LocalDate creditDueDate,
-            LocalDateTime now) {
-        BigDecimal amount = switch (paymentMethod) {
-            case FULL_PAYMENT, ESCROW_TRANSFER -> grandTotal;
-            case DEPOSIT_50 -> request.depositAmount();
-            case CREDIT, DEBT -> grandTotal;
-        };
-        String paymentType = switch (paymentMethod) {
-            case FULL_PAYMENT, ESCROW_TRANSFER -> "ESCROW";
-            case DEPOSIT_50 -> "DEPOSIT";
-            case CREDIT, DEBT -> "CREDIT";
-        };
-        String status = paymentMethod == PaymentMethod.CREDIT || paymentMethod == PaymentMethod.DEBT ? "UNPAID" : "PENDING";
-        String escrowStatus = paymentMethod == PaymentMethod.CREDIT || paymentMethod == PaymentMethod.DEBT ? null : "WAITING_BUYER_PAYMENT";
-        String note = switch (paymentMethod) {
-            case FULL_PAYMENT, ESCROW_TRANSFER -> "Buyer chá»n chuyá»ƒn khoáº£n qua sÃ n, chá» thanh toÃ¡n";
-            case DEPOSIT_50 -> "Buyer chá»n Ä‘áº·t cá»c 50%, chá» thanh toÃ¡n khoáº£n cá»c";
-            case CREDIT, DEBT -> "Buyer chá»n cÃ´ng ná»£, khÃ´ng yÃªu cáº§u thanh toÃ¡n ngay";
-        };
-        return PaymentEntity.builder()
-                .invoiceId(invoice.getId())
-                .amount(amount)
-                .paidAmount(BigDecimal.ZERO)
-                .paymentMethod(paymentMethod.name())
-                .paymentType(paymentType)
-                .status(status)
-                .escrowStatus(escrowStatus)
-                .dueDate(paymentMethod == PaymentMethod.CREDIT || paymentMethod == PaymentMethod.DEBT ? creditDueDate : null)
-                .paymentDate(now)
-                .note(note)
+                        ? "Buyer chọn đặt cọc 50%, chờ chuyển khoản demo"
+                        : "Buyer chọn thanh toán 100% qua sàn, chờ chuyển khoản demo")
                 .build();
     }
 
@@ -1049,9 +1092,6 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .build();
     }
 
-    private InvoiceStatusEnum invoiceStatus(PaymentMethod paymentMethod) {
-        return InvoiceStatusEnum.UNPAID;
-    }
 
     private PaymentMethod parsePaymentMethod(String raw) {
         String normalized = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
@@ -1150,9 +1190,6 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private boolean isBlank(String value) {
-        return value == null || value.isBlank();
-    }
 
     private BigDecimal resolveShippingFee(OrderEntity order, ShipmentEntity shipment) {
         if (shipment == null) {
@@ -1174,7 +1211,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
 
     private int demoDeliveryDays(CompanyEntity buyer) {
         String province = buyer.getProvince() == null ? "" : buyer.getProvince().toLowerCase(Locale.ROOT);
-        return province.contains("há»“ chÃ­ minh") || province.contains("ho chi minh") ? 1 : 2;
+        return province.contains("hồ chí minh") || province.contains("ho chi minh") ? 1 : 2;
     }
 
     private enum PaymentMethod {
