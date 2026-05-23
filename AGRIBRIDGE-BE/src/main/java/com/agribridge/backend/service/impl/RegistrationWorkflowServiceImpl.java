@@ -19,6 +19,7 @@ import com.agribridge.backend.repository.CompanyImageRepository;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.NotificationRepository;
 import com.agribridge.backend.repository.UserRepository;
+import com.agribridge.backend.service.OutboundEmailService;
 import com.agribridge.backend.service.RegistrationWorkflowService;
 import com.agribridge.backend.util.RegistrationDescriptionUtils;
 import java.math.BigDecimal;
@@ -28,11 +29,8 @@ import java.util.Locale;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,13 +49,10 @@ public class RegistrationWorkflowServiceImpl implements RegistrationWorkflowServ
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
     private final JdbcTemplate jdbcTemplate;
-    private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    private final OutboundEmailService outboundEmailService;
 
     @Value("${app.mail.enabled:false}")
     private boolean mailEnabled;
-
-    @Value("${spring.mail.username:no-reply@agribridge.local}")
-    private String mailFrom;
 
     @Override
     @Transactional(readOnly = true)
@@ -263,18 +258,7 @@ public class RegistrationWorkflowServiceImpl implements RegistrationWorkflowServ
             log.warn("Mail is disabled. Skipping registration email for companyId={} status={}", profile.getCompanyId(), status);
             return;
         }
-        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-        if (mailSender == null) {
-            log.warn("JavaMailSender bean is unavailable. Skipping registration email for companyId={} status={}", profile.getCompanyId(), status);
-            return;
-        }
-
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(mailFrom);
-        message.setTo(profile.getEmail());
-        message.setSubject(resolveTitle(status));
-        message.setText(resolveEmailBody(profile, status, note));
-        mailSender.send(message);
+        outboundEmailService.sendTextEmail(profile.getEmail(), resolveTitle(status), resolveEmailBody(profile, status, note));
         log.info("Sent registration decision email companyId={} status={} recipient={}",
                 profile.getCompanyId(), status, profile.getEmail());
     }

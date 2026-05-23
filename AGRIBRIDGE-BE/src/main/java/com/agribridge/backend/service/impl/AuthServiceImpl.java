@@ -15,7 +15,6 @@ import com.agribridge.backend.dto.RegistrationOtpVerifyRequestDto;
 import com.agribridge.backend.dto.ResetPasswordRequestDto;
 import com.agribridge.backend.dto.TaxCodeLookupRequestDto;
 import com.agribridge.backend.dto.TaxCodeLookupResponseDto;
-import jakarta.mail.internet.InternetAddress;
 import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.CompanyImageEntity;
 import com.agribridge.backend.entity.UserEntity;
@@ -30,6 +29,7 @@ import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.UserRepository;
 import com.agribridge.backend.service.AuthService;
 import com.agribridge.backend.service.AuthTokenService;
+import com.agribridge.backend.service.OutboundEmailService;
 import com.agribridge.backend.service.SupplierVerificationScoringService;
 import com.agribridge.backend.service.TaxCodeLookupService;
 import java.math.BigDecimal;
@@ -45,13 +45,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.lang.NonNull;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -74,28 +71,13 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final CompanyImageRepository companyImageRepository;
     private final JdbcTemplate jdbcTemplate;
-    private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    private final OutboundEmailService outboundEmailService;
     private final AuthTokenService authTokenService;
     private final TaxCodeLookupService taxCodeLookupService;
     private final SupplierVerificationScoringService verificationScoringService;
 
     @Value("${app.mail.enabled:false}")
     private boolean mailEnabled;
-
-    @Value("${spring.mail.username:no-reply@agribridge.local}")
-    private String mailUsername;
-
-    @Value("${spring.mail.host:}")
-    private String mailHost;
-
-    @Value("${spring.mail.port:587}")
-    private int mailPort;
-
-    @Value("${app.mail.from-address:}")
-    private String mailFromAddress;
-
-    @Value("${app.mail.from-name:AgriBridge}")
-    private String mailFromName;
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final Map<String, PendingRegistrationOtp> registrationOtpStore = new ConcurrentHashMap<>();
@@ -363,7 +345,7 @@ public class AuthServiceImpl implements AuthService {
                 .email(normalizedEmail)
                 .message(mailEnabled
                         ? "Mã xác thực đã được gửi tới email của bạn."
-                        : "Mã xác thực đã được tạo nhưng SMTP đang tắt. Hãy bật APP_MAIL_ENABLED để gửi email thật.")
+                        : "Mã xác thực đã được tạo nhưng mail đang tắt. Hãy bật APP_MAIL_ENABLED để gửi email thật.")
                 .expiresInSeconds(OTP_TTL_MINUTES * 60)
                 .resendAfterSeconds(PASSWORD_RESET_RESEND_SECONDS)
                 .build();
@@ -447,7 +429,7 @@ public class AuthServiceImpl implements AuthService {
                 .email(normalizedEmail)
                 .message(mailEnabled
                         ? "OTP đã được gửi tới email của bạn."
-                        : "OTP đã được tạo nhưng SMTP đang tắt. Hãy bật APP_MAIL_ENABLED để gửi mail thật.")
+                        : "OTP đã được tạo nhưng mail đang tắt. Hãy bật APP_MAIL_ENABLED để gửi mail thật.")
                 .expiresInSeconds(OTP_TTL_MINUTES * 60)
                 .build();
     }
@@ -924,26 +906,10 @@ public class AuthServiceImpl implements AuthService {
             return;
         }
 
-        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-        if (mailSender == null) {
-            throw new IllegalStateException("Mail service is unavailable. Please configure SMTP first.");
-        }
-
         try {
-            var message = mailSender.createMimeMessage();
-            var helper = new MimeMessageHelper(message, false, "UTF-8");
-            String resolvedFromAddress = safeTrim(mailFromAddress) != null ? safeTrim(mailFromAddress)
-                    : safeTrim(mailUsername);
-            if (resolvedFromAddress == null) {
-                throw new IllegalStateException(
-                        "Mail sender address is missing. Please set MAIL_USERNAME or MAIL_FROM_ADDRESS.");
-            }
-
-            helper.setFrom(new InternetAddress(resolvedFromAddress,
-                    safeTrim(mailFromName) != null ? safeTrim(mailFromName) : "AgriBridge"));
-            helper.setTo(email);
-            helper.setSubject("Ma OTP dang ky AgriBridge");
-            helper.setText(
+            outboundEmailService.sendTextEmail(
+                    email,
+                    "Ma OTP dang ky AgriBridge",
                     """
                             Xin chao,
 
@@ -954,17 +920,10 @@ public class AuthServiceImpl implements AuthService {
                             AgriBridge
                             """
                             .formatted(otp, OTP_TTL_MINUTES));
-            mailSender.send(message);
             log.info("Sent registration OTP email={} expiresAt={}", email, expiresAt);
         } catch (Exception exception) {
-            log.error("Failed to send registration OTP email={} host={} port={} username={} fromAddress={}",
-                    email,
-                    safeTrim(mailHost),
-                    mailPort,
-                    safeTrim(mailUsername),
-                    safeTrim(mailFromAddress),
-                    exception);
-            throw new IllegalStateException("Khong the gui email OTP. Vui long kiem tra lai cau hinh SMTP.", exception);
+            log.error("Failed to send registration OTP email={}", email, exception);
+            throw new IllegalStateException("Khong the gui email OTP qua Resend. Vui long kiem tra lai cau hinh.", exception);
         }
     }
 
@@ -974,26 +933,10 @@ public class AuthServiceImpl implements AuthService {
             return;
         }
 
-        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-        if (mailSender == null) {
-            throw new IllegalStateException("Mail service is unavailable. Please configure SMTP first.");
-        }
-
         try {
-            var message = mailSender.createMimeMessage();
-            var helper = new MimeMessageHelper(message, false, "UTF-8");
-            String resolvedFromAddress = safeTrim(mailFromAddress) != null ? safeTrim(mailFromAddress)
-                    : safeTrim(mailUsername);
-            if (resolvedFromAddress == null) {
-                throw new IllegalStateException(
-                        "Mail sender address is missing. Please set MAIL_USERNAME or MAIL_FROM_ADDRESS.");
-            }
-
-            helper.setFrom(new InternetAddress(resolvedFromAddress,
-                    safeTrim(mailFromName) != null ? safeTrim(mailFromName) : "AgriBridge"));
-            helper.setTo(email);
-            helper.setSubject("Ma xac thuc dat lai mat khau AgriBridge");
-            helper.setText(
+            outboundEmailService.sendTextEmail(
+                    email,
+                    "Ma xac thuc dat lai mat khau AgriBridge",
                     """
                             Xin chao,
 
@@ -1005,17 +948,10 @@ public class AuthServiceImpl implements AuthService {
                             AgriBridge
                             """
                             .formatted(otp, OTP_TTL_MINUTES));
-            mailSender.send(message);
             log.info("Sent password reset OTP email={} expiresAt={}", email, expiresAt);
         } catch (Exception exception) {
-            log.error("Failed to send password reset OTP email={} host={} port={} username={} fromAddress={}",
-                    email,
-                    safeTrim(mailHost),
-                    mailPort,
-                    safeTrim(mailUsername),
-                    safeTrim(mailFromAddress),
-                    exception);
-            throw new IllegalStateException("Khong the gui email OTP. Vui long kiem tra lai cau hinh SMTP.", exception);
+            log.error("Failed to send password reset OTP email={}", email, exception);
+            throw new IllegalStateException("Khong the gui email OTP qua Resend. Vui long kiem tra lai cau hinh.", exception);
         }
     }
 
