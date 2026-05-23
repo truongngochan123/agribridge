@@ -68,6 +68,7 @@ export type BuyerQuoteCompareItem = {
   tags?: string[]
   price?: number | null
   quantity?: number | null
+  unit?: string | null
   total?: number | null
   batchId?: number | null
   batchCode?: string | null
