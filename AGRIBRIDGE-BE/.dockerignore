@@ -1,0 +1,9 @@
+target/
+logs/
+.env
+.env.*
+!.env.example
+.git/
+.gitignore
+README.md
+run-be-local.cmd
