@@ -1,7 +1,6 @@
 package com.agribridge.backend.service.impl;
 
 import com.agribridge.backend.dto.BuyerMarketPriceDtos;
-import com.agribridge.backend.entity.BatchEntity;
 import com.agribridge.backend.entity.CategoryEntity;
 import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.MarketPriceSnapshotEntity;

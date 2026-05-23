@@ -489,7 +489,7 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
     @Override
     @Transactional
     public BuyerDeliveryDtos.Incident updateIncident(Long shipmentId, Long incidentId, BuyerDeliveryDtos.UpdateIncidentRequest request) {
-        requireBuyerShipment(shipmentId);
+        ShipmentEntity shipment = requireBuyerShipment(shipmentId);
         ShipmentIncidentEntity incident = shipmentIncidentRepository.findById(incidentId)
                 .orElseThrow(() -> new IllegalArgumentException("INCIDENT_NOT_FOUND"));
         if (!incident.getShipmentId().equals(shipmentId)) {
@@ -683,6 +683,19 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
     private String firstText(String first, String fallback) {
         String cleaned = clean(first);
         return cleaned == null ? clean(fallback) : cleaned;
+    }
+
+    private String firstText(String first, String second, String... fallbacks) {
+        String cleaned = clean(first);
+        if (cleaned != null) return cleaned;
+        cleaned = clean(second);
+        if (cleaned != null) return cleaned;
+        if (fallbacks == null) return null;
+        for (String fallback : fallbacks) {
+            cleaned = clean(fallback);
+            if (cleaned != null) return cleaned;
+        }
+        return null;
     }
 
     private String clean(String value) {

@@ -1,13 +1,12 @@
-import { Send, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Client } from '@stomp/stompjs'
+import { X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   createSupplierQuote,
   fetchSupplierQuoteContext,
   rejectSupplierRfq,
   type SupplierQuoteContext,
 } from '../../services/supplierService'
-import { createRfqChatClient, fetchRfqMessages, sendRfqMessage } from '../../services/rfqChatService'
+import { RfqChatModal } from '../../components/rfq/RfqChatModal'
 import { SearchInput, FilterTabBar, SupplierPanel, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
@@ -15,7 +14,6 @@ import { useSupplierDashboardData } from './useSupplierDashboardData'
 import { useToast } from '../../hooks/useToast'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
-import type { RfqMessage } from '../../types/rfqChat'
 import type { RfqItem } from '../../types/supplierDashboard'
 
 type RfqTabKey = 'all' | 'pending' | 'quoted' | 'accepted' | 'rejected'
@@ -45,23 +43,6 @@ function extractQuantityValue(raw?: string): string {
   if (!raw) return ''
   const matched = raw.match(/[\d.,]+/)
   return matched ? matched[0].replace(/,/g, '') : ''
-}
-
-function appendUniqueMessage(messages: RfqMessage[], nextMessage: RfqMessage): RfqMessage[] {
-  if (messages.some((message) => message.id === nextMessage.id)) {
-    return messages
-  }
-
-  return [...messages, nextMessage]
-}
-
-function formatChatTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return ''
-  }
-
-  return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 }
 
 function formatNumber(value?: number | null): string {
@@ -135,13 +116,7 @@ export function SupplierRfqQuotesPage() {
   const [quoteContext, setQuoteContext] = useState<SupplierQuoteContext | null>(null)
   const [quoteContextLoading, setQuoteContextLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [chatMessages, setChatMessages] = useState<RfqMessage[]>([])
-  const [chatInput, setChatInput] = useState('')
-  const [chatLoading, setChatLoading] = useState(false)
-  const [chatConnected, setChatConnected] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
-  const chatClientRef = useRef<Client | null>(null)
-  const chatEndRef = useRef<HTMLDivElement | null>(null)
 
   const statusCount = {
     pending: rfqItems.filter((item) => item.status === 'Chờ báo giá').length,
@@ -174,6 +149,7 @@ export function SupplierRfqQuotesPage() {
     ?? rfqItems.find((item) => item.id === activeRfqId)
     ?? filteredRfqItems[0]
     ?? rfqItems[0]
+  const activeChatRfqId = parseRfqId(activeRfqId)
   const availableBatches = quoteContext?.batches ?? []
   const quoteUnit = quoteContext?.rfq.unit || activeRfq?.unit || 'kg'
 
@@ -265,67 +241,6 @@ export function SupplierRfqQuotesPage() {
     }
   }, [activeRfq, openQuote, showToast])
 
-  useEffect(() => {
-    if (!openChat) {
-      setChatInput('')
-      setChatMessages([])
-      setChatConnected(false)
-      return
-    }
-
-    const parsedRfqId = parseRfqId(activeRfqId)
-    if (!parsedRfqId) {
-      showToast('Không xác định được RFQ để mở chat.', 'error')
-      setOpenChat(false)
-      return
-    }
-
-    let cancelled = false
-    setChatLoading(true)
-    setChatConnected(false)
-
-    void fetchRfqMessages(parsedRfqId)
-      .then((messages) => {
-        if (!cancelled) {
-          setChatMessages(messages)
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          showToast(readApiErrorMessage(error) || 'Không thể tải lịch sử chat.', 'error')
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setChatLoading(false)
-        }
-      })
-
-    const client = createRfqChatClient(
-      parsedRfqId,
-      (message) => setChatMessages((prev) => appendUniqueMessage(prev, message)),
-      (message) => showToast(message, 'error'),
-      () => setChatConnected(true),
-    )
-    chatClientRef.current = client
-    client.activate()
-
-    return () => {
-      cancelled = true
-      setChatConnected(false)
-      void client.deactivate()
-      if (chatClientRef.current === client) {
-        chatClientRef.current = null
-      }
-    }
-  }, [activeRfqId, openChat, showToast])
-
-  useEffect(() => {
-    if (openChat) {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [chatMessages, openChat])
-
   const handleOpenQuote = (rfqId: string) => {
     const rfq = rfqItems.find((item) => item.id === rfqId)
     if (rfq && isQuoteTerminal(rfq)) {
@@ -335,37 +250,6 @@ export function SupplierRfqQuotesPage() {
 
     setActiveRfqId(rfqId)
     setOpenQuote(true)
-  }
-
-  const handleSendChatMessage = () => {
-    const parsedRfqId = parseRfqId(activeRfqId)
-    const senderUserId = Number(localStorage.getItem('agribridge.auth.userId'))
-    const senderCompanyId = Number(localStorage.getItem('agribridge.auth.companyId'))
-    const message = chatInput.trim()
-
-    if (!message) {
-      return
-    }
-
-    if (!parsedRfqId || !Number.isFinite(senderUserId) || senderUserId <= 0 || !Number.isFinite(senderCompanyId) || senderCompanyId <= 0) {
-      showToast('Không xác định được tài khoản để gửi chat.', 'error')
-      return
-    }
-
-    const client = chatClientRef.current
-    if (!client?.connected) {
-      showToast('Chat realtime chưa kết nối, vui lòng thử lại sau.', 'error')
-      return
-    }
-
-    sendRfqMessage(client, {
-      rfqId: parsedRfqId,
-      senderUserId,
-      senderCompanyId,
-      senderRole: 'SUPPLIER',
-      message,
-    })
-    setChatInput('')
   }
 
   const handleReject = async (rfqId: string) => {
@@ -797,75 +681,14 @@ export function SupplierRfqQuotesPage() {
         </div>
       ) : null}
 
-      {openChat ? (
-        <div className="fixed inset-0 z-[80] bg-black/35 p-4">
-          <div className="mx-auto mt-16 w-full max-w-lg overflow-hidden rounded-2xl bg-white">
-            <div className="flex items-start justify-between border-b border-slate-200 p-4">
-              <div>
-                <h3 className="text-xl font-extrabold text-slate-900">Chat với {activeRfq?.customer.split(' - ')[0]}</h3>
-                <p className="text-xs text-slate-500">
-                  {activeRfq?.id} • {activeRfq?.product} • {chatConnected ? 'Đã kết nối' : 'Đang kết nối...'}
-                </p>
-              </div>
-              <button onClick={() => setOpenChat(false)} className="rounded p-1 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
-            </div>
-
-            <div className="max-h-[420px] min-h-72 space-y-3 overflow-y-auto bg-slate-50 p-4">
-              {chatLoading ? (
-                <p className="text-center text-sm font-semibold text-emerald-700">Đang tải lịch sử chat...</p>
-              ) : null}
-
-              {!chatLoading && chatMessages.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-center text-sm font-semibold text-slate-500">
-                  Chưa có tin nhắn nào cho RFQ này.
-                </p>
-              ) : null}
-
-              {chatMessages.map((message) => {
-                const isSupplier = message.senderRole === 'SUPPLIER'
-
-                return (
-                  <div
-                    key={message.id}
-                    className={`max-w-[75%] rounded-xl p-3 text-sm ${
-                      isSupplier
-                        ? 'ml-auto bg-emerald-600 text-white'
-                        : 'bg-white text-slate-800 shadow-sm'
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap break-words">{message.message}</p>
-                    <p className={`mt-1 text-xs ${isSupplier ? 'text-emerald-100' : 'text-slate-400'}`}>
-                      {formatChatTime(message.createdAt)}
-                    </p>
-                  </div>
-                )
-              })}
-              <div ref={chatEndRef} />
-            </div>
-
-            <div className="flex gap-2 border-t border-slate-200 p-3">
-              <input
-                className="h-11 flex-1 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                placeholder="Nhập tin nhắn..."
-                value={chatInput}
-                onChange={(event) => setChatInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault()
-                    handleSendChatMessage()
-                  }
-                }}
-              />
-              <button
-                className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-600 text-white disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={!chatInput.trim() || !chatConnected}
-                onClick={handleSendChatMessage}
-              >
-                <Send className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
+      {openChat && activeChatRfqId ? (
+        <RfqChatModal
+          rfqId={activeChatRfqId}
+          rfqCode={activeRfq?.id || activeRfqId}
+          title={`Chat với ${activeRfq?.customer.split(' - ')[0] || 'nhà buôn'}`}
+          subtitle={activeRfq ? `${activeRfq.product} · ${activeRfq.quantity}` : undefined}
+          onClose={() => setOpenChat(false)}
+        />
       ) : null}
     </>
   )

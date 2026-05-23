@@ -29,6 +29,9 @@ public class RfqMessageEntity {
     @Column(name = "rfq_id", nullable = false)
     private Long rfqId;
 
+    @Column(name = "supplier_company_id")
+    private Long supplierCompanyId;
+
     @Column(name = "sender_user_id", nullable = false)
     private Long senderUserId;
 

@@ -15,6 +15,7 @@ import { SupplierRfqQuotesPage } from './pages/supplier/SupplierRfqQuotesPage'
 import { SupplierOrdersPage } from './pages/supplier/SupplierOrdersPage'
 import { SupplierDeliveryPage } from './pages/supplier/SupplierDeliveryPage'
 import { SupplierDebtPage } from './pages/supplier/SupplierDebtPage'
+import { SupplierWalletPage } from './pages/supplier/SupplierWalletPage'
 import { SupplierReportsPage } from './pages/supplier/SupplierReportsPage'
 import { SupplierProfilePage } from './pages/supplier/SupplierProfilePage'
 import { SuppliersPage } from './pages/site/SuppliersPage'
@@ -35,7 +36,9 @@ import { BuyerProfilePage } from './pages/buyer/BuyerProfilePage'
 import { AdminOverviewPage } from './pages/admin/AdminOverviewPage'
 import { AdminUsersPage } from './pages/admin/AdminUsersPage'
 import { AdminRegistrationsPage } from './pages/admin/AdminRegistrationsPage'
+import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage'
 import { AdminDisputesPage } from './pages/admin/AdminDisputesPage'
+import { AdminWithdrawalsPage } from './pages/admin/AdminWithdrawalsPage'
 import { AdminProfilePage } from './pages/admin/AdminProfilePage'
 import { AdminLoginPage } from './pages/admin/AdminLoginPage'
 import { PublicBatchTracePage } from './pages/public/PublicBatchTracePage'
@@ -72,6 +75,7 @@ function App() {
       <Route path="/supplier/orders" element={<ProtectedAppRoute allowedCompanyTypes={['supplier']}><SupplierOrdersPage /></ProtectedAppRoute>} />
       <Route path="/supplier/delivery" element={<ProtectedAppRoute allowedCompanyTypes={['supplier']}><SupplierDeliveryPage /></ProtectedAppRoute>} />
       <Route path="/supplier/debt" element={<ProtectedAppRoute allowedCompanyTypes={['supplier']}><SupplierDebtPage /></ProtectedAppRoute>} />
+      <Route path="/supplier/wallet" element={<ProtectedAppRoute allowedCompanyTypes={['supplier']}><SupplierWalletPage /></ProtectedAppRoute>} />
       <Route path="/supplier/reports" element={<ProtectedAppRoute allowedCompanyTypes={['supplier']}><SupplierReportsPage /></ProtectedAppRoute>} />
       <Route path="/supplier/profile" element={<ProtectedAppRoute allowedCompanyTypes={['supplier']}><SupplierProfilePage /></ProtectedAppRoute>} />
       <Route path="/suppliers" element={<SuppliersPage />} />
@@ -94,7 +98,9 @@ function App() {
       <Route path="/admin/overview" element={<ProtectedAdminRoute><AdminOverviewPage /></ProtectedAdminRoute>} />
       <Route path="/admin/users" element={<ProtectedAdminRoute><AdminUsersPage /></ProtectedAdminRoute>} />
       <Route path="/admin/registrations" element={<ProtectedAdminRoute><AdminRegistrationsPage /></ProtectedAdminRoute>} />
+      <Route path="/admin/categories" element={<ProtectedAdminRoute><AdminCategoriesPage /></ProtectedAdminRoute>} />
       <Route path="/admin/disputes" element={<ProtectedAdminRoute><AdminDisputesPage /></ProtectedAdminRoute>} />
+      <Route path="/admin/withdrawals" element={<ProtectedAdminRoute><AdminWithdrawalsPage /></ProtectedAdminRoute>} />
       <Route path="/admin/profile" element={<ProtectedAdminRoute><AdminProfilePage /></ProtectedAdminRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

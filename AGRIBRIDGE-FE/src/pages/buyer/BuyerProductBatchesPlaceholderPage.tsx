@@ -55,6 +55,7 @@ type BuyerSourcingProductDetail = BuyerSourcingProduct & {
 
 type QuickOrderPaymentModalData = {
   orderId: number
+  paymentId?: number | null
   orderCode: string
   productName: string
   quantity: number
@@ -373,6 +374,7 @@ export function BuyerProductBatchesPage() {
       if (currentTarget) {
         setPaymentModalData({
           orderId: result.orderId,
+          paymentId: result.paymentId,
           orderCode: result.orderCode,
           productName: currentTarget.productName,
           quantity: payload.quantity,
@@ -398,7 +400,7 @@ export function BuyerProductBatchesPage() {
 
   const handleConfirmPayment = async () => {
     if (!paymentModalData) return
-    const updated = await confirmPayment({ orderId: paymentModalData.orderId })
+    const updated = await confirmPayment({ orderId: paymentModalData.orderId, paymentId: paymentModalData.paymentId })
     if (updated) {
       setPaymentModalData(null)
       navigate(`/buyer/orders?orderId=${paymentModalData.orderId}`)

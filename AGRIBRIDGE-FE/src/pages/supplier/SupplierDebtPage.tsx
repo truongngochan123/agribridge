@@ -1,7 +1,8 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import { AlertTriangle, Bell, CircleHelp, CreditCard, Download, FileText, Loader2, ReceiptText, Settings, SlidersHorizontal, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
+import XLSXStyle from 'xlsx-js-style'
 import { FilterTabBar, SearchInput, SupplierPanel } from '../../components/supplier/SupplierCommon'
 import { DebtReminderList, type DebtReminderCardItem } from '../../components/debt/DebtReminderCard'
 import { PaymentTimelineGroup, type PaymentHistoryItem } from '../../components/debt/PaymentHistory'
@@ -73,6 +74,209 @@ function formatDate(value?: string | null) {
   if (!value) return emptyText
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN')
+}
+
+// ─── Excel Export ────────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DebtWS = any
+
+function debtCell(v: unknown, t = 's') {
+  return { v, t }
+}
+
+function debtStyle(
+  bg: string,
+  color = '1E293B',
+  bold = false,
+  align: 'left' | 'center' | 'right' = 'left',
+  fontSize = 10,
+  border = false,
+) {
+  return {
+    font: { bold, sz: fontSize, color: { rgb: color }, name: 'Calibri' },
+    fill: { patternType: 'solid', fgColor: { rgb: bg } },
+    alignment: { horizontal: align, vertical: 'center', wrapText: false },
+    ...(border ? { border: { bottom: { style: 'hair', color: { rgb: 'CBD5E1' } }, left: { style: 'hair', color: { rgb: 'CBD5E1' } }, right: { style: 'hair', color: { rgb: 'CBD5E1' } } } } : {}),
+  }
+}
+
+function applyDebtStyle(ws: DebtWS, addr: string, style: object, numFmt?: string) {
+  if (!ws[addr]) ws[addr] = debtCell('')
+  ws[addr].s = style
+  if (numFmt) ws[addr].z = numFmt
+}
+
+function debtSheetHeader(ws: DebtWS, title: string, subtitle: string, cols: number, titleBg: string, hdrBg: string) {
+  const letters = Array.from({ length: cols }, (_, i) => String.fromCharCode(65 + i))
+  letters.forEach((c) => {
+    applyDebtStyle(ws, `${c}1`, debtStyle(titleBg, 'FFFFFF', true, 'center', 14))
+    applyDebtStyle(ws, `${c}2`, debtStyle('F8FAFC', '64748B', false, 'center', 9))
+    applyDebtStyle(ws, `${c}4`, debtStyle(hdrBg, 'FFFFFF', true, 'center', 10))
+  })
+  if (ws['A1']) ws['A1'].v = title
+  if (ws['A2']) ws['A2'].v = subtitle
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: cols - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: cols - 1 } },
+  ]
+}
+
+type DebtExportParams = {
+  ledgerTab: DebtLedgerTab
+  buyers: SupplierDebtBuyer[]
+  detailsByBuyer: Record<number, SupplierDebtBuyerDetail>
+  kpiStats: DebtStatCard[]
+}
+
+function downloadDebtExcel({ ledgerTab, buyers, detailsByBuyer, kpiStats }: DebtExportParams) {
+  const wb = XLSXStyle.utils.book_new()
+  const dateStr = new Date().toLocaleDateString('vi-VN')
+  const ledgerLabel = ledgerTab === 'credit' ? 'Công nợ' : 'Cọc 50%'
+  const subtitle = `Loại: ${ledgerLabel}   ·   Xuất ngày: ${dateStr}   ·   AgriBridge`
+
+  // ── Sheet 1: Tổng kết KPI ──────────────────────────────────────────────────
+  const kpiRows: unknown[][] = [
+    ['TỔNG KẾT CÔNG NỢ - AGRIBRIDGE', ''],
+    [subtitle, ''],
+    [''],
+    ['CHỈ SỐ', 'GIÁ TRỊ'],
+    ...kpiStats.map((k) => [k.label, k.value]),
+    [''],
+    ['Tổng khách hàng trong báo cáo', buyers.length],
+  ]
+  const wsKpi = XLSXStyle.utils.aoa_to_sheet(kpiRows)
+  wsKpi['!cols'] = [{ wch: 36 }, { wch: 24 }]
+  wsKpi['!rows'] = [{ hpt: 32 }, { hpt: 16 }, { hpt: 6 }, { hpt: 22 }, ...kpiStats.map(() => ({ hpt: 20 })), { hpt: 6 }, { hpt: 20 }]
+  debtSheetHeader(wsKpi, 'TỔNG KẾT CÔNG NỢ - AGRIBRIDGE', subtitle, 2, '064E3B', '047857')
+  kpiStats.forEach((_, i) => {
+    const r = 5 + i
+    const bg = i % 2 === 0 ? 'FFFFFF' : 'F0FDF4'
+    applyDebtStyle(wsKpi, `A${r}`, debtStyle(bg, '1E293B', true, 'left', 10, true))
+    applyDebtStyle(wsKpi, `B${r}`, debtStyle(bg, '065F46', true, 'right', 10, true))
+  })
+  XLSXStyle.utils.book_append_sheet(wb, wsKpi, 'Tổng kết')
+
+  // ── Sheet 2: Chi tiết hóa đơn ─────────────────────────────────────────────
+  const COLS = ['KHÁCH HÀNG', 'LOẠI CÔNG NỢ', 'MÃ HÓA ĐƠN', 'MÃ ĐƠN', 'SẢN PHẨM', 'NGÀY TẠO', 'HẠN THANH TOÁN', 'TỔNG TIỀN (VNĐ)', 'ĐÃ THU (VNĐ)', 'ĐIỀU CHỈNH (VNĐ)', 'CÒN PHẢI THU (VNĐ)', 'TRẠNG THÁI', 'HẠN MỨC (VNĐ)', 'CÒN HẠN MỨC (VNĐ)', 'NHẮC NỢ']
+  const invoiceDataRows: unknown[][] = []
+
+  buyers.forEach((buyer) => {
+    const buyerDetail = detailsByBuyer[buyer.buyerId]
+    const ledgerInvoices = invoicesForLedger(buyerDetail?.invoices ?? [], ledgerTab)
+    if (!ledgerInvoices.length) {
+      invoiceDataRows.push([
+        buyer.buyerName, ledgerLabel, '', '', '', '', '',
+        Number(buyer.totalAmount ?? 0), Number(buyer.paidAmount ?? 0), 0, Number(buyer.remainingAmount ?? 0),
+        supplierStatusLabel(buyer), Number(buyer.creditLimit ?? 0), Number(buyer.remainingCredit ?? 0),
+        reminderColumnLabel(buyerDetail?.reminders ?? []),
+      ])
+      return
+    }
+    ledgerInvoices.forEach((invoice) => {
+      invoiceDataRows.push([
+        buyer.buyerName,
+        paymentPlanLabel(invoice.paymentPlanType, invoice.paymentTermDays, buyer.creditLimit),
+        displayInvoiceCode(invoice),
+        invoice.orderCode ?? invoice.orderRef ?? '',
+        productSummary(invoice),
+        formatDate(invoice.createdAt),
+        formatDueDate(invoice),
+        Number(invoice.totalAmount ?? 0),
+        Number(invoice.paidAmount ?? 0),
+        Number(invoice.adjustmentAmount ?? 0),
+        invoiceOutstandingAmount(invoice),
+        invoiceStatusLabel(invoice),
+        Number(buyer.creditLimit ?? 0),
+        Number(buyer.remainingCredit ?? 0),
+        canSendReminder(invoice) ? 'Cần nhắc' : reminderBlockedLabel(invoice),
+      ])
+    })
+  })
+
+  const detailRows: unknown[][] = [
+    Array(COLS.length).fill(''),  // row 1: title (set by debtSheetHeader)
+    Array(COLS.length).fill(''),  // row 2: subtitle
+    Array(COLS.length).fill(''),  // row 3: spacer
+    COLS,
+    ...invoiceDataRows,
+  ]
+  const wsDetail = XLSXStyle.utils.aoa_to_sheet(detailRows)
+  wsDetail['!cols'] = [
+    { wch: 28 }, { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 30 },
+    { wch: 14 }, { wch: 22 }, { wch: 18 }, { wch: 16 }, { wch: 16 },
+    { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 18 },
+  ]
+  wsDetail['!rows'] = [
+    { hpt: 32 }, { hpt: 16 }, { hpt: 6 }, { hpt: 22 },
+    ...invoiceDataRows.map(() => ({ hpt: 18 })),
+  ]
+  debtSheetHeader(wsDetail, 'CHI TIẾT HÓA ĐƠN CÔNG NỢ', subtitle, COLS.length, '1E3A8A', '1D4ED8')
+  const MONEY_COLS = [7, 8, 9, 10, 12, 13] // 0-indexed
+  const STATUS_COL = 11
+  const REMIND_COL = 14
+  invoiceDataRows.forEach((row, ri) => {
+    const excelRow = 5 + ri
+    const bg = ri % 2 === 0 ? 'FFFFFF' : 'EFF6FF'
+    ;(row as unknown[]).forEach((_, ci) => {
+      const colLetter = String.fromCharCode(65 + ci)
+      const addr = `${colLetter}${excelRow}`
+      let color = '1E293B'
+      let bold = false
+      let align: 'left' | 'center' | 'right' = 'left'
+      let numFmt: string | undefined
+      if (MONEY_COLS.includes(ci)) { color = ci === 10 ? '6D28D9' : ci >= 12 ? '0F766E' : '065F46'; bold = true; align = 'right'; numFmt = '#,##0' }
+      else if (ci === STATUS_COL) {
+        const val = String(row[ci] ?? '')
+        color = val.includes('Quá hạn') ? 'B91C1C' : val.includes('Sắp') ? '92400E' : val.includes('Đã') ? '065F46' : '1E293B'
+        bold = true; align = 'center'
+      } else if (ci === REMIND_COL) { color = String(row[ci] ?? '').includes('Cần nhắc') ? 'B45309' : '475569'; align = 'center' }
+      else if (ci <= 1) { bold = ci === 0 }
+      else { align = 'center' }
+      applyDebtStyle(wsDetail, addr, debtStyle(bg, color, bold, align, 10, true), numFmt)
+    })
+  })
+  XLSXStyle.utils.book_append_sheet(wb, wsDetail, 'Chi tiết hóa đơn')
+
+  // ── Sheet 3: Lịch sử thanh toán ───────────────────────────────────────────
+  const pmtRows: unknown[][] = []
+  buyers.forEach((buyer) => {
+    const buyerDetail = detailsByBuyer[buyer.buyerId]
+    ;(buyerDetail?.payments ?? []).forEach((p) => {
+      pmtRows.push([
+        buyer.buyerName,
+        formatDate(p.paymentDate),
+        Number(p.amount ?? 0),
+        p.paymentMethod ?? '',
+        p.note ?? '',
+        p.invoiceId ? `INV-${p.invoiceId}` : '',
+      ])
+    })
+  })
+  const PMT_COLS = ['KHÁCH HÀNG', 'NGÀY THANH TOÁN', 'SỐ TIỀN (VNĐ)', 'PHƯƠNG THỨC', 'GHI CHÚ', 'MÃ HÓA ĐƠN']
+  const wsPmt = XLSXStyle.utils.aoa_to_sheet([
+    Array(PMT_COLS.length).fill(''),
+    Array(PMT_COLS.length).fill(''),
+    Array(PMT_COLS.length).fill(''),
+    PMT_COLS,
+    ...pmtRows,
+  ])
+  wsPmt['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 32 }, { wch: 16 }]
+  wsPmt['!rows'] = [{ hpt: 32 }, { hpt: 16 }, { hpt: 6 }, { hpt: 22 }, ...pmtRows.map(() => ({ hpt: 18 }))]
+  debtSheetHeader(wsPmt, 'LỊCH SỬ THANH TOÁN', subtitle, PMT_COLS.length, '4C1D95', '7C3AED')
+  pmtRows.forEach((row, ri) => {
+    const excelRow = 5 + ri
+    const bg = ri % 2 === 0 ? 'FFFFFF' : 'F5F3FF'
+    ;(row as unknown[]).forEach((_, ci) => {
+      const addr = `${String.fromCharCode(65 + ci)}${excelRow}`
+      const isMoney = ci === 2
+      applyDebtStyle(wsPmt, addr, debtStyle(bg, isMoney ? '6D28D9' : '1E293B', isMoney, isMoney ? 'right' : ci === 1 ? 'center' : 'left', 10, true), isMoney ? '#,##0' : undefined)
+    })
+  })
+  XLSXStyle.utils.book_append_sheet(wb, wsPmt, 'Lịch sử thanh toán')
+
+  const filename = `agribridge-cong-no-${ledgerTab}-${new Date().toISOString().slice(0, 10)}.xlsx`
+  XLSXStyle.writeFile(wb, filename)
 }
 
 function paymentPlanLabel(plan?: string | null, termDays?: number | null, creditLimit?: number | null) {
@@ -332,6 +536,7 @@ export function SupplierDebtPage() {
   const [focusInvoiceId, setFocusInvoiceId] = useState<number | null>(null)
   const [buyerDetailMap, setBuyerDetailMap] = useState<Record<number, SupplierDebtBuyerDetail>>({})
   const [ledgerTab, setLedgerTab] = useState<DebtLedgerTab>('credit')
+  const [exporting, setExporting] = useState(false)
 
   const loadDebts = useCallback(async () => {
     try {
@@ -458,6 +663,45 @@ export function SupplierDebtPage() {
     }
   }
 
+  const handleExportReport = async () => {
+    if (!buyers.length) {
+      showToast('Không có dữ liệu công nợ để xuất báo cáo.', 'info')
+      return
+    }
+
+    try {
+      setExporting(true)
+      // Fetch all buyer details
+      const detailPairs = await Promise.all(
+        buyers.map(async (buyer) => {
+          const cached = buyerDetailMap[buyer.buyerId]
+          if (cached) return [buyer.buyerId, cached] as const
+          const loaded = await fetchSupplierDebtBuyerDetail(buyer.buyerId)
+          return [buyer.buyerId, loaded] as const
+        }),
+      )
+      const detailsByBuyer = Object.fromEntries(detailPairs) as Record<number, SupplierDebtBuyerDetail>
+      setBuyerDetailMap((prev) => ({ ...prev, ...detailsByBuyer }))
+
+      downloadDebtExcel({
+        ledgerTab,
+        buyers,
+        detailsByBuyer,
+        kpiStats: ledgerStats,
+      })
+
+      showToast('Đã xuất báo cáo công nợ Excel.', 'success')
+    } catch (err) {
+      console.error('[DebtExport] Lỗi:', err)
+      showToast(
+        err instanceof Error ? err.message : 'Không thể xuất báo cáo công nợ.',
+        'error',
+      )
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <>
       <SupplierShell
@@ -479,9 +723,14 @@ export function SupplierDebtPage() {
                 Cấp hạn mức
               </button>
             ) : null}
-            <button className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-xs font-bold text-white shadow-sm">
-              <Download className="h-3.5 w-3.5" />
-              Xuất báo cáo
+            <button
+              type="button"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-xs font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => void handleExportReport()}
+              disabled={exporting || loading}
+            >
+              {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              {exporting ? 'Đang xuất...' : 'Xuất báo cáo'}
             </button>
           </div>
         }
@@ -1550,7 +1799,5 @@ function Notice({ text, tone }: { text: string; tone: 'emerald' | 'red' }) {
 function Overlay({ children }: { children: ReactNode }) {
   return <div className="fixed inset-0 z-[85] bg-black/30 p-4"><div className="mx-auto mt-20 max-w-md rounded-2xl bg-white p-4 text-sm font-semibold text-emerald-700">{children}</div></div>
 }
-
-
 
 

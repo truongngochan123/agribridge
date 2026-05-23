@@ -12,4 +12,6 @@ public interface EscrowTransactionRepository extends JpaRepository<EscrowTransac
     List<EscrowTransactionEntity> findByOrderIdOrderByCreatedAtAsc(Long orderId);
 
     boolean existsByOrderIdAndTransactionTypeAndStatus(Long orderId, String transactionType, String status);
+
+    boolean existsByPaymentIdAndTransactionTypeAndStatus(Long paymentId, String transactionType, String status);
 }

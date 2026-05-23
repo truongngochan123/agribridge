@@ -3,6 +3,7 @@ export type RfqMessageSenderRole = 'BUYER' | 'SUPPLIER' | 'ADMIN'
 export interface RfqMessage {
   id: number
   rfqId: number
+  supplierCompanyId: number
   senderUserId: number
   senderCompanyId: number
   senderRole: RfqMessageSenderRole
@@ -11,9 +12,6 @@ export interface RfqMessage {
 }
 
 export interface SendRfqMessagePayload {
-  rfqId: number
-  senderUserId: number
-  senderCompanyId: number
-  senderRole: RfqMessageSenderRole
+  supplierCompanyId?: number | null
   message: string
 }

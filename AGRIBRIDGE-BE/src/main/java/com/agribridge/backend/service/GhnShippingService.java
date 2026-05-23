@@ -147,7 +147,7 @@ public class GhnShippingService {
         // ── Resolve sender GHN location ──
         if (sender == null) {
             log.warn("GHN: sender address is null, cannot call GHN.");
-            return null;
+            return pendingShippingQuote("Địa chỉ kho/nhà cung cấp chưa đầy đủ để tính phí GHN tự động.");
         }
         GhnLocation from;
         try {
@@ -155,7 +155,7 @@ public class GhnShippingService {
                     new Address(sender.province(), sender.district(), sender.ward(), sender.address()));
         } catch (IllegalArgumentException senderEx) {
             log.warn("GHN sender location resolve failed: {}", senderEx.getMessage());
-            return null;
+            return pendingShippingQuote("Địa chỉ kho/nhà cung cấp chưa hỗ trợ tính phí GHN tự động.");
         }
 
         // ── Resolve receiver GHN location ──
@@ -166,7 +166,8 @@ public class GhnShippingService {
                     "receiver");
         } catch (IllegalArgumentException receiverEx) {
             log.warn("GHN receiver location resolve failed: {}", receiverEx.getMessage());
-            return null;
+            throw new IllegalArgumentException(
+                    "Không thể định vị địa chỉ nhận hàng trên GHN. Vui lòng chọn lại tỉnh/quận/phường từ danh sách.");
         }
 
         // ── Call GHN fee API ──
@@ -239,6 +240,33 @@ public class GhnShippingService {
             log.warn("GHN API request failed: {}", ex.getMessage());
             return null;
         }
+    }
+
+    private ShippingQuoteResponse pendingShippingQuote(String reason) {
+        return new ShippingQuoteResponse(
+                "PENDING_QUOTE",
+                reason,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "BUYER",
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     public GhnCreateOrderResponse createGhnShippingOrder(OrderEntity order, ShipmentEntity shipment) {

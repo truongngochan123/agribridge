@@ -1,0 +1,37 @@
+{
+  "name": "agribridge",
+  "version": "1.0.0",
+  "description": "agribridge",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:auth": "playwright test tests/01-auth.spec.ts",
+    "test:overview": "playwright test tests/02-overview.spec.ts",
+    "test:products": "playwright test tests/03-products.spec.ts",
+    "test:lots": "playwright test tests/04-lots.spec.ts",
+    "test:rfq": "playwright test tests/05-rfq.spec.ts",
+    "test:orders": "playwright test tests/06-orders.spec.ts",
+    "test:delivery": "playwright test tests/07-delivery.spec.ts",
+    "test:debt": "playwright test tests/08-debt.spec.ts",
+    "test:wallet": "playwright test tests/09-wallet.spec.ts",
+    "test:nav": "playwright test tests/10-reports-nav.spec.ts",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:report": "playwright show-report"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/truongngochan123/agribridge.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/truongngochan123/agribridge/issues"
+  },
+  "homepage": "https://github.com/truongngochan123/agribridge#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  }
+}

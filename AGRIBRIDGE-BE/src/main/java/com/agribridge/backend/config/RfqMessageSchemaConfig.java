@@ -23,12 +23,19 @@ public class RfqMessageSchemaConfig {
                         CREATE TABLE dbo.rfq_messages (
                           id BIGINT IDENTITY(1,1) PRIMARY KEY,
                           rfq_id BIGINT NOT NULL,
+                          supplier_company_id BIGINT NULL,
                           sender_user_id BIGINT NOT NULL,
                           sender_company_id BIGINT NOT NULL,
                           sender_role NVARCHAR(20) NOT NULL,
                           message NVARCHAR(MAX) NOT NULL,
                           created_at DATETIME2 NOT NULL DEFAULT GETDATE()
                         )
+                    END
+                    """);
+            jdbcTemplate.execute("""
+                    IF COL_LENGTH('dbo.rfq_messages', 'supplier_company_id') IS NULL
+                    BEGIN
+                        ALTER TABLE dbo.rfq_messages ADD supplier_company_id BIGINT NULL
                     END
                     """);
             log.info("RFQ message table is ready");
