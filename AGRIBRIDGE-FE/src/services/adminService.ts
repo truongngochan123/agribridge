@@ -22,6 +22,7 @@ export async function fetchAdminOverview(filter: AdminTimeFilter): Promise<Admin
   try {
     const response = await apiClient.get<AdminOverviewPayload>('/api/admin/overview', {
       params: { filter },
+      timeout: 20000,
     })
     return response.data
   } catch (error) {

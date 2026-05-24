@@ -18,8 +18,10 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import lombok.RequiredArgsConstructor;
@@ -47,64 +49,22 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
         DateRange current = resolveDateRange(filter);
         DateRange previous = new DateRange(current.start().minusDays(current.days()), current.start().minusDays(1), current.days());
 
-        BigDecimal currentGmv = queryBigDecimal(
-                "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE created_at >= ? AND created_at < ?",
-                Timestamp.valueOf(current.start().atStartOfDay()),
-                Timestamp.valueOf(current.endExclusive().atStartOfDay()));
-        BigDecimal previousGmv = queryBigDecimal(
-                "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE created_at >= ? AND created_at < ?",
-                Timestamp.valueOf(previous.start().atStartOfDay()),
-                Timestamp.valueOf(previous.endExclusive().atStartOfDay()));
-        BigDecimal currentPlatformRevenue = queryBigDecimal(
-                "SELECT COALESCE(SUM(fee_amount), 0) FROM withdrawal_requests WHERE status IN ('PENDING', 'APPROVED', 'PAID') AND requested_at >= ? AND requested_at < ?",
-                Timestamp.valueOf(current.start().atStartOfDay()),
-                Timestamp.valueOf(current.endExclusive().atStartOfDay()));
-        BigDecimal previousPlatformRevenue = queryBigDecimal(
-                "SELECT COALESCE(SUM(fee_amount), 0) FROM withdrawal_requests WHERE status IN ('PENDING', 'APPROVED', 'PAID') AND requested_at >= ? AND requested_at < ?",
-                Timestamp.valueOf(previous.start().atStartOfDay()),
-                Timestamp.valueOf(previous.endExclusive().atStartOfDay()));
-        currentGmv = currentPlatformRevenue;
-        previousGmv = previousPlatformRevenue;
-
-        long currentOrders = queryLong(
-                "SELECT COUNT(1) FROM orders WHERE created_at >= ? AND created_at < ?",
-                Timestamp.valueOf(current.start().atStartOfDay()),
-                Timestamp.valueOf(current.endExclusive().atStartOfDay()));
-        long previousOrders = queryLong(
-                "SELECT COUNT(1) FROM orders WHERE created_at >= ? AND created_at < ?",
-                Timestamp.valueOf(previous.start().atStartOfDay()),
-                Timestamp.valueOf(previous.endExclusive().atStartOfDay()));
-
-        long currentNewUsers = queryLong(
-                "SELECT COUNT(1) FROM users WHERE created_at >= ? AND created_at < ?",
-                Timestamp.valueOf(current.start().atStartOfDay()),
-                Timestamp.valueOf(current.endExclusive().atStartOfDay()));
-        long previousNewUsers = queryLong(
-                "SELECT COUNT(1) FROM users WHERE created_at >= ? AND created_at < ?",
-                Timestamp.valueOf(previous.start().atStartOfDay()),
-                Timestamp.valueOf(previous.endExclusive().atStartOfDay()));
-
-        long currentDisputes = queryLong(
-                "SELECT COUNT(1) FROM complaints WHERE created_at >= ? AND created_at < ?",
-                Timestamp.valueOf(current.start().atStartOfDay()),
-                Timestamp.valueOf(current.endExclusive().atStartOfDay()));
-        long previousDisputes = queryLong(
-                "SELECT COUNT(1) FROM complaints WHERE created_at >= ? AND created_at < ?",
-                Timestamp.valueOf(previous.start().atStartOfDay()),
-                Timestamp.valueOf(previous.endExclusive().atStartOfDay()));
+        OverviewMetrics metrics = queryOverviewMetrics(current, previous);
+        BigDecimal currentGmv = metrics.currentPlatformRevenue();
+        BigDecimal previousGmv = metrics.previousPlatformRevenue();
+        long currentOrders = metrics.currentOrders();
+        long previousOrders = metrics.previousOrders();
+        long currentNewUsers = metrics.currentNewUsers();
+        long previousNewUsers = metrics.previousNewUsers();
+        long currentDisputes = metrics.currentDisputes();
+        long previousDisputes = metrics.previousDisputes();
 
         double currentDisputeRate = currentOrders == 0 ? 0.0 : (double) currentDisputes / currentOrders * 100.0;
         double previousDisputeRate = previousOrders == 0 ? 0.0 : (double) previousDisputes / previousOrders * 100.0;
 
-        BigDecimal outstandingDebt = queryBigDecimal(
-                "SELECT COALESCE(SUM(adjusted_amount), 0) FROM invoices WHERE status IN (?, ?)",
-                InvoiceStatusEnum.UNPAID.name(),
-                InvoiceStatusEnum.OVERDUE.name());
-        long overdueInvoices = queryLong("SELECT COUNT(1) FROM invoices WHERE status = ?", InvoiceStatusEnum.OVERDUE.name());
-        long openDisputes = queryLong(
-                "SELECT COUNT(1) FROM complaints WHERE status IN (?, ?)",
-                ComplaintStatusEnum.OPEN.name(),
-                ComplaintStatusEnum.INVESTIGATING.name());
+        BigDecimal outstandingDebt = metrics.outstandingDebt();
+        long overdueInvoices = metrics.overdueInvoices();
+        long openDisputes = metrics.openDisputes();
 
         AdminOverviewResponseDto response = AdminOverviewResponseDto.builder()
                 .kpis(List.of(
@@ -218,13 +178,11 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
 
     private List<AdminOverviewResponseDto.AdminGmvPointDto> buildGmvSeries(DateRange range) {
         List<AdminOverviewResponseDto.AdminGmvPointDto> points = new ArrayList<>();
+        Map<LocalDate, BigDecimal> dailyTotals = queryDailyGmvTotals(range);
         if (range.days() <= 10) {
             for (int offset = 0; offset < range.days(); offset++) {
                 LocalDate date = range.start().plusDays(offset);
-                BigDecimal total = queryBigDecimal(
-                        "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE created_at >= ? AND created_at < ?",
-                        Timestamp.valueOf(date.atStartOfDay()),
-                        Timestamp.valueOf(date.plusDays(1).atStartOfDay()));
+                BigDecimal total = dailyTotals.getOrDefault(date, BigDecimal.ZERO);
                 points.add(AdminOverviewResponseDto.AdminGmvPointDto.builder().label(date.format(MONTH_DAY_FORMATTER)).value(total.doubleValue()).build());
             }
             return points;
@@ -234,10 +192,7 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
             LocalDate monthCursor = range.start().withDayOfMonth(1);
             while (!monthCursor.isAfter(range.endInclusive())) {
                 LocalDate nextMonth = monthCursor.plusMonths(1);
-                BigDecimal total = queryBigDecimal(
-                        "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE created_at >= ? AND created_at < ?",
-                        Timestamp.valueOf(monthCursor.atStartOfDay()),
-                        Timestamp.valueOf(nextMonth.atStartOfDay()));
+                BigDecimal total = sumDailyTotals(dailyTotals, monthCursor, nextMonth.minusDays(1));
                 points.add(AdminOverviewResponseDto.AdminGmvPointDto.builder().label(monthCursor.format(MONTH_FORMATTER)).value(total.doubleValue()).build());
                 monthCursor = nextMonth;
             }
@@ -247,14 +202,97 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
         LocalDate cursor = range.start();
         while (!cursor.isAfter(range.endInclusive())) {
             LocalDate bucketEnd = cursor.plusDays(Math.min(6, ChronoUnit.DAYS.between(cursor, range.endInclusive())));
-            BigDecimal total = queryBigDecimal(
-                    "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE created_at >= ? AND created_at < ?",
-                    Timestamp.valueOf(cursor.atStartOfDay()),
-                    Timestamp.valueOf(bucketEnd.plusDays(1).atStartOfDay()));
+            BigDecimal total = sumDailyTotals(dailyTotals, cursor, bucketEnd);
             points.add(AdminOverviewResponseDto.AdminGmvPointDto.builder().label(cursor.format(MONTH_DAY_FORMATTER)).value(total.doubleValue()).build());
             cursor = bucketEnd.plusDays(1);
         }
         return points;
+    }
+
+    private OverviewMetrics queryOverviewMetrics(DateRange current, DateRange previous) {
+        Timestamp currentStart = Timestamp.valueOf(current.start().atStartOfDay());
+        Timestamp currentEnd = Timestamp.valueOf(current.endExclusive().atStartOfDay());
+        Timestamp previousStart = Timestamp.valueOf(previous.start().atStartOfDay());
+        Timestamp previousEnd = Timestamp.valueOf(previous.endExclusive().atStartOfDay());
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+                SELECT
+                    (SELECT COALESCE(SUM(fee_amount), 0) FROM withdrawal_requests WHERE status IN ('PENDING', 'APPROVED', 'PAID') AND requested_at >= ? AND requested_at < ?) AS current_platform_revenue,
+                    (SELECT COALESCE(SUM(fee_amount), 0) FROM withdrawal_requests WHERE status IN ('PENDING', 'APPROVED', 'PAID') AND requested_at >= ? AND requested_at < ?) AS previous_platform_revenue,
+                    (SELECT COUNT(1) FROM orders WHERE created_at >= ? AND created_at < ?) AS current_orders,
+                    (SELECT COUNT(1) FROM orders WHERE created_at >= ? AND created_at < ?) AS previous_orders,
+                    (SELECT COUNT(1) FROM users WHERE created_at >= ? AND created_at < ?) AS current_new_users,
+                    (SELECT COUNT(1) FROM users WHERE created_at >= ? AND created_at < ?) AS previous_new_users,
+                    (SELECT COUNT(1) FROM complaints WHERE created_at >= ? AND created_at < ?) AS current_disputes,
+                    (SELECT COUNT(1) FROM complaints WHERE created_at >= ? AND created_at < ?) AS previous_disputes,
+                    (SELECT COALESCE(SUM(adjusted_amount), 0) FROM invoices WHERE status IN (?, ?)) AS outstanding_debt,
+                    (SELECT COUNT(1) FROM invoices WHERE status = ?) AS overdue_invoices,
+                    (SELECT COUNT(1) FROM complaints WHERE status IN (?, ?)) AS open_disputes
+                """,
+                currentStart, currentEnd,
+                previousStart, previousEnd,
+                currentStart, currentEnd,
+                previousStart, previousEnd,
+                currentStart, currentEnd,
+                previousStart, previousEnd,
+                currentStart, currentEnd,
+                previousStart, previousEnd,
+                InvoiceStatusEnum.UNPAID.name(), InvoiceStatusEnum.OVERDUE.name(),
+                InvoiceStatusEnum.OVERDUE.name(),
+                ComplaintStatusEnum.OPEN.name(), ComplaintStatusEnum.INVESTIGATING.name());
+        return new OverviewMetrics(
+                mapBigDecimal(row, "current_platform_revenue"),
+                mapBigDecimal(row, "previous_platform_revenue"),
+                mapLong(row, "current_orders"),
+                mapLong(row, "previous_orders"),
+                mapLong(row, "current_new_users"),
+                mapLong(row, "previous_new_users"),
+                mapLong(row, "current_disputes"),
+                mapLong(row, "previous_disputes"),
+                mapBigDecimal(row, "outstanding_debt"),
+                mapLong(row, "overdue_invoices"),
+                mapLong(row, "open_disputes"));
+    }
+
+    private Map<LocalDate, BigDecimal> queryDailyGmvTotals(DateRange range) {
+        Map<LocalDate, BigDecimal> totals = new HashMap<>();
+        jdbcTemplate.query("""
+                        SELECT CAST(created_at AS date) AS order_date, COALESCE(SUM(total_amount), 0) AS total
+                        FROM orders
+                        WHERE created_at >= ? AND created_at < ?
+                        GROUP BY CAST(created_at AS date)
+                        """,
+                rs -> {
+                    totals.put(rs.getDate("order_date").toLocalDate(), rs.getBigDecimal("total"));
+                },
+                Timestamp.valueOf(range.start().atStartOfDay()),
+                Timestamp.valueOf(range.endExclusive().atStartOfDay()));
+        return totals;
+    }
+
+    private BigDecimal sumDailyTotals(Map<LocalDate, BigDecimal> dailyTotals, LocalDate start, LocalDate endInclusive) {
+        BigDecimal total = BigDecimal.ZERO;
+        LocalDate cursor = start;
+        while (!cursor.isAfter(endInclusive)) {
+            total = total.add(dailyTotals.getOrDefault(cursor, BigDecimal.ZERO));
+            cursor = cursor.plusDays(1);
+        }
+        return total;
+    }
+
+    private BigDecimal mapBigDecimal(Map<String, Object> row, String key) {
+        Object value = row.get(key);
+        if (value instanceof BigDecimal decimal) {
+            return decimal;
+        }
+        if (value instanceof Number number) {
+            return BigDecimal.valueOf(number.doubleValue());
+        }
+        return BigDecimal.ZERO;
+    }
+
+    private long mapLong(Map<String, Object> row, String key) {
+        Object value = row.get(key);
+        return value instanceof Number number ? number.longValue() : 0L;
     }
 
     private List<AdminOverviewResponseDto.AdminQuickStatDto> resolveQuickStats() {
@@ -416,5 +454,19 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
         LocalDate endExclusive() {
             return endInclusive.plusDays(1);
         }
+    }
+
+    private record OverviewMetrics(
+            BigDecimal currentPlatformRevenue,
+            BigDecimal previousPlatformRevenue,
+            long currentOrders,
+            long previousOrders,
+            long currentNewUsers,
+            long previousNewUsers,
+            long currentDisputes,
+            long previousDisputes,
+            BigDecimal outstandingDebt,
+            long overdueInvoices,
+            long openDisputes) {
     }
 }
