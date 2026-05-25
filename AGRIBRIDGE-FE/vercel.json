@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/province-api/:path*",
+      "destination": "https://provinces.open-api.vn/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
