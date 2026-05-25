@@ -59,6 +59,8 @@ function validateBusinessField(field: keyof BusinessFieldErrors, value: string, 
     }
     case 'province':
       return trimmed ? '' : 'Vui lòng chọn tỉnh/thành.'
+    case 'district':
+      return trimmed ? '' : 'Vui lòng chọn quận/huyện.'
     case 'ward':
       return trimmed ? '' : 'Vui lòng chọn xã/phường.'
     case 'address':
@@ -249,10 +251,13 @@ export function SupplierRegistrationBusinessInfoPage() {
       district: key === 'province' ? '' : key === 'district' ? String(value) : prev.district,
       ward: (key === 'province' || key === 'district') ? '' : key === 'ward' ? String(value) : prev.ward,
     }))
-    if (key === 'companyName' || key === 'taxCode' || key === 'province' || key === 'ward' || key === 'address') {
+    if (key === 'companyName' || key === 'taxCode' || key === 'province' || key === 'district' || key === 'ward' || key === 'address') {
       setFieldErrors((prev) => ({ ...prev, [key]: '' }))
     }
     if (key === 'province') {
+      setFieldErrors((prev) => ({ ...prev, district: '', ward: '' }))
+    }
+    if (key === 'district') {
       setFieldErrors((prev) => ({ ...prev, ward: '' }))
     }
     if (key === 'taxCode') {
@@ -266,6 +271,7 @@ export function SupplierRegistrationBusinessInfoPage() {
       companyName: validateBusinessField('companyName', form.companyName, requiresTaxCode),
       taxCode: validateBusinessField('taxCode', form.taxCode, requiresTaxCode),
       province: validateBusinessField('province', form.province, requiresTaxCode),
+      district: validateBusinessField('district', form.district ?? '', requiresTaxCode),
       ward: validateBusinessField('ward', form.ward, requiresTaxCode),
       address: validateBusinessField('address', form.address, requiresTaxCode),
     }

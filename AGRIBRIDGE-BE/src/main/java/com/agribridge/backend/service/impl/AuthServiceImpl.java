@@ -138,6 +138,7 @@ public class AuthServiceImpl implements AuthService {
                         .email(companyEmail)
                         .address(resolveAddress(request.getAddress()))
                         .province(resolveProvince(request.getProvince()))
+                        .district(resolveDistrict(request.getDistrict()))
                         .ward(resolveWard(request.getWard()))
                         .description(request.getDescription())
                         .verifiedStatus(verifiedStatus)
@@ -248,6 +249,7 @@ public class AuthServiceImpl implements AuthService {
                         .email(companyEmail)
                         .address(resolveAddress(request.getAddress()))
                         .province(resolveProvince(request.getProvince()))
+                        .district(resolveDistrict(request.getDistrict()))
                         .ward(resolveWard(request.getWard()))
                         .description(request.getDescription())
                         .verifiedStatus(true)
@@ -775,6 +777,10 @@ public class AuthServiceImpl implements AuthService {
             return trimmed;
         }
         return "Unknown";
+    }
+
+    private String resolveDistrict(String district) {
+        return safeTrim(district);
     }
 
     private String resolveWard(String ward) {
