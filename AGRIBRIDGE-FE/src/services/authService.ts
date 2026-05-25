@@ -141,7 +141,7 @@ export async function registerAccount(draft: RegistrationDraft, contact: Contact
       loginEmail: contact.loginEmail,
       password: contact.password,
       citizenId: contact.citizenId || undefined,
-    })
+    }, { timeout: 45000 })
 
     return response.data
   }
@@ -164,13 +164,13 @@ export async function registerAccount(draft: RegistrationDraft, contact: Contact
     loginEmail: contact.loginEmail,
     password: contact.password,
     citizenId: contact.citizenId || undefined,
-  })
+  }, { timeout: 45000 })
 
   return response.data
 }
 
 export async function login(request: LoginRequest): Promise<AuthResponse> {
-  const response = await apiClient.post<AuthResponse>('/api/auth/login', request)
+  const response = await apiClient.post<AuthResponse>('/api/auth/login', request, { timeout: 45000 })
   return response.data
 }
 
