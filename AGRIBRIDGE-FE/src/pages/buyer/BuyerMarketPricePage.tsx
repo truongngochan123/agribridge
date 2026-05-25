@@ -15,6 +15,7 @@ import {
 } from '../../services/buyerMarketPriceApi'
 import { fetchVietnamProvinces } from '../../services/vietnamAddressService'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
+import { MarketPriceSkeletonLoader } from '../../components/buyer/BuyerSkeletons'
 
 const emptyFilters: MarketPriceFilters = {
   categories: [],
@@ -75,22 +76,33 @@ export function BuyerMarketPricePage() {
       setLoading(true)
       setError('')
       const filterData = filters.dateRanges.length ? filters : await fetchBuyerMarketPriceFilters()
-      const [priceData, provinces] = await Promise.all([
-        fetchBuyerMarketPrices({ ...query, keyword: debouncedKeyword }),
-        provinceRegions.length ? Promise.resolve(null) : fetchVietnamProvinces(),
-      ])
+      const priceData = await fetchBuyerMarketPrices({ ...query, keyword: debouncedKeyword })
       setFilters(filterData)
       setRows(priceData)
-      if (provinces) {
-        setProvinceRegions(provinces.map((province) => province.name))
-      }
     } catch (requestError) {
       setRows([])
       setError(readApiErrorMessage(requestError) || 'Không thể tải giá tham khảo nội bộ.')
     } finally {
       setLoading(false)
     }
-  }, [debouncedKeyword, filters, provinceRegions.length, query])
+  }, [debouncedKeyword, filters, query])
+
+  useEffect(() => {
+    if (provinceRegions.length) return
+
+    let ignore = false
+    fetchVietnamProvinces()
+      .then((provinces) => {
+        if (!ignore) setProvinceRegions(provinces.map((province) => province.name))
+      })
+      .catch(() => {
+        if (!ignore) setProvinceRegions([])
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [provinceRegions.length])
 
   useEffect(() => {
     void loadData()
@@ -175,13 +187,10 @@ export function BuyerMarketPricePage() {
           <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             Nguồn dữ liệu: Giá được tổng hợp từ giá chào bán của nhiều nhà cung cấp và giao dịch hoàn tất trên AgriBridge. Giá áp dụng theo loại sản phẩm + khu vực + grade + size.
           </div>
-          {loading && (
-            <div className="mb-4 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
-              Đang tải giá tham khảo...
-            </div>
-          )}
-          {error && (
+          {loading ? (
+            <MarketPriceSkeletonLoader />
+          ) : null}
+          {!loading && error && (
             <div className="mb-4 flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               {error}
@@ -192,12 +201,13 @@ export function BuyerMarketPricePage() {
               Chưa có dữ liệu giá nội bộ phù hợp.
             </p>
           )}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {rows.map((row) => (
-              <article
-                key={row.id}
-                className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md"
-              >
+          {!loading ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {rows.map((row) => (
+                <article
+                  key={row.id}
+                  className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md"
+                >
                 {/* Top accent */}
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 to-teal-500" />
 
@@ -273,9 +283,10 @@ export function BuyerMarketPricePage() {
                     )}
                   </div>
                 </div>
-              </article>
-            ))}
-          </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
         </BuyerPanel>
       </BuyerShell>
       {history ? <HistoryModal payload={history} onClose={() => setHistory(null)} /> : null}

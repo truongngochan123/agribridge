@@ -424,12 +424,9 @@ export function BuyerRFQPage() {
         }
       >
         <BuyerPanel title="Yêu cầu Báo giá của tôi">
-          {loadingList && (
-            <div className="mb-4 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
-              Đang tải RFQ...
-            </div>
-          )}
+          {loadingList ? (
+            <RfqSkeletonList />
+          ) : null}
           {listError && !loadingList && (
             <div className="mb-4 flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
               <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -1444,4 +1441,122 @@ function toDateTimeInput(value?: string | null) {
   if (!value) return ''
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 16)
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   RfqSkeletonList — Loading UI xịn cho trang RFQ & Báo giá
+   ──────────────────────────────────────────────────────────────── */
+
+function RfqSkeletonBar({ className }: { className: string }) {
+  return (
+    <div
+      className={`rounded-md ${className}`}
+      style={{
+        background: 'linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%)',
+        backgroundSize: '400% 100%',
+        animation: 'rfq-shimmer 1.6s ease-in-out infinite',
+      }}
+    />
+  )
+}
+
+function RfqSkeletonRow({ delay }: { delay: number }) {
+  return (
+    <div
+      className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm"
+      style={{
+        opacity: 0,
+        animation: `rfq-fadein 0.35s ease forwards ${delay}s`,
+      }}
+    >
+      {/* Top row: code + status badge + quote count + date */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <RfqSkeletonBar className="h-4 w-24" />
+          <RfqSkeletonBar className="h-5 w-16 rounded-full" />
+          <RfqSkeletonBar className="h-5 w-14 rounded-full" />
+        </div>
+        <div className="shrink-0 space-y-1 text-right">
+          <RfqSkeletonBar className="ml-auto h-3 w-10" />
+          <RfqSkeletonBar className="ml-auto h-4 w-20" />
+        </div>
+      </div>
+
+      {/* Meta line */}
+      <RfqSkeletonBar className="mt-1.5 h-3 w-32" />
+
+      {/* 3-col info grid */}
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
+        {[60, 48, 56].map((w, i) => (
+          <div key={i} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+            <RfqSkeletonBar className="mb-1.5 h-2.5 w-14" />
+            <RfqSkeletonBar className={`h-3.5 w-${w === 60 ? '3/4' : w === 48 ? '1/2' : '2/3'}`} />
+          </div>
+        ))}
+      </div>
+
+      {/* Action button row */}
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        <RfqSkeletonBar className="h-8 flex-1 min-w-[80px] rounded-xl" />
+        <RfqSkeletonBar className="h-8 w-20 rounded-xl" />
+        <RfqSkeletonBar className="h-8 w-14 rounded-xl" />
+        <RfqSkeletonBar className="h-8 w-20 rounded-xl" />
+        <RfqSkeletonBar className="h-8 w-20 rounded-xl" />
+      </div>
+    </div>
+  )
+}
+
+function RfqSkeletonList() {
+  return (
+    <div className="space-y-3">
+      {/* Loading banner */}
+      <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 shadow-sm">
+        {/* Spinner */}
+        <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-20" />
+          <span className="relative inline-flex h-6 w-6 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-emerald-800">Đang tải yêu cầu báo giá...</p>
+          <p className="text-xs font-medium text-emerald-600/70">Lấy danh sách RFQ và báo giá từ nhà cung cấp</p>
+        </div>
+
+        {/* Status pills */}
+        <div className="hidden shrink-0 items-center gap-2 sm:flex">
+          {(['Đang mở', 'Đã báo giá', 'Đã chọn'] as const).map((label, i) => (
+            <span
+              key={label}
+              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/70 px-3 py-1 text-[11px] font-semibold text-emerald-600 backdrop-blur"
+            >
+              <span
+                className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
+                style={{ animationDelay: `${i * 0.25}s` }}
+              />
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Skeleton rows */}
+      <div className="space-y-3">
+        {[0, 0.08, 0.16, 0.24].map((delay, i) => (
+          <RfqSkeletonRow key={i} delay={delay} />
+        ))}
+      </div>
+
+      <style>{`
+        @keyframes rfq-shimmer {
+          0%   { background-position: 100% 50%; }
+          100% { background-position: 0%   50%; }
+        }
+        @keyframes rfq-fadein {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0);   }
+        }
+      `}</style>
+    </div>
+  )
 }

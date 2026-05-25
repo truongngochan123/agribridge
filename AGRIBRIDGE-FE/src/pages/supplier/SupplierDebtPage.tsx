@@ -23,7 +23,7 @@ import {
   type SupplierDebtOverview,
 } from '../../services/supplierDebtApi'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
-
+import { SupplierDebtSkeletonLoader } from '../../components/supplier/SupplierSkeletons'
 const emptyOverview: SupplierDebtOverview = { kpis: [], buyers: [] }
 const emptyText = 'Chưa có'
 const creditLimitStatusOptions = [
@@ -735,8 +735,8 @@ export function SupplierDebtPage() {
           </div>
         }
       >
-        {loading ? <Notice tone="emerald" text="Đang tải dữ liệu công nợ..." /> : null}
-        {error ? <Notice tone="red" text={error} /> : null}
+        {loading ? <SupplierDebtSkeletonLoader /> : null}
+        {!loading && error ? <Notice tone="red" text={error} /> : null}
 
         {!loading && !error && ledgerStats.length > 0 ? (
           <div className="mb-4 grid gap-3 md:grid-cols-3 xl:grid-cols-6">

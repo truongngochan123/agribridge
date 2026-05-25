@@ -85,9 +85,9 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
         BigDecimal payableDebt = calculatePayableDebt(invoices, payments);
         long pendingOrders = orders.stream().filter(order -> PENDING_ORDER_STATUSES.contains(order.getStatus())).count();
         List<BuyerDashboardDtos.Kpi> kpis = List.of(
-                new BuyerDashboardDtos.Kpi("totalOrders", "Tong don hang", BigDecimal.valueOf(orders.size()), String.valueOf(orders.size())),
-                new BuyerDashboardDtos.Kpi("pendingOrders", "Don cho xu ly", BigDecimal.valueOf(pendingOrders), String.valueOf(pendingOrders)),
-                new BuyerDashboardDtos.Kpi("payableDebt", "Cong no phai tra", payableDebt, formatMoney(payableDebt)));
+                new BuyerDashboardDtos.Kpi("totalOrders", "Tổng đơn hàng", BigDecimal.valueOf(orders.size()), String.valueOf(orders.size())),
+                new BuyerDashboardDtos.Kpi("pendingOrders", "Đơn chờ xử lý", BigDecimal.valueOf(pendingOrders), String.valueOf(pendingOrders)),
+                new BuyerDashboardDtos.Kpi("payableDebt", "Công nợ phải trả", payableDebt, formatMoney(payableDebt)));
 
         LocalDate today = LocalDate.now();
         long dueSoonDebt = invoices.stream()
@@ -103,9 +103,9 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
                 .filter(shipment -> shipment.getEstimatedDeliveryAt() != null && shipment.getEstimatedDeliveryAt().isBefore(LocalDateTime.now()))
                 .count();
         List<BuyerDashboardDtos.Alert> alerts = List.of(
-                new BuyerDashboardDtos.Alert("debtDueSoon", "Cong no sap den han", dueSoonDebt + " hoa don", dueSoonDebt > 0 ? "danger" : "info", "/buyer/debt"),
-                new BuyerDashboardDtos.Alert("rfqExpiring", "RFQ sap het han", expiringRfqs + " RFQ", expiringRfqs > 0 ? "warning" : "info", "/buyer/rfq"),
-                new BuyerDashboardDtos.Alert("lateShipments", "Shipment giao tre", lateShipments + " don", lateShipments > 0 ? "amber" : "info", "/buyer/delivery"));
+                new BuyerDashboardDtos.Alert("debtDueSoon", "Công nợ sắp đến hạn", dueSoonDebt + " hóa đơn", dueSoonDebt > 0 ? "danger" : "info", "/buyer/debt"),
+                new BuyerDashboardDtos.Alert("rfqExpiring", "RFQ sắp hết hạn", expiringRfqs + " RFQ", expiringRfqs > 0 ? "warning" : "info", "/buyer/rfq"),
+                new BuyerDashboardDtos.Alert("lateShipments", "Giao hàng trễ hạn", lateShipments + " đơn", lateShipments > 0 ? "amber" : "info", "/buyer/delivery"));
 
         Map<Long, OrderEntity> orderById = orders.stream().collect(Collectors.toMap(OrderEntity::getId, Function.identity()));
         Map<Long, List<OrderItemEntity>> itemsByOrder = items.stream().collect(Collectors.groupingBy(OrderItemEntity::getOrderId));
@@ -188,7 +188,7 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
                         BatchEntity batch = batches.get(item.getBatchId());
                         product = batch == null ? null : products.get(batch.getProductId());
                     }
-                    String name = product == null ? "San pham" : product.getName();
+                    String name = product == null ? "Sản phẩm" : product.getName();
                     return name + " x " + formatQuantity(item.getQuantity()) + " " + nullToEmpty(firstText(item.getUnit(), product == null ? null : product.getUnit()));
                 })
                 .collect(Collectors.joining(", "));
@@ -231,13 +231,13 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
     private String shipmentLabel(ShipmentStatusEnum status) {
         if (status == null) return "N/A";
         return switch (status) {
-            case CREATED, PENDING, PREPARING, WAITING_PICKUP -> "Cho giao";
-            case PICKED_UP, SHIPPED, SHIPPING, IN_TRANSIT, OUT_FOR_DELIVERY -> "Dang giao";
-            case WAITING_CONFIRMATION -> "Cho xac nhan";
-            case DELIVERED -> "Da giao";
-            case CANCELLED -> "Da huy";
-            case FAILED, FAILED_DELIVERY -> "That bai";
-            case INCIDENT -> "Co su co";
+            case CREATED, PENDING, PREPARING, WAITING_PICKUP -> "Chờ giao";
+            case PICKED_UP, SHIPPED, SHIPPING, IN_TRANSIT, OUT_FOR_DELIVERY -> "Đang giao";
+            case WAITING_CONFIRMATION -> "Chờ xác nhận";
+            case DELIVERED -> "Đã giao";
+            case CANCELLED -> "Đã hủy";
+            case FAILED, FAILED_DELIVERY -> "Thất bại";
+            case INCIDENT -> "Có sự cố";
         };
     }
 

@@ -25,6 +25,7 @@ import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useSupplierDashboardData } from './useSupplierDashboardData'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import type { MonthlyRevenueBar } from '../../types/supplierDashboard'
+import { OverviewSkeletonLoader } from '../../components/supplier/SupplierSkeletons'
 
 // ─── Types & Helpers ──────────────────────────────────────────────────────────
 
@@ -340,14 +341,18 @@ export function SupplierOverviewPage() {
       }
     >
       {/* Error */}
-      {error && (
+      {!loading && error && (
         <div className="mb-3 flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           {error}
         </div>
       )}
 
+      {/* Skeleton */}
+      {loading && <OverviewSkeletonLoader />}
+
       {/* ── KPI Cards (compact) ── */}
+      {!loading && (<>
       <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           icon={<DollarSign className="h-4 w-4" />}
@@ -574,6 +579,8 @@ export function SupplierOverviewPage() {
             ))}
           </motion.div>
         </div>
+      )}
+      </>
       )}
     </SupplierShell>
   )

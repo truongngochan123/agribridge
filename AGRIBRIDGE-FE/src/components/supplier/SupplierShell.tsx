@@ -4,6 +4,7 @@ import {
   Boxes,
   ClipboardList,
   LayoutGrid,
+  Loader2,
   LogOut,
   Menu,
   Package,
@@ -12,7 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { supplierMenuItems } from '../../data/supplierMenu'
 import { useCurrentUserProfile } from '../../hooks/useCurrentUserProfile'
 import { clearCurrentUserProfileCache } from '../../services/currentUserService'
@@ -52,6 +53,8 @@ const notificationModuleByMenuKey: Partial<Record<SupplierMenuKey, string[]>> = 
   wallet: ['PAYMENT'],
 }
 
+const SUPPLIER_PAGE_LOAD_DELAY_MS = 650
+
 function moduleCounts(items: AppNotification[]) {
   return items.reduce<Record<string, number>>((counts, item) => {
     if (item.isRead) return counts
@@ -72,6 +75,8 @@ function totalUnreadModuleCount(counts: Record<string, number>) {
 export function SupplierShell({ activeKey, title, subtitle, children, actions, filterBar }: SupplierShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+  const [showPageContent, setShowPageContent] = useState(false)
   const [openNotifications, setOpenNotifications] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const [notificationItems, setNotificationItems] = useState<AppNotification[]>([])
@@ -93,6 +98,15 @@ export function SupplierShell({ activeKey, title, subtitle, children, actions, f
 
   soundEnabledRef.current = soundEnabled
   notificationItemsRef.current = notificationItems
+
+  useEffect(() => {
+    setShowPageContent(false)
+    const timerId = window.setTimeout(() => {
+      setShowPageContent(true)
+    }, SUPPLIER_PAGE_LOAD_DELAY_MS)
+
+    return () => window.clearTimeout(timerId)
+  }, [location.pathname])
 
   // Close sidebar on Escape
   useEffect(() => {
@@ -364,7 +378,9 @@ export function SupplierShell({ activeKey, title, subtitle, children, actions, f
             </div>
           ) : null}
 
-          <div className="flex-1 overflow-y-auto p-4">{children}</div>
+          <div className="flex-1 overflow-y-auto p-4">
+            {showPageContent ? children : <SupplierPageLoadPlaceholder title={title} />}
+          </div>
         </main>
       </div>
       {slideNotification ? (
@@ -394,6 +410,47 @@ export function SupplierShell({ activeKey, title, subtitle, children, actions, f
           setNotificationSoundEnabled(enabled)
         }}
       />
+    </div>
+  )
+}
+
+function SupplierPageLoadPlaceholder({ title }: { title: string }) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </span>
+          <div>
+            <p className="text-sm font-extrabold text-emerald-950">Đang tải {title.toLowerCase()}...</p>
+            <p className="text-xs text-emerald-900/60">Đang chuẩn bị dữ liệu nhà cung cấp.</p>
+          </div>
+        </div>
+      </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+            <div className="h-3 w-24 animate-pulse rounded bg-slate-100" />
+            <div className="mt-4 h-8 w-32 animate-pulse rounded bg-slate-100" />
+            <div className="mt-3 h-2 w-full animate-pulse rounded bg-slate-100" />
+            <div className="mt-2 h-2 w-2/3 animate-pulse rounded bg-slate-100" />
+          </div>
+        ))}
+      </div>
+      <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+        <div className="h-3 w-40 animate-pulse rounded bg-slate-100" />
+        <div className="mt-4 space-y-3">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="grid grid-cols-4 gap-3">
+              <div className="h-3 animate-pulse rounded bg-slate-100" />
+              <div className="h-3 animate-pulse rounded bg-slate-100" />
+              <div className="h-3 animate-pulse rounded bg-slate-100" />
+              <div className="h-3 animate-pulse rounded bg-slate-100" />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

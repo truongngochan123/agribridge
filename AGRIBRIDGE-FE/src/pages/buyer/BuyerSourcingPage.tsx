@@ -768,11 +768,9 @@ export function BuyerSourcingPage() {
 
           <div>
             {loading ? (
-              <div className="mb-3 flex items-center gap-2 text-sm text-slate-500">
-                <span>Đang tải...</span>
-              </div>
+              <SourcingSkeletonGrid />
             ) : null}
-            {error ? (
+            {!loading && error ? (
               <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>
             ) : null}
             {!loading && !error && filteredProducts.length === 0 ? (
@@ -781,6 +779,7 @@ export function BuyerSourcingPage() {
                 Chưa có sản phẩm phù hợp với bộ lọc hiện tại.
               </div>
             ) : null}
+            {!loading && (
             <div className="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {filteredProducts.map((product) => (
                 <article key={product.productId} className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-[0_8px_30px_rgba(16,185,129,0.15)]">
@@ -860,6 +859,7 @@ export function BuyerSourcingPage() {
                 </article>
               ))}
             </div>
+            )}
           </div>
         </div>
       </div>
@@ -1476,6 +1476,126 @@ function ProductDetailModal({
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   SourcingSkeletonGrid — Loading UI xịn cho trang Tìm nguồn hàng
+   ──────────────────────────────────────────────────────────────── */
+
+function SkeletonPulse({ className }: { className: string }) {
+  return (
+    <div
+      className={`rounded-lg ${className}`}
+      style={{
+        background: 'linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%)',
+        backgroundSize: '400% 100%',
+        animation: 'sourcing-shimmer 1.6s ease-in-out infinite',
+      }}
+    />
+  )
+}
+
+function SourcingSkeletonCard() {
+  return (
+    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
+      {/* Image skeleton */}
+      <div
+        className="relative h-28 shrink-0 overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 40%, #ecfdf5 100%)',
+          backgroundSize: '400% 400%',
+          animation: 'sourcing-shimmer 2s ease-in-out infinite',
+        }}
+      >
+        <span className="absolute left-2 top-2 h-5 w-10 rounded-full bg-white/50 backdrop-blur-sm" />
+        <span className="absolute right-2 top-2 h-5 w-14 rounded-full bg-white/50 backdrop-blur-sm" />
+      </div>
+
+      {/* Body */}
+      <div className="flex flex-1 flex-col gap-3 p-3">
+        <div className="space-y-1.5">
+          <SkeletonPulse className="h-3 w-20" />
+          <SkeletonPulse className="h-4 w-3/4" />
+          <SkeletonPulse className="h-3 w-1/2" />
+        </div>
+
+        <div className="flex items-baseline gap-1">
+          <SkeletonPulse className="h-5 w-24" />
+          <SkeletonPulse className="h-3 w-8" />
+        </div>
+
+        <div className="flex gap-2">
+          <SkeletonPulse className="h-5 w-16 rounded-full" />
+          <SkeletonPulse className="h-5 w-12 rounded-full" />
+        </div>
+
+        <div className="h-px bg-slate-100" />
+
+        <div className="flex items-center gap-2">
+          <SkeletonPulse className="h-8 flex-1 rounded-xl" />
+          <SkeletonPulse className="h-8 flex-1 rounded-xl" />
+          <SkeletonPulse className="h-8 w-8 shrink-0 rounded-lg" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SourcingSkeletonGrid() {
+  return (
+    <div className="space-y-4">
+      {/* Loading header banner */}
+      <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 shadow-sm">
+        <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-20" />
+          <span className="relative inline-flex h-6 w-6 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-emerald-800">Đang tìm kiếm nguồn hàng...</p>
+          <p className="text-xs font-medium text-emerald-600/70">Tải sản phẩm, danh mục và thông tin nhà cung cấp</p>
+        </div>
+
+        <div className="hidden shrink-0 items-center gap-2 sm:flex">
+          {(['Sản phẩm', 'Nhà cung cấp', 'Giá thị trường'] as const).map((label, i) => (
+            <span
+              key={label}
+              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/70 px-3 py-1 text-[11px] font-semibold text-emerald-600 backdrop-blur"
+            >
+              <span
+                className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
+                style={{ animationDelay: `${i * 0.3}s` }}
+              />
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Skeleton cards */}
+      <div className="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        {Array.from({ length: 10 }).map((_, index) => (
+          <div
+            key={index}
+            style={{ animationDelay: `${index * 0.05}s`, opacity: 0, animation: `sourcing-fadein 0.4s ease forwards ${index * 0.05}s` }}
+          >
+            <SourcingSkeletonCard />
+          </div>
+        ))}
+      </div>
+
+      <style>{`
+        @keyframes sourcing-shimmer {
+          0% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        @keyframes sourcing-fadein {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   )
 }

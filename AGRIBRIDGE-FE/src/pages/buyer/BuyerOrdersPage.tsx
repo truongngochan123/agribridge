@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { OrdersSkeletonLoader } from '../../components/buyer/BuyerSkeletons'
 import { useSearchParams } from 'react-router-dom'
 import { BuyerPanel, SearchInput } from '../../components/buyer/BuyerCommon'
 import { AlertTriangle } from 'lucide-react'
@@ -1339,13 +1340,10 @@ export function BuyerOrdersPage() {
         }
       >
         <BuyerPanel title="Danh sách đơn hàng">
-        {loading && (
-          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
-            Đang tải dữ liệu đơn hàng...
-          </div>
-        )}
-        {error && (
+        {loading ? (
+          <OrdersSkeletonLoader />
+        ) : null}
+        {!loading && error && (
           <div className="mb-4 flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             {error}
@@ -1361,7 +1359,7 @@ export function BuyerOrdersPage() {
               Không tìm thấy đơn hàng phù hợp.
             </p>
           ) : null}
-          <div className="overflow-x-auto rounded-xl border border-slate-100">
+          {!loading && <div className="overflow-x-auto rounded-xl border border-slate-100">
             <table className="w-full min-w-[1160px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -1424,7 +1422,7 @@ export function BuyerOrdersPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </div>}
         </BuyerPanel>
       </BuyerShell>
 

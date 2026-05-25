@@ -38,6 +38,7 @@ import { SupplierShell } from '../../components/supplier/SupplierShell'
 import { useSupplierDashboardData } from './useSupplierDashboardData'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import type { MonthlyRevenueBar } from '../../types/supplierDashboard'
+import { ReportsSkeletonLoader } from '../../components/supplier/SupplierSkeletons'
 
 // ─── Types & Helpers ──────────────────────────────────────────────────────────
 
@@ -1313,13 +1314,8 @@ export function SupplierReportsPage() {
       }
     >
       {/* Alerts */}
-      {loading && (
-        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
-          Đang tải dữ liệu realtime...
-        </div>
-      )}
-      {error && (
+      {loading && <ReportsSkeletonLoader />}
+      {!loading && error && (
         <div className="mb-4 flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           {error}

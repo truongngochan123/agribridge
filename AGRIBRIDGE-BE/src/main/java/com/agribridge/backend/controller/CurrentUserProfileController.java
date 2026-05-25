@@ -28,7 +28,7 @@ public class CurrentUserProfileController {
         CompanyEntity company = companyRepository.findById(user.getCompanyId())
                 .orElseThrow(() -> new IllegalArgumentException("COMPANY_NOT_FOUND"));
         String companyType = company.getCompanyType() == null ? null : company.getCompanyType().name();
-        String fullName = firstText(user.getFullName(), company.getOwnerName(), "Nguoi dung");
+        String fullName = firstText(user.getFullName(), company.getOwnerName(), "Người dùng");
         String prefix = CompanyTypeEnum.BUYER.equals(company.getCompanyType()) ? "BUY" : "SUP";
         return new CurrentUserProfileDto(
                 user.getId(),
@@ -41,7 +41,7 @@ public class CurrentUserProfileController {
                 companyType,
                 companyTypeLabel(company.getCompanyType()),
                 user.getCreatedAt() == null ? "N/A" : user.getCreatedAt().format(DATE_FORMATTER),
-                Boolean.TRUE.equals(company.getVerifiedStatus()) ? "Da xac minh" : "Cho xac minh",
+                Boolean.TRUE.equals(company.getVerifiedStatus()) ? "Đã xác minh" : "Chờ xác minh",
                 initials(fullName),
                 firstText(company.getName(), "N/A"),
                 firstText(company.getTaxCode(), "N/A"),
@@ -58,14 +58,14 @@ public class CurrentUserProfileController {
     }
 
     private String roleLabel(CompanyTypeEnum type) {
-        if (CompanyTypeEnum.SUPPLIER.equals(type)) return "Nha cung cap";
-        if (CompanyTypeEnum.BUYER.equals(type)) return "Nha buon";
-        return "Nguoi dung";
+        if (CompanyTypeEnum.SUPPLIER.equals(type)) return "Nhà cung cấp";
+        if (CompanyTypeEnum.BUYER.equals(type)) return "Nhà buôn";
+        return "Người dùng";
     }
 
     private String companyTypeLabel(CompanyTypeEnum type) {
-        if (CompanyTypeEnum.SUPPLIER.equals(type)) return "Nha cung cap / Supplier";
-        if (CompanyTypeEnum.BUYER.equals(type)) return "Nha buon / Buyer";
+        if (CompanyTypeEnum.SUPPLIER.equals(type)) return "Nhà cung cấp / Supplier";
+        if (CompanyTypeEnum.BUYER.equals(type)) return "Nhà buôn / Buyer";
         return "N/A";
     }
 

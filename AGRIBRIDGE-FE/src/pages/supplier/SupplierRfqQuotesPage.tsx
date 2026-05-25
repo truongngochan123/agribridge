@@ -9,6 +9,7 @@ import {
 import { RfqChatModal } from '../../components/rfq/RfqChatModal'
 import { SearchInput, FilterTabBar, SupplierPanel, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
+import { SupplierRfqSkeletonLoader } from '../../components/supplier/SupplierSkeletons'
 import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { useSupplierDashboardData } from './useSupplierDashboardData'
 import { useToast } from '../../hooks/useToast'
@@ -387,27 +388,23 @@ export function SupplierRfqQuotesPage() {
       >
 
         <SupplierPanel>
-          {loading && (
-            <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700">
-              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
-              Đang tải dữ liệu realtime...
-            </div>
-          )}
-          {error && (
+          {loading && <SupplierRfqSkeletonLoader />}
+          {!loading && error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600">{error}</div>
           )}
           {!loading && !error && rfqItems.length === 0 && (
             <p className="mb-4 text-sm font-medium text-slate-400">Chưa có dữ liệu RFQ & báo giá cho tài khoản này.</p>
           )}
 
-          <div className="space-y-2">
-            {!loading && !error && rfqItems.length > 0 && filteredRfqItems.length === 0 ? (
-              <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-500">
-                Không có RFQ nào khớp với bộ lọc hiện tại.
-              </p>
-            ) : null}
+          {!loading && (
+            <div className="space-y-2">
+              {!error && rfqItems.length > 0 && filteredRfqItems.length === 0 ? (
+                <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-500">
+                  Không có RFQ nào khớp với bộ lọc hiện tại.
+                </p>
+              ) : null}
 
-            {filteredRfqItems.map((rfq) => (
+              {filteredRfqItems.map((rfq) => (
               <article key={rfq.id} className="group rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
                 {/* Card header */}
                 <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2">
@@ -488,7 +485,8 @@ export function SupplierRfqQuotesPage() {
                 </div>
               </article>
             ))}
-          </div>
+            </div>
+          )}
         </SupplierPanel>
       </SupplierShell>
 

@@ -9,6 +9,7 @@ import { updateSupplierShipmentIncident } from '../../services/supplierService'
 import { uploadRegistrationFile } from '../../services/uploadService'
 import type { ShipmentItem, SupplierShipmentEvent, SupplierShipmentIncident } from '../../types/supplierDashboard'
 import { useSupplierDashboardData } from './useSupplierDashboardData'
+import { SupplierDeliverySkeletonLoader } from '../../components/supplier/SupplierSkeletons'
 
 type StatusColor = 'amber' | 'blue' | 'indigo' | 'emerald' | 'rose' | 'slate'
 
@@ -997,13 +998,8 @@ export function SupplierDeliveryPage() {
           </div>
         }
       >
-        {loading && (
-          <div className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
-            Đang tải dữ liệu giao hàng...
-          </div>
-        )}
-        {error && (
+        {loading && <SupplierDeliverySkeletonLoader />}
+        {!loading && error && (
           <div className="flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             {error}
@@ -1028,23 +1024,25 @@ export function SupplierDeliveryPage() {
           </p>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((ship) => (
-            <ShipmentCard
-              key={ship.id}
-              ship={ship}
-              onDetail={() => {
-                setActiveShipmentId(ship.id)
-                setSearchParams((prev) => {
-                  const next = new URLSearchParams(prev)
-                  next.set('shipmentId', ship.id)
-                  if (getOpenIncidents(ship).length > 0) next.set('incident', 'true')
-                  return next
-                }, { replace: true })
-              }}
-            />
-          ))}
-        </div>
+        {!loading && (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((ship) => (
+              <ShipmentCard
+                key={ship.id}
+                ship={ship}
+                onDetail={() => {
+                  setActiveShipmentId(ship.id)
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev)
+                    next.set('shipmentId', ship.id)
+                    if (getOpenIncidents(ship).length > 0) next.set('incident', 'true')
+                    return next
+                  }, { replace: true })
+                }}
+              />
+            ))}
+          </div>
+        )}
       </SupplierShell>
 
       {activeShipment && (

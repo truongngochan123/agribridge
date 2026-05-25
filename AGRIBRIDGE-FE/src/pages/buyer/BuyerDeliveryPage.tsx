@@ -4,6 +4,7 @@ import { AlertTriangle, Clock, MapPin, Package, PhoneCall, Truck, X, CheckCircle
 import { useSearchParams } from 'react-router-dom'
 import { SearchInput } from '../../components/buyer/BuyerCommon'
 import { BuyerPaymentInstructionModal } from '../../components/buyer/BuyerPaymentInstructionModal'
+import { DeliverySkeletonLoader } from '../../components/buyer/BuyerSkeletons'
 import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
 import { useToast } from '../../hooks/useToast'
@@ -393,13 +394,10 @@ export function BuyerDeliveryPage() {
           </div>
         }
       >
-        {loading && (
-          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
-            Đang tải dữ liệu giao hàng...
-          </div>
-        )}
-        {error && (
+        {loading ? (
+          <DeliverySkeletonLoader />
+        ) : null}
+        {!loading && error && (
           <div className="mb-4 flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             {error}
@@ -414,18 +412,20 @@ export function BuyerDeliveryPage() {
             <p className="max-w-xs text-xs text-slate-400">Chưa có vận đơn nào phù hợp với bộ lọc hiện tại.</p>
           </div>
         )}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {deliveries.map((item) => (
-            <DeliveryCard
-              key={item.shipmentId}
-              item={item}
-              onTimeline={() => void openTimeline(item)}
-              onDetail={() => void openDetail(item)}
-              onMap={() => setMapShipment(item)}
-              onConfirm={() => setConfirmShipment(item)}
-            />
-          ))}
-        </div>
+        {!loading ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {deliveries.map((item) => (
+              <DeliveryCard
+                key={item.shipmentId}
+                item={item}
+                onTimeline={() => void openTimeline(item)}
+                onDetail={() => void openDetail(item)}
+                onMap={() => setMapShipment(item)}
+                onConfirm={() => setConfirmShipment(item)}
+              />
+            ))}
+          </div>
+        ) : null}
       </BuyerShell>
 
       {timeline ? <TimelineModal timeline={timeline} onClose={() => setTimeline(null)} /> : null}

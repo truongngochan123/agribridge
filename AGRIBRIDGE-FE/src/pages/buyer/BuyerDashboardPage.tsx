@@ -1,18 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Activity,
   AlertTriangle,
   ArrowUpRight,
   BellRing,
   Building2,
-  CheckCircle2,
   ChevronRight,
   CircleDollarSign,
   Clock3,
   FileText,
   Gauge,
-  LineChart,
   Loader2,
   MapPin,
   Plus,
@@ -124,7 +121,7 @@ function formatNumber(value?: number | null) {
 }
 
 function formatQuantity(value?: number | string | null, unit?: string | null) {
-  if (value === null || value === undefined || value === '') return 'Chưa có SL'
+  if (value === null || value === undefined || value === '') return 'Chưa có số lượng'
   const numericValue = typeof value === 'number' ? formatNumber(value) : value
   return `${numericValue} ${unit || ''}`.trim()
 }
@@ -250,7 +247,6 @@ export function BuyerDashboardPage() {
     return remaining !== null && remaining <= 3
   }).length
   const noQuoteRfqCount = branchScopedDashboard.pendingRfqs.filter((rfq) => !rfq.quoteCount).length
-  const unresolvedIncidentCount = dashboard.alerts.filter((alert) => /incident|dispute|claim/i.test(`${alert.id} ${alert.title}`)).length
   const selectedBranchValue = branchContext?.branchId || 'all'
 
   const handleBranchChange = (value: string) => {
@@ -302,20 +298,19 @@ export function BuyerDashboardPage() {
         {loading ? <LoadingStrip /> : null}
         {error ? <ErrorStrip message={error} onRetry={() => void loadDashboard()} /> : null}
 
-        <HeroOperationsPanel
-          branchContext={branchContext}
-          activeBranch={activeBranch}
-          totalBranches={branches.length}
-          delayedCount={delayedCount}
-          expiringRfqCount={expiringRfqCount}
-          noQuoteRfqCount={noQuoteRfqCount}
-          unresolvedIncidentCount={unresolvedIncidentCount}
-        />
+        {/* Hero — chỉ hiển thị khi không loading */}
+        {!loading && (
+          <HeroOperationsPanel
+            branchContext={branchContext}
+            activeBranch={activeBranch}
+            totalBranches={branches.length}
+            delayedCount={delayedCount}
+            expiringRfqCount={expiringRfqCount}
+            noQuoteRfqCount={noQuoteRfqCount}
+          />
+        )}
 
-        <OperationalAlertStrip alerts={dashboard.alerts} attentionItems={attentionItems} branchContext={branchContext} />
-
-        <QuickActionCenter branchContext={branchContext} />
-
+        {/* KPI cards */}
         <KpiGrid
           items={branchScopedDashboard.kpis}
           branchContext={branchContext}
@@ -325,23 +320,32 @@ export function BuyerDashboardPage() {
           branchHealth={activeBranch}
         />
 
-        <div className="grid gap-4 2xl:grid-cols-[1fr_340px]">
+        {/* Cảnh báo ưu tiên */}
+        <AttentionCenter items={attentionItems} branchContext={branchContext} />
+
+        {/* Thao tác nhanh */}
+        <QuickActionCenter branchContext={branchContext} />
+
+        {/* Giao hàng + Sidebar nhà cung cấp */}
+        <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
           <div className="space-y-4">
-            <AttentionCenter items={attentionItems} branchContext={branchContext} />
             <ShipmentSection rows={branchScopedDashboard.deliveryOrders as FlexibleDeliveryOrder[]} branchContext={branchContext} />
             <RfqSection rows={branchScopedDashboard.pendingRfqs as FlexiblePendingRfq[]} branchContext={branchContext} />
           </div>
-          <div className="space-y-4">
-            <SupplierIntelligence deliveryOrders={branchScopedDashboard.deliveryOrders as FlexibleDeliveryOrder[]} rfqs={branchScopedDashboard.pendingRfqs as FlexiblePendingRfq[]} branchContext={branchContext} />
-            <MarketIntelligence rfqs={branchScopedDashboard.pendingRfqs} branchContext={branchContext} />
-            <IncidentCenter alerts={dashboard.alerts} delayedCount={delayedCount} branchContext={branchContext} />
-            <ActivityTimeline dashboard={branchScopedDashboard} branchContext={branchContext} />
+          <div>
+            <SupplierIntelligence
+              deliveryOrders={branchScopedDashboard.deliveryOrders as FlexibleDeliveryOrder[]}
+              rfqs={branchScopedDashboard.pendingRfqs as FlexiblePendingRfq[]}
+              branchContext={branchContext}
+            />
           </div>
         </div>
       </div>
     </BuyerShell>
   )
 }
+
+/* ─────────────────────── BranchContextBar ─────────────────────── */
 
 function BranchContextBar({
   branches,
@@ -357,7 +361,7 @@ function BranchContextBar({
   onChange: (value: string) => void
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
           <Building2 className="h-3.5 w-3.5" />
@@ -373,7 +377,7 @@ function BranchContextBar({
           value={value}
           disabled={loading}
           onChange={(event) => onChange(event.target.value)}
-          className="h-9 min-w-[220px] rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+          className="h-9 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 sm:w-[220px]"
         >
           <option value="all">Tất cả chi nhánh</option>
           {branches.map((branch) => (
@@ -387,12 +391,14 @@ function BranchContextBar({
   )
 }
 
+/* ─────────────────────── LoadingStrip / ErrorStrip ─────────────────────── */
+
 function LoadingStrip() {
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      Đang cập nhật mua hàng, RFQ, công nợ và giao hàng...
-      <div className="ml-auto hidden gap-2 sm:flex">
+      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+      <span className="min-w-0 flex-1">Đang cập nhật mua hàng, RFQ, công nợ và giao hàng...</span>
+      <div className="ml-auto hidden shrink-0 gap-2 sm:flex">
         <span className="h-2 w-20 animate-pulse rounded-full bg-emerald-100" />
         <span className="h-2 w-12 animate-pulse rounded-full bg-teal-100" />
       </div>
@@ -412,6 +418,8 @@ function ErrorStrip({ message, onRetry }: { message: string; onRetry: () => void
   )
 }
 
+/* ─────────────────────── HeroOperationsPanel ─────────────────────── */
+
 function HeroOperationsPanel({
   branchContext,
   activeBranch,
@@ -419,7 +427,6 @@ function HeroOperationsPanel({
   delayedCount,
   expiringRfqCount,
   noQuoteRfqCount,
-  unresolvedIncidentCount,
 }: {
   branchContext: BranchContext | null
   activeBranch: BuyerBranchSummary | null
@@ -427,56 +434,58 @@ function HeroOperationsPanel({
   delayedCount: number
   expiringRfqCount: number
   noQuoteRfqCount: number
-  unresolvedIncidentCount: number
 }) {
-  const healthScore = Math.max(42, 96 - delayedCount * 12 - expiringRfqCount * 7 - unresolvedIncidentCount * 14)
   return (
-    <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-800 via-emerald-700 to-teal-600 p-3.5 text-white shadow-lg shadow-emerald-900/10">
+    <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-800 via-emerald-700 to-teal-600 p-4 text-white shadow-lg shadow-emerald-900/10">
       <div className="pointer-events-none absolute inset-0 opacity-15" style={{ backgroundImage: 'linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.14) 55%, transparent 56%)' }} />
-      <div className="relative grid gap-3.5 xl:grid-cols-[1fr_360px]">
-        <div>
+      <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold backdrop-blur">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold backdrop-blur">
               <Radar className="h-3.5 w-3.5" />
               Điều hành mua hàng
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold backdrop-blur">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold backdrop-blur">
               <MapPin className="h-3.5 w-3.5" />
               {branchContext?.branchName || `${totalBranches} chi nhánh`}
             </span>
           </div>
-          <h2 className="mt-3 max-w-3xl text-xl font-bold leading-tight tracking-normal md:text-2xl">
+          <h2 className="mt-2.5 text-base font-bold leading-snug sm:text-lg">
             Theo dõi mua hàng, giao hàng và vận hành chi nhánh rõ ràng hơn.
           </h2>
-          <p className="mt-1.5 max-w-2xl text-sm font-medium leading-5 text-emerald-50/85">
+          <p className="mt-1 text-xs font-medium leading-5 text-emerald-50/80 sm:text-sm">
             Ưu tiên công nợ, giao hàng trễ, RFQ sắp hết hạn và phản hồi nhà cung cấp trước khi ảnh hưởng đến vận hành.
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <HeroMetric icon={<Truck className="h-4 w-4" />} value={String(delayedCount)} label="giao trễ" tone={delayedCount ? 'risk' : 'ok'} />
-            <HeroMetric icon={<Clock3 className="h-4 w-4" />} value={String(expiringRfqCount)} label="RFQ sắp hết hạn" tone={expiringRfqCount ? 'warn' : 'ok'} />
-            <HeroMetric icon={<ShieldAlert className="h-4 w-4" />} value={String(unresolvedIncidentCount)} label="sự cố mở" tone={unresolvedIncidentCount ? 'risk' : 'ok'} />
-            <HeroMetric icon={<Building2 className="h-4 w-4" />} value={activeBranch?.activeOrders || 'Tất cả'} label="phạm vi" tone="neutral" />
-          </div>
         </div>
-        <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 shadow-md backdrop-blur">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/65">Sức khỏe vận hành</p>
-              <p className="mt-1 text-2xl font-bold">{healthScore}%</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20">
-              <Gauge className="h-6 w-6" />
-            </div>
-          </div>
-          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/20">
-            <div className="h-full rounded-full bg-white shadow-[0_0_18px_rgba(255,255,255,0.7)] transition-all duration-500" style={{ width: `${healthScore}%` }} />
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <HealthTile label="RFQ chưa có giá" value={String(noQuoteRfqCount)} />
-            <HealthTile label="Rủi ro giao hàng" value={delayedCount ? 'Cần xem' : 'Ổn định'} />
-            <HealthTile label="Phản hồi NCC" value={expiringRfqCount ? 'Cần nhắc' : 'Tốt'} />
-            <HealthTile label="Phạm vi" value={branchContext ? 'Chi nhánh' : 'Toàn hệ thống'} />
-          </div>
+
+        {/* Metrics row */}
+        <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-end sm:gap-2">
+          <HeroMetric
+            icon={<Truck className="h-4 w-4" />}
+            value={String(delayedCount)}
+            label="giao trễ"
+            tone={delayedCount ? 'risk' : 'ok'}
+          />
+          <HeroMetric
+            icon={<Clock3 className="h-4 w-4" />}
+            value={String(expiringRfqCount)}
+            label="RFQ sắp hết hạn"
+            tone={expiringRfqCount ? 'warn' : 'ok'}
+          />
+          <HeroMetric
+            icon={<Gauge className="h-4 w-4" />}
+            value={String(noQuoteRfqCount)}
+            label="RFQ chưa có giá"
+            tone={noQuoteRfqCount ? 'warn' : 'ok'}
+          />
+          {activeBranch && (
+            <HeroMetric
+              icon={<Building2 className="h-4 w-4" />}
+              value={activeBranch.activeOrders || '0'}
+              label="đơn chi nhánh"
+              tone="neutral"
+            />
+          )}
         </div>
       </div>
     </section>
@@ -484,118 +493,21 @@ function HeroOperationsPanel({
 }
 
 function HeroMetric({ icon, value, label, tone }: { icon: React.ReactNode; value: string; label: string; tone: 'risk' | 'warn' | 'ok' | 'neutral' }) {
-  const toneClass = tone === 'risk' ? 'bg-red-400/20 text-red-50' : tone === 'warn' ? 'bg-amber-300/20 text-amber-50' : tone === 'ok' ? 'bg-emerald-300/20 text-emerald-50' : 'bg-white/15 text-white'
+  const toneClass =
+    tone === 'risk' ? 'bg-red-400/20 text-red-50 border-red-300/20' :
+    tone === 'warn' ? 'bg-amber-300/20 text-amber-50 border-amber-300/20' :
+    tone === 'ok' ? 'bg-emerald-300/20 text-emerald-50 border-emerald-300/20' :
+    'bg-white/15 text-white border-white/15'
   return (
-    <div className={`inline-flex items-center gap-2 rounded-xl border border-white/15 px-2.5 py-1.5 text-xs font-semibold backdrop-blur ${toneClass}`}>
+    <div className={`inline-flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-xs font-semibold backdrop-blur ${toneClass}`}>
       {icon}
-      <span>{value}</span>
+      <span className="font-bold">{value}</span>
       <span className="font-medium opacity-80">{label}</span>
     </div>
   )
 }
 
-function HealthTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-white/15 bg-white/10 px-2.5 py-1.5">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-white/55">{label}</p>
-      <p className="mt-1 truncate text-sm font-semibold text-white">{value}</p>
-    </div>
-  )
-}
-
-function OperationalAlertStrip({ alerts, attentionItems, branchContext }: { alerts: BuyerDashboardAlert[]; attentionItems: AttentionItem[]; branchContext: BranchContext | null }) {
-  const synthesized = [
-    ...alerts.map((alert) => ({
-      id: alert.id,
-      title: alert.title,
-      value: alert.value,
-      severity: severityFromAlert(alert.tone),
-      to: scopedPath(alert.targetPath || '/buyer/overview', branchContext),
-    })),
-    ...attentionItems.slice(0, Math.max(0, 6 - alerts.length)).map((item) => ({
-      id: item.id,
-      title: item.title,
-      value: item.meta,
-      severity: item.severity,
-      to: item.to,
-    })),
-  ].slice(0, 6)
-
-  if (!synthesized.length) {
-    return (
-      <Link to={scopedPath('/buyer/delivery', branchContext)} className="group flex items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
-          <ShieldCheck className="h-5 w-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-900">Chưa có cảnh báo khẩn</p>
-          <p className="text-xs font-medium text-slate-500">Mở giao hàng để tiếp tục theo dõi tiến độ chi nhánh.</p>
-        </div>
-        <ChevronRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5" />
-      </Link>
-    )
-  }
-
-  return (
-    <section className="grid gap-3 xl:grid-cols-6">
-      {synthesized.map((alert) => (
-        <Link
-          key={alert.id}
-          to={alert.to}
-          className={`group rounded-2xl border p-3 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md ${severityClasses(alert.severity)}`}
-        >
-          <div className="flex items-start justify-between gap-2">
-            <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${severityDot(alert.severity)} ${alert.severity === 'critical' ? 'animate-pulse' : ''}`} />
-            <ArrowUpRight className="h-4 w-4 shrink-0 opacity-55 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </div>
-          <p className="mt-2 line-clamp-2 text-xs font-semibold uppercase tracking-wide">{alert.title}</p>
-          <p className="mt-1 truncate text-lg font-bold">{alert.value}</p>
-        </Link>
-      ))}
-    </section>
-  )
-}
-
-function QuickActionCenter({ branchContext }: { branchContext: BranchContext | null }) {
-  const actions: Array<{ label: string; to: string; icon: React.ReactNode; tone: string }> = [
-    { label: 'Tạo RFQ', to: '/buyer/rfq', icon: <FileText className="h-4 w-4" />, tone: 'from-amber-500 to-amber-600' },
-    { label: 'Tạo đơn mua', to: '/buyer/sourcing', icon: <ShoppingCart className="h-4 w-4" />, tone: 'from-emerald-600 to-teal-500' },
-    { label: 'Theo dõi giao', to: '/buyer/delivery', icon: <Truck className="h-4 w-4" />, tone: 'from-blue-600 to-blue-500' },
-    { label: 'Xử lý sự cố', to: '/buyer/delivery?status=incident', icon: <ShieldAlert className="h-4 w-4" />, tone: 'from-red-600 to-red-500' },
-    { label: 'Thanh toán nợ', to: '/buyer/debt', icon: <CircleDollarSign className="h-4 w-4" />, tone: 'from-emerald-700 to-teal-600' },
-    { label: 'Tìm nhà cung cấp', to: '/buyer/sourcing', icon: <Search className="h-4 w-4" />, tone: 'from-blue-600 to-teal-500' },
-    { label: 'Xem chi nhánh', to: '/buyer/branches', icon: <Store className="h-4 w-4" />, tone: 'from-teal-600 to-emerald-500' },
-  ]
-
-  return (
-    <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-slate-900">Thao tác nhanh</p>
-          <p className="text-xs font-medium text-slate-500">Các việc thường dùng trong mua hàng và giao nhận.</p>
-        </div>
-        <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-          {branchContext?.branchName || 'Toàn hệ thống'}
-        </span>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
-        {actions.map((action) => (
-          <Link
-            key={action.label}
-            to={scopedPath(action.to, branchContext)}
-            className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 p-3 transition duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-white hover:shadow-md hover:shadow-emerald-900/10"
-          >
-            <span className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${action.tone} text-white shadow-lg transition group-hover:scale-105`}>
-              {action.icon}
-            </span>
-            <p className="mt-3 text-sm font-semibold text-slate-900">{action.label}</p>
-            <ChevronRight className="absolute right-3 top-3 h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-emerald-500" />
-          </Link>
-        ))}
-      </div>
-    </section>
-  )
-}
+/* ─────────────────────── KpiGrid ─────────────────────── */
 
 function KpiGrid({
   items,
@@ -629,7 +541,7 @@ function KpiGrid({
         icon: config.icon,
         tone: config.tone,
         route: config.route,
-        badge: item.value > 0 ? 'Đang có' : 'Ổn',
+        badge: item.value > 0 ? 'Đang có' : 'Ổn định',
         trend: item.value > 0 ? 'Cần xử lý' : 'Ổn định',
       }
     }),
@@ -653,7 +565,7 @@ function KpiGrid({
       tone: 'from-amber-500 to-amber-600',
       route: '/buyer/rfq' as DashboardRoute,
       badge: expiringRfqCount ? `${expiringRfqCount} sắp hết hạn` : 'Tốt',
-      trend: noQuoteRfqCount ? 'Nhắc NCC' : 'Có báo giá',
+      trend: noQuoteRfqCount ? 'Nhắc nhà cung cấp' : 'Có báo giá',
     },
     {
       id: 'branchHealth',
@@ -669,36 +581,35 @@ function KpiGrid({
   ]
 
   return (
-    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
       {operationalCards.slice(0, 6).map((item) => (
         <Link
           key={item.id}
           to={scopedPath(item.route, branchContext)}
-          className="group relative min-h-[112px] overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md hover:shadow-emerald-900/10"
+          className="group relative min-h-[108px] overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md hover:shadow-emerald-900/10"
         >
           <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${item.tone}`} />
           <div className="flex items-start justify-between gap-2">
             <span className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${item.tone} text-white shadow-sm shadow-slate-900/10 transition group-hover:scale-105`}>
               {item.icon}
             </span>
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+            <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 leading-none">
               {item.badge}
             </span>
           </div>
-          <p className="mt-2.5 line-clamp-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{item.label}</p>
+          <p className="mt-2.5 line-clamp-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{item.label}</p>
           <p className="mt-1 truncate text-xl font-bold leading-none text-slate-950">{item.value}</p>
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs font-semibold text-emerald-700">
-              <TrendingUp className="h-3.5 w-3.5" />
-              {item.trend}
-            </span>
-            <ArrowUpRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-emerald-500" />
+          <div className="mt-2 flex items-center gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+            <span className="truncate text-xs font-semibold text-emerald-700">{item.trend}</span>
           </div>
         </Link>
       ))}
     </section>
   )
 }
+
+/* ─────────────────────── AttentionCenter ─────────────────────── */
 
 function buildAttentionItems(dashboard: BuyerDashboardPayload, branchContext: BranchContext | null): AttentionItem[] {
   const alertItems: AttentionItem[] = dashboard.alerts.map((alert) => ({
@@ -716,7 +627,7 @@ function buildAttentionItems(dashboard: BuyerDashboardPayload, branchContext: Br
       id: `shipment-${row.orderId}`,
       title: `Giao hàng trễ: ${row.orderCode}`,
       meta: `${row.productText} · ETA ${formatDate(row.estimatedDeliveryAt)}`,
-      severity: 'critical',
+      severity: 'critical' as Severity,
       icon: <Truck className="h-4 w-4" />,
       to: scopedPath(`/buyer/orders?orderId=${row.orderId}`, branchContext),
     }))
@@ -730,7 +641,7 @@ function buildAttentionItems(dashboard: BuyerDashboardPayload, branchContext: Br
       id: `rfq-${row.rfqId}`,
       title: row.quoteCount ? `RFQ sắp hết hạn: ${row.rfqCode}` : `Chưa có báo giá: ${row.rfqCode}`,
       meta: `${row.productText || row.title} · ${row.quoteCount} báo giá`,
-      severity: row.quoteCount ? 'medium' : 'high',
+      severity: (row.quoteCount ? 'medium' : 'high') as Severity,
       icon: <FileText className="h-4 w-4" />,
       to: scopedPath(`/buyer/rfq?rfqId=${row.rfqId}`, branchContext),
     }))
@@ -742,6 +653,21 @@ function buildAttentionItems(dashboard: BuyerDashboardPayload, branchContext: Br
 }
 
 function AttentionCenter({ items, branchContext }: { items: AttentionItem[]; branchContext: BranchContext | null }) {
+  if (!items.length) {
+    return (
+      <Link to={scopedPath('/buyer/delivery', branchContext)} className="group flex items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+          <ShieldCheck className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-900">Chưa có cảnh báo khẩn</p>
+          <p className="text-xs font-medium text-slate-500">Mở giao hàng để tiếp tục theo dõi tiến độ chi nhánh.</p>
+        </div>
+        <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5" />
+      </Link>
+    )
+  }
+
   return (
     <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
       <SectionHeader
@@ -750,39 +676,74 @@ function AttentionCenter({ items, branchContext }: { items: AttentionItem[]; bra
         subtitle="Giao trễ, công nợ, xác nhận và phản hồi nhà cung cấp cần chú ý."
         to={scopedPath('/buyer/delivery', branchContext)}
       />
-      {items.length ? (
-        <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          {items.slice(0, 6).map((item) => (
-            <Link key={item.id} to={item.to} className={`group rounded-2xl border p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${severityClasses(item.severity)}`}>
-              <div className="flex items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/70">{item.icon}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="line-clamp-1 text-sm font-semibold">{item.title}</p>
-                    <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${severityDot(item.severity)} ${item.severity === 'critical' ? 'animate-pulse' : ''}`} />
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-xs font-medium opacity-75">{item.meta}</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {items.slice(0, 6).map((item) => (
+          <Link key={item.id} to={item.to} className={`group rounded-2xl border p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${severityClasses(item.severity)}`}>
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/70">{item.icon}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="line-clamp-1 text-sm font-semibold">{item.title}</p>
+                  <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${severityDot(item.severity)} ${item.severity === 'critical' ? 'animate-pulse' : ''}`} />
                 </div>
+                <p className="mt-1 line-clamp-2 text-xs font-medium opacity-75">{item.meta}</p>
               </div>
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          icon={<CheckCircle2 className="h-7 w-7" />}
-          title="Chưa có việc khẩn cần xử lý"
-          text="Tạo RFQ mới hoặc theo dõi giao hàng để giữ nhịp mua hàng ổn định."
-          actionLabel="Theo dõi giao hàng"
-          to={scopedPath('/buyer/delivery', branchContext)}
-        />
-      )}
+            </div>
+          </Link>
+        ))}
+      </div>
     </section>
   )
 }
 
+/* ─────────────────────── QuickActionCenter ─────────────────────── */
+
+function QuickActionCenter({ branchContext }: { branchContext: BranchContext | null }) {
+  const actions: Array<{ label: string; to: string; icon: React.ReactNode; tone: string }> = [
+    { label: 'Tạo RFQ', to: '/buyer/rfq', icon: <FileText className="h-4 w-4" />, tone: 'from-amber-500 to-amber-600' },
+    { label: 'Tạo đơn mua', to: '/buyer/sourcing', icon: <ShoppingCart className="h-4 w-4" />, tone: 'from-emerald-600 to-teal-500' },
+    { label: 'Theo dõi giao hàng', to: '/buyer/delivery', icon: <Truck className="h-4 w-4" />, tone: 'from-blue-600 to-blue-500' },
+    { label: 'Xử lý sự cố', to: '/buyer/delivery?status=incident', icon: <ShieldAlert className="h-4 w-4" />, tone: 'from-red-600 to-red-500' },
+    { label: 'Thanh toán nợ', to: '/buyer/debt', icon: <CircleDollarSign className="h-4 w-4" />, tone: 'from-emerald-700 to-teal-600' },
+    { label: 'Tìm nhà cung cấp', to: '/buyer/sourcing', icon: <Search className="h-4 w-4" />, tone: 'from-blue-600 to-teal-500' },
+    { label: 'Xem chi nhánh', to: '/buyer/branches', icon: <Store className="h-4 w-4" />, tone: 'from-teal-600 to-emerald-500' },
+  ]
+
+  return (
+    <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">Thao tác nhanh</p>
+          <p className="text-xs font-medium text-slate-500">Các việc thường dùng trong mua hàng và giao nhận.</p>
+        </div>
+        <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+          {branchContext?.branchName || 'Toàn hệ thống'}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-7">
+        {actions.map((action) => (
+          <Link
+            key={action.label}
+            to={scopedPath(action.to, branchContext)}
+            className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 p-3 transition duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-white hover:shadow-md hover:shadow-emerald-900/10"
+          >
+            <span className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${action.tone} text-white shadow-md transition group-hover:scale-105`}>
+              {action.icon}
+            </span>
+            <p className="mt-2.5 text-xs font-semibold leading-tight text-slate-900">{action.label}</p>
+            <ChevronRight className="absolute right-2.5 top-2.5 h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-emerald-500" />
+          </Link>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────── ShipmentSection ─────────────────────── */
+
 function ShipmentSection({ rows, branchContext }: { rows: FlexibleDeliveryOrder[]; branchContext: BranchContext | null }) {
   return (
-    <section className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+    <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
       <SectionHeader
         icon={<Truck className="h-4 w-4" />}
         title="Theo dõi giao hàng"
@@ -794,52 +755,43 @@ function ShipmentSection({ rows, branchContext }: { rows: FlexibleDeliveryOrder[
           {rows.slice(0, 5).map((row) => {
             const delayed = isDelayed(row)
             const progress = progressForStatus(row.status || row.statusLabel)
-            const supplier = row.supplierName || row.supplier || 'Chưa có nhà cung cấp'
+            const supplier = row.supplierName || row.supplier || 'Chưa rõ nhà cung cấp'
             const status = delayed ? 'Nguy cơ trễ' : row.statusLabel || row.status || 'Đang giao'
             return (
               <Link
                 key={`${row.orderId}-${row.shipmentId ?? 'shipment'}`}
                 to={scopedPath(`/buyer/orders?orderId=${row.orderId}`, branchContext)}
-                className="group relative block rounded-xl border border-slate-100 bg-gradient-to-r from-white to-slate-50 px-3 py-2.5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md hover:shadow-emerald-900/10"
+                className="group block rounded-xl border border-slate-100 bg-gradient-to-r from-white to-slate-50 px-3 py-3 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md hover:shadow-emerald-900/10"
               >
-                <div className="absolute right-3 top-2">
+                {/* Row header: code + status badge */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">{row.orderCode}</p>
+                    <h3 className="mt-0.5 line-clamp-1 text-sm font-semibold text-slate-950">{row.productText}</h3>
+                  </div>
                   <StatusBadge label={status} severity={delayed ? 'critical' : 'normal'} />
                 </div>
-                <div className="grid items-center gap-3 lg:grid-cols-[minmax(180px,1.25fr)_minmax(130px,0.8fr)_minmax(140px,0.8fr)_minmax(110px,0.7fr)_120px]">
-                  <div className="min-w-0 pr-28 lg:pr-2">
-                    <div className="flex items-center gap-2">
-                      <p className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-emerald-600">{row.orderCode}</p>
-                    </div>
-                    <h3 className="mt-1 line-clamp-1 text-sm font-semibold text-slate-950">{row.productText}</h3>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs lg:block">
-                    <CompactMeta label="SL" value={formatQuantity(row.quantity, row.unit)} />
-                    <CompactMeta label="Tổng tiền" value={row.displayAmount} strong />
-                  </div>
+                {/* Row meta: supplier + ETA */}
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <span className="text-xs font-medium text-slate-500">
+                    <span className="font-semibold text-slate-700">{supplier}</span>
+                  </span>
+                  <span className="text-xs font-medium text-slate-400">ETA: <span className="font-semibold text-slate-700">{formatDate(row.estimatedDeliveryAt)}</span></span>
+                  <span className="text-xs font-medium text-slate-400">SL: <span className="font-semibold text-slate-700">{formatQuantity(row.quantity, row.unit)}</span></span>
+                </div>
 
-                  <div className="min-w-0">
-                    <CompactMeta label="Nhà cung cấp" value={supplier} />
+                {/* Progress bar */}
+                <div className="mt-2.5">
+                  <div className="mb-1 flex items-center justify-between text-[10px] font-medium text-slate-400">
+                    <span>Tiến độ</span>
+                    <span>{progress}%</span>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs lg:block">
-                    <CompactMeta label="ETA" value={formatDate(row.estimatedDeliveryAt)} />
-                    <div className="mt-1 lg:mt-2">
-                      <div className="mb-1 flex items-center justify-between text-[10px] font-medium text-slate-400">
-                        <span>Tiến độ</span>
-                        <span>{progress}%</span>
-                      </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                        <div className={`h-full rounded-full ${delayed ? 'bg-gradient-to-r from-red-500 to-red-600' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`} style={{ width: `${progress}%` }} />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-start lg:justify-end">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">
-                      Xem giao hàng
-                      <ArrowUpRight className="h-3.5 w-3.5" />
-                    </span>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${delayed ? 'bg-gradient-to-r from-red-500 to-red-600' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`}
+                      style={{ width: `${progress}%` }}
+                    />
                   </div>
                 </div>
               </Link>
@@ -859,9 +811,11 @@ function ShipmentSection({ rows, branchContext }: { rows: FlexibleDeliveryOrder[
   )
 }
 
+/* ─────────────────────── RfqSection ─────────────────────── */
+
 function RfqSection({ rows, branchContext }: { rows: FlexiblePendingRfq[]; branchContext: BranchContext | null }) {
   return (
-    <section className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+    <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
       <SectionHeader
         icon={<FileText className="h-4 w-4" />}
         title="Quản lý RFQ"
@@ -878,34 +832,31 @@ function RfqSection({ rows, branchContext }: { rows: FlexiblePendingRfq[]; branc
               <Link
                 key={row.rfqId}
                 to={scopedPath(`/buyer/rfq?rfqId=${row.rfqId}`, branchContext)}
-                className="group relative block rounded-xl border border-slate-100 bg-gradient-to-r from-white to-amber-50/25 px-3 py-2.5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-md hover:shadow-amber-900/10"
+                className="group block rounded-xl border border-slate-100 bg-gradient-to-r from-white to-amber-50/25 px-3 py-3 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-md hover:shadow-amber-900/10"
               >
-                <div className="absolute right-3 top-2">
+                {/* Row header */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600">{row.rfqCode}</p>
+                    <h3 className="mt-0.5 line-clamp-1 text-sm font-semibold text-slate-950">{row.productText || row.title}</h3>
+                  </div>
                   <StatusBadge label={urgent ? 'Sắp hết hạn' : row.status || 'Đang mở'} severity={urgent ? 'high' : 'normal'} />
                 </div>
-                <div className="grid items-center gap-3 lg:grid-cols-[minmax(180px,1.2fr)_minmax(110px,0.65fr)_minmax(120px,0.7fr)_minmax(150px,0.85fr)_130px]">
-                  <div className="min-w-0 pr-28 lg:pr-2">
-                    <div className="flex items-center gap-2">
-                      <p className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-amber-600">{row.rfqCode}</p>
-                    </div>
-                    <h3 className="mt-1 line-clamp-1 text-sm font-semibold text-slate-950">{row.productText || row.title}</h3>
-                  </div>
 
-                  <CompactMeta label="Nhu cầu" value={`${formatNumber(row.quantity)} ${row.unit || ''}`.trim()} strong />
-                  <CompactMeta label="Khu vực" value={row.province || 'Chưa có tỉnh'} />
-
-                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 lg:block">
-                    <CompactMeta label="Hết hạn" value={formatDate(row.expiredAt)} />
-                    <CompactMeta label="Trạng thái" value={expiryText} strong={urgent} />
-                    <CompactMeta label="Phản hồi" value={`${row.quoteCount} báo giá`} />
-                  </div>
-
-                  <div className="flex items-center justify-start lg:justify-end">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700">
-                      Xem RFQ
-                      <ArrowUpRight className="h-3.5 w-3.5" />
-                    </span>
-                  </div>
+                {/* Row meta */}
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <span className="text-xs font-medium text-slate-400">
+                    Nhu cầu: <span className="font-semibold text-slate-700">{`${formatNumber(row.quantity)} ${row.unit || ''}`.trim()}</span>
+                  </span>
+                  <span className="text-xs font-medium text-slate-400">
+                    Khu vực: <span className="font-semibold text-slate-700">{row.province || 'Chưa xác định'}</span>
+                  </span>
+                  <span className={`text-xs font-semibold ${urgent ? 'text-amber-600' : 'text-slate-500'}`}>
+                    {expiryText}
+                  </span>
+                  <span className="text-xs font-medium text-slate-400">
+                    <span className="font-semibold text-slate-700">{row.quoteCount}</span> báo giá
+                  </span>
                 </div>
               </Link>
             )
@@ -924,9 +875,12 @@ function RfqSection({ rows, branchContext }: { rows: FlexiblePendingRfq[]; branc
   )
 }
 
+/* ─────────────────────── SupplierIntelligence ─────────────────────── */
+
 function SupplierIntelligence({ deliveryOrders, rfqs, branchContext }: { deliveryOrders: FlexibleDeliveryOrder[]; rfqs: FlexiblePendingRfq[]; branchContext: BranchContext | null }) {
   const suppliers = deliveryOrders.reduce<Record<string, number>>((counts, row) => {
-    const name = row.supplierName || row.supplier || 'Chưa có nhà cung cấp'
+    const name = row.supplierName || row.supplier
+    if (!name) return counts
     counts[name] = (counts[name] || 0) + 1
     return counts
   }, {})
@@ -935,97 +889,48 @@ function SupplierIntelligence({ deliveryOrders, rfqs, branchContext }: { deliver
   const reliability = deliveryOrders.length ? Math.max(70, 100 - deliveryOrders.filter(isDelayed).length * 12) : 92
 
   return (
-    <SidePanel icon={<Users className="h-4 w-4" />} title="Hiệu suất nhà cung cấp" to={scopedPath('/buyer/sourcing', branchContext)}>
-      <MetricLine label="Độ tin cậy" value={`${reliability}%`} tone={reliability >= 85 ? 'emerald' : 'amber'} />
-      <MetricLine label="Giao đúng hạn" value={`${Math.min(99, reliability + 3)}%`} tone="emerald" />
-      <MetricLine label="Báo giá nhận được" value={`${quoteActivity}`} tone={quoteActivity ? 'blue' : 'amber'} />
-      <div className="mt-3 space-y-2">
-        {(topSuppliers.length ? topSuppliers : [['Nhà cung cấp mua nhiều', 0]]).map(([name, count]) => (
-          <div key={name} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-            <span className="truncate text-xs font-semibold text-slate-700">{name}</span>
-            <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-slate-500">{count ? `${count} đơn` : 'Theo dõi'}</span>
-          </div>
-        ))}
-      </div>
-    </SidePanel>
-  )
-}
-
-function MarketIntelligence({ rfqs, branchContext }: { rfqs: BuyerDashboardPendingRfq[]; branchContext: BranchContext | null }) {
-  const categories = rfqs.slice(0, 3).map((rfq) => rfq.productText || rfq.title).filter(Boolean)
-  return (
-    <SidePanel icon={<LineChart className="h-4 w-4" />} title="Biến động thị trường" to={scopedPath('/buyer/market', branchContext)}>
-      <MetricLine label="Cảnh báo tăng giá" value={rfqs.length ? String(Math.min(3, rfqs.length)) : '0'} tone={rfqs.length ? 'amber' : 'emerald'} />
-      <MetricLine label="Khu vực biến động" value={rfqs[0]?.province || 'Tất cả khu vực'} tone="blue" />
-      <MetricLine label="Mặt hàng nổi bật" value={String(categories.length || 1)} tone="emerald" />
-      <div className="mt-3 flex flex-wrap gap-2">
-        {(categories.length ? categories : ['Nông sản tươi', 'Nguồn hàng khu vực']).map((item) => (
-          <span key={item} className="line-clamp-1 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-            {item}
+    <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+            <Users className="h-4 w-4" />
           </span>
-        ))}
+          <h2 className="text-sm font-semibold text-slate-950">Hiệu suất nhà cung cấp</h2>
+        </div>
+        <Link to={scopedPath('/buyer/sourcing', branchContext)} className="text-slate-400 transition hover:text-emerald-600">
+          <ArrowUpRight className="h-4 w-4" />
+        </Link>
       </div>
-    </SidePanel>
-  )
-}
 
-function IncidentCenter({ alerts, delayedCount, branchContext }: { alerts: BuyerDashboardAlert[]; delayedCount: number; branchContext: BranchContext | null }) {
-  const incidents = alerts.filter((alert) => /incident|dispute|claim|delay|shipment/i.test(`${alert.id} ${alert.title}`))
-  return (
-    <SidePanel icon={<ShieldAlert className="h-4 w-4" />} title="Quản lý sự cố" to={scopedPath('/buyer/delivery?status=incident', branchContext)}>
-      <MetricLine label="Sự cố đang mở" value={String(incidents.length + delayedCount)} tone={incidents.length || delayedCount ? 'red' : 'emerald'} />
-      <MetricLine label="Khiếu nại chưa xử lý" value={String(incidents.length)} tone={incidents.length ? 'amber' : 'emerald'} />
-      <MetricLine label="Chờ phản hồi NCC" value={String(Math.max(0, incidents.length - 1))} tone={incidents.length > 1 ? 'amber' : 'emerald'} />
-      <p className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-medium leading-5 text-slate-500">
-        Ưu tiên sự cố giao hàng và rủi ro trễ để đội vận hành xử lý trước khi ảnh hưởng đến quan hệ nhà cung cấp.
-      </p>
-    </SidePanel>
-  )
-}
+      <div className="space-y-2">
+        <MetricLine label="Độ tin cậy" value={`${reliability}%`} tone={reliability >= 85 ? 'emerald' : 'amber'} />
+        <MetricLine label="Giao đúng hạn" value={`${Math.min(99, reliability + 3)}%`} tone="emerald" />
+        <MetricLine label="Báo giá nhận được" value={String(quoteActivity)} tone={quoteActivity ? 'blue' : 'amber'} />
+      </div>
 
-function ActivityTimeline({ dashboard, branchContext }: { dashboard: BuyerDashboardPayload; branchContext: BranchContext | null }) {
-  const events = [
-    ...dashboard.deliveryOrders.slice(0, 3).map((row) => ({
-      id: `delivery-${row.orderId}`,
-      title: isDelayed(row) ? 'Giao hàng bị trễ' : 'Nhà cung cấp xác nhận giao',
-      meta: `${row.orderCode} · ${formatDate(row.estimatedDeliveryAt)}`,
-      icon: <Truck className="h-3.5 w-3.5" />,
-      to: scopedPath(`/buyer/orders?orderId=${row.orderId}`, branchContext),
-    })),
-    ...dashboard.pendingRfqs.slice(0, 3).map((row) => ({
-      id: `rfq-${row.rfqId}`,
-      title: row.quoteCount ? 'RFQ đã có báo giá' : 'RFQ chờ nhà cung cấp',
-      meta: `${row.rfqCode} · ${row.quoteCount} báo giá`,
-      icon: <FileText className="h-3.5 w-3.5" />,
-      to: scopedPath(`/buyer/rfq?rfqId=${row.rfqId}`, branchContext),
-    })),
-  ].slice(0, 5)
-
-  return (
-    <SidePanel icon={<Activity className="h-4 w-4" />} title="Hoạt động gần đây" to={scopedPath('/buyer/orders', branchContext)}>
-      {events.length ? (
-        <div className="space-y-3">
-          {events.map((event, index) => (
-            <Link key={event.id} to={event.to} className="group flex gap-3">
-              <div className="flex flex-col items-center">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 transition group-hover:bg-emerald-600 group-hover:text-white">
-                  {event.icon}
-                </span>
-                {index < events.length - 1 ? <span className="mt-1 h-6 w-px bg-slate-200" /> : null}
-              </div>
-              <div className="min-w-0 pb-2">
-                <p className="text-sm font-semibold text-slate-900">{event.title}</p>
-                <p className="mt-0.5 truncate text-xs font-medium text-slate-500">{event.meta}</p>
-              </div>
-            </Link>
+      {topSuppliers.length > 0 ? (
+        <div className="mt-3 space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Nhà cung cấp hoạt động nhiều</p>
+          {topSuppliers.map(([name, count]) => (
+            <div key={name} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+              <span className="truncate text-xs font-semibold text-slate-700">{name}</span>
+              <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-slate-500">{count} đơn</span>
+            </div>
           ))}
         </div>
       ) : (
-        <EmptyState icon={<Activity className="h-7 w-7" />} title="Chưa có hoạt động mới" text="Đơn hàng, RFQ, thanh toán và giao hàng sẽ hiển thị tại đây." actionLabel="Tạo RFQ" to={scopedPath('/buyer/rfq', branchContext)} compact />
+        <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center">
+          <p className="text-xs font-medium text-slate-400">Chưa có dữ liệu nhà cung cấp</p>
+          <Link to={scopedPath('/buyer/sourcing', branchContext)} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:underline">
+            Tìm nhà cung cấp <ArrowUpRight className="h-3 w-3" />
+          </Link>
+        </div>
       )}
-    </SidePanel>
+    </section>
   )
 }
+
+/* ─────────────────────── Shared UI ─────────────────────── */
 
 function SectionHeader({ icon, title, subtitle, to }: { icon: React.ReactNode; title: string; subtitle: string; to: string }) {
   return (
@@ -1047,38 +952,16 @@ function SectionHeader({ icon, title, subtitle, to }: { icon: React.ReactNode; t
   )
 }
 
-function SidePanel({ icon, title, to, children }: { icon: React.ReactNode; title: string; to: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">{icon}</span>
-          <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
-        </div>
-        <Link to={to} className="text-slate-400 transition hover:text-emerald-600">
-          <ArrowUpRight className="h-4 w-4" />
-        </Link>
-      </div>
-      {children}
-    </section>
-  )
-}
-
 function MetricLine({ label, value, tone }: { label: string; value: string; tone: 'emerald' | 'amber' | 'red' | 'blue' }) {
-  const toneClass = tone === 'red' ? 'text-red-700 bg-red-50' : tone === 'amber' ? 'text-amber-700 bg-amber-50' : tone === 'blue' ? 'text-blue-700 bg-blue-50' : 'text-emerald-700 bg-emerald-50'
+  const toneClass =
+    tone === 'red' ? 'text-red-700 bg-red-50' :
+    tone === 'amber' ? 'text-amber-700 bg-amber-50' :
+    tone === 'blue' ? 'text-blue-700 bg-blue-50' :
+    'text-emerald-700 bg-emerald-50'
   return (
-    <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2">
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2">
       <span className="text-xs font-bold text-slate-500">{label}</span>
       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${toneClass}`}>{value}</span>
-    </div>
-  )
-}
-
-function CompactMeta({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
-      <p className={`mt-0.5 truncate text-xs ${strong ? 'font-semibold text-slate-900' : 'font-medium text-slate-600'}`}>{value}</p>
     </div>
   )
 }
@@ -1098,23 +981,24 @@ function EmptyState({
   text,
   actionLabel,
   to,
-  compact,
 }: {
   icon: React.ReactNode
   title: string
   text: string
   actionLabel: string
   to: string
-  compact?: boolean
 }) {
   return (
-    <div className={`mt-4 rounded-2xl border border-dashed border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 text-center ${compact ? 'p-4' : 'p-8'}`}>
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-emerald-600 shadow-md shadow-emerald-900/10">
+    <div className="mt-4 rounded-2xl border border-dashed border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-8 text-center">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-emerald-600 shadow-md shadow-emerald-900/10">
         {icon}
       </div>
       <p className="mt-3 text-sm font-semibold text-slate-900">{title}</p>
-      <p className="mx-auto mt-1 max-w-md text-xs font-medium leading-5 text-slate-500">{text}</p>
-      <Link to={to} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-700/15 transition hover:-translate-y-0.5 active:scale-95">
+      <p className="mx-auto mt-1 max-w-xs text-xs font-medium leading-5 text-slate-500">{text}</p>
+      <Link
+        to={to}
+        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-700/15 transition hover:-translate-y-0.5 active:scale-95"
+      >
         <Sparkles className="h-3.5 w-3.5" />
         {actionLabel}
       </Link>

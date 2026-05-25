@@ -333,12 +333,12 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
         long unpaidCount = invoices.stream().filter(item -> item.remaining().compareTo(BigDecimal.ZERO) > 0).count();
         long overdueCount = invoices.stream().filter(InvoiceCalc::overdue).count();
         return List.of(
-                new BuyerDebtDtos.Kpi("totalDebt", "Tong phai tra", totalDebt, formatMoney(totalDebt)),
-                new BuyerDebtDtos.Kpi("overdueDebt", "Qua han", overdueDebt, formatMoney(overdueDebt)),
-                new BuyerDebtDtos.Kpi("paidThisMonth", "Da thanh toan thang", paidThisMonth, formatMoney(paidThisMonth)),
-                new BuyerDebtDtos.Kpi("dueSoon", "Sap den han", dueSoon, formatMoney(dueSoon)),
-                new BuyerDebtDtos.Kpi("unpaidInvoiceCount", "Hoa don chua tat toan", BigDecimal.valueOf(unpaidCount), String.valueOf(unpaidCount)),
-                new BuyerDebtDtos.Kpi("overdueInvoiceCount", "Hoa don qua han", BigDecimal.valueOf(overdueCount), String.valueOf(overdueCount)));
+                new BuyerDebtDtos.Kpi("totalDebt", "Tổng phải trả", totalDebt, formatMoney(totalDebt)),
+                new BuyerDebtDtos.Kpi("overdueDebt", "Quá hạn", overdueDebt, formatMoney(overdueDebt)),
+                new BuyerDebtDtos.Kpi("paidThisMonth", "Đã thanh toán tháng", paidThisMonth, formatMoney(paidThisMonth)),
+                new BuyerDebtDtos.Kpi("dueSoon", "Sắp đến hạn", dueSoon, formatMoney(dueSoon)),
+                new BuyerDebtDtos.Kpi("unpaidInvoiceCount", "Hóa đơn chưa tất toán", BigDecimal.valueOf(unpaidCount), String.valueOf(unpaidCount)),
+                new BuyerDebtDtos.Kpi("overdueInvoiceCount", "Hóa đơn quá hạn", BigDecimal.valueOf(overdueCount), String.valueOf(overdueCount)));
     }
 
     private List<BuyerDebtDtos.SupplierDebt> buildSupplierRows(DebtContext context) {
@@ -561,19 +561,19 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
 
     private String statusLabel(String status) {
         return switch (status) {
-            case "BLOCKED" -> "Bi chan";
-            case "OVERDUE" -> "Qua han";
-            case "WARNING" -> "Canh bao";
-            default -> "Binh thuong";
+            case "BLOCKED" -> "Bị chặn";
+            case "OVERDUE" -> "Quá hạn";
+            case "WARNING" -> "Cảnh báo";
+            default -> "Bình thường";
         };
     }
 
     private String invoiceStatusLabel(InvoiceEntity invoice, InvoiceCalc calc) {
-        if (calc.remaining().compareTo(BigDecimal.ZERO) <= 0) return "Da thanh toan";
-        if (calc.overdue()) return "Qua han";
-        if (calc.paid().compareTo(BigDecimal.ZERO) > 0) return "Thanh toan mot phan";
-        if (calc.dueSoon()) return "Sap den han";
-        return invoice.getStatus() == null ? "Chua thanh toan" : invoice.getStatus().name();
+        if (calc.remaining().compareTo(BigDecimal.ZERO) <= 0) return "Đã thanh toán";
+        if (calc.overdue()) return "Quá hạn";
+        if (calc.paid().compareTo(BigDecimal.ZERO) > 0) return "Thanh toán một phần";
+        if (calc.dueSoon()) return "Sắp đến hạn";
+        return invoice.getStatus() == null ? "Chưa thanh toán" : invoice.getStatus().name();
     }
 
     private Map<Long, UserEntity> userMap(Collection<Long> ids) {

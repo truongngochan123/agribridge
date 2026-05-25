@@ -39,6 +39,7 @@ import type {
   UpdateBatchRequest,
 } from '../../types/supplierCreateFlow'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
+import { LotsSkeletonLoader } from '../../components/supplier/SupplierSkeletons'
 
 type BatchForm = BatchFormState
 
@@ -640,16 +641,12 @@ export function SupplierLotListPage() {
             </div>
           </div>
 
-          {loading ? (
-            <div className="shrink-0 flex items-center gap-2 text-sm text-slate-500">
-              <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
-              Đang tải dữ liệu...
-            </div>
-          ) : null}
+          {loading ? <LotsSkeletonLoader /> : null}
 
           {/* ── Batch Cards (scrollable) ── */}
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-            {filteredBatches.map((batch) => {
+          {!loading && (
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {filteredBatches.map((batch) => {
               const lotStatus = deriveLotStatus(Number(batch.quantity || 0))
               const expired = isExpiredBatch(batch)
               const batchDetail = batchDetailsById[batch.id]
@@ -799,7 +796,8 @@ export function SupplierLotListPage() {
                 <p className="mt-1 text-xs text-slate-400">Thử thay đổi bộ lọc hoặc tạo lô hàng mới</p>
               </div>
             ) : null}
-          </div>
+            </div>
+          )}
         </div>
       </SupplierShell>
 

@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, BellRing, CheckCircle2, ChevronRight, Clock3, CreditCard, Download, FileText, ReceiptText, TimerReset, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { FilterTabBar, SearchInput, BuyerPanel } from '../../components/buyer/BuyerCommon'
@@ -22,6 +22,7 @@ import {
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
 import type { BuyerPaymentMethod } from '../../components/buyer/buyerQuickOrderTypes'
 import { getBranchContextFromSearchParams, matchesBranchContext } from '../../utils/branchContext'
+import { DebtSkeletonLoader } from '../../components/buyer/BuyerSkeletons'
 
 const emptyOverview: BuyerDebtOverview = { kpis: [], suppliers: [] }
 const emptyText = 'Chưa có'
@@ -444,8 +445,8 @@ export function BuyerDebtPage() {
           </div>
         }
       >
-        {loading ? <Notice tone="emerald" text="Đang tải dữ liệu công nợ..." /> : null}
-        {error ? <Notice tone="red" text={error} /> : null}
+        {loading ? <DebtSkeletonLoader /> : null}
+        {!loading && error ? <Notice tone="red" text={error} /> : null}
 
         {!loading && !error && ledgerStats.length > 0 ? (
           <div className="mb-4 grid gap-3 md:grid-cols-3 xl:grid-cols-6">

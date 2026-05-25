@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { SearchInput, SupplierPanel, SupplierStatusPill } from '../../components/supplier/SupplierCommon'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
+import { SupplierOrdersSkeletonLoader } from '../../components/supplier/SupplierSkeletons'
 import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { useToast } from '../../hooks/useToast'
 import { usePageTitle } from '../../hooks/usePageTitle'
@@ -352,13 +353,8 @@ export function SupplierOrdersPage() {
       >
 
         <SupplierPanel>
-          {loading && (
-            <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700">
-              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
-              Đang tải dữ liệu đơn hàng...
-            </div>
-          )}
-          {error && (
+          {loading && <SupplierOrdersSkeletonLoader />}
+          {!loading && error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600">{error}</div>
           )}
           {!loading && !error && orders.length === 0 && (
@@ -371,48 +367,50 @@ export function SupplierOrdersPage() {
             </p>
           ) : null}
 
-          <div className="overflow-x-auto rounded-xl border border-slate-100">
-            <table className="w-full min-w-[1180px] text-left">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  <th className="px-4 py-3">Mã đơn</th>
-                  <th className="px-4 py-3">Khách hàng</th>
-                  <th className="px-4 py-3">Sản phẩm + lô</th>
-                  <th className="px-4 py-3">Số lượng</th>
-                  <th className="px-4 py-3">Giá trị</th>
-                  <th className="px-4 py-3">Trạng thái đơn</th>
-                  <th className="px-4 py-3">Giao hàng</th>
-                  <th className="px-4 py-3">Ngày đặt</th>
-                  <th className="px-4 py-3">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {filteredOrders.map((order) => (
-                  <tr key={order.id} className="bg-white text-sm transition-colors hover:bg-emerald-50/30">
-                    <td className="px-4 py-3 font-bold text-emerald-800">{order.id}</td>
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-800">{order.customer}</p>
-                      <p className="text-xs text-slate-400">{order.branch}</p>
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">
-                      <OrderItemsPreview order={order} />
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">{order.quantity}</td>
-                    <td className="px-4 py-3 font-bold text-emerald-700">{order.value}</td>
-                    <td className="px-4 py-3"><SupplierStatusPill label={order.status} /></td>
-                    <td className="px-4 py-3"><SupplierStatusPill label={order.shipmentStatus || 'Chưa tạo vận đơn'} /></td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{order.orderDate}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {order.availableActions.map((action) => renderActionButton(order, action))}
-                        {isWaitingBuyer(order) ? <span className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">Chờ buyer xác nhận</span> : null}
-                      </div>
-                    </td>
+          {!loading && (
+            <div className="overflow-x-auto rounded-xl border border-slate-100">
+              <table className="w-full min-w-[1180px] text-left">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    <th className="px-4 py-3">Mã đơn</th>
+                    <th className="px-4 py-3">Khách hàng</th>
+                    <th className="px-4 py-3">Sản phẩm + lô</th>
+                    <th className="px-4 py-3">Số lượng</th>
+                    <th className="px-4 py-3">Giá trị</th>
+                    <th className="px-4 py-3">Trạng thái đơn</th>
+                    <th className="px-4 py-3">Giao hàng</th>
+                    <th className="px-4 py-3">Ngày đặt</th>
+                    <th className="px-4 py-3">Thao tác</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filteredOrders.map((order) => (
+                    <tr key={order.id} className="bg-white text-sm transition-colors hover:bg-emerald-50/30">
+                      <td className="px-4 py-3 font-bold text-emerald-800">{order.id}</td>
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-slate-800">{order.customer}</p>
+                        <p className="text-xs text-slate-400">{order.branch}</p>
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">
+                        <OrderItemsPreview order={order} />
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">{order.quantity}</td>
+                      <td className="px-4 py-3 font-bold text-emerald-700">{order.value}</td>
+                      <td className="px-4 py-3"><SupplierStatusPill label={order.status} /></td>
+                      <td className="px-4 py-3"><SupplierStatusPill label={order.shipmentStatus || 'Chưa tạo vận đơn'} /></td>
+                      <td className="px-4 py-3 text-slate-500 text-xs">{order.orderDate}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {order.availableActions.map((action) => renderActionButton(order, action))}
+                          {isWaitingBuyer(order) ? <span className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">Chờ buyer xác nhận</span> : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </SupplierPanel>
       </SupplierShell>
 

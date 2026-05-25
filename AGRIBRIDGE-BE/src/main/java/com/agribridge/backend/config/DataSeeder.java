@@ -25,19 +25,19 @@ public class DataSeeder {
 
             List<MarketPriceEntity> defaults = List.of(
                     MarketPriceEntity.builder()
-                            .name("Tom Su Huu Co")
+                            .name("Tôm Sú Hữu Cơ")
                             .image("https://example.com/tom-su.jpg")
-                            .price("285,000d")
+                            .price("285,000đ")
                             .unit("kg")
-                            .region("Mien Nam")
+                            .region("Miền Nam")
                             .trend("up")
                             .build(),
                     MarketPriceEntity.builder()
-                            .name("Ca Tra Phi Le")
+                            .name("Cá Tra Phi Lê")
                             .image("https://example.com/ca-tra.jpg")
-                            .price("68,000d")
+                            .price("68,000đ")
                             .unit("kg")
-                            .region("Mien Tay")
+                            .region("Miền Tây")
                             .trend("stable")
                             .build());
 

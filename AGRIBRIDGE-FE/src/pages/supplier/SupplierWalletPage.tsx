@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { SupplierShell } from '../../components/supplier/SupplierShell'
+import { WalletSkeletonLoader } from '../../components/supplier/SupplierSkeletons'
 import {
   createSupplierWithdrawal,
   fetchSupplierWallet,
@@ -235,6 +236,9 @@ export function SupplierWalletPage() {
       `}</style>
 
       <div className="space-y-5">
+        {/* Skeleton banner */}
+        {loading && <WalletSkeletonLoader />}
+
         {/* ── Stat cards ─────────────────────────────────────────── */}
         <section className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           {statCards.map((card, i) =>

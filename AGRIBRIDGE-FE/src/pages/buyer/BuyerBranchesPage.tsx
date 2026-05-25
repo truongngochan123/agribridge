@@ -39,6 +39,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BuyerPanel } from '../../components/buyer/BuyerCommon'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import { BranchesSkeletonLoader } from '../../components/buyer/BuyerSkeletons'
 import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { useToast } from '../../hooks/useToast'
@@ -291,11 +292,9 @@ export function BuyerBranchesPage() {
             right={<p className="hidden text-sm font-medium text-emerald-700/70 sm:block">Theo dõi đơn hàng, RFQ và năng lực vận hành theo địa điểm</p>}
           >
             {loading ? (
-              <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm">
-                Đang tải chi nhánh...
-              </div>
+              <BranchesSkeletonLoader />
             ) : null}
-            {error ? <p className="mb-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p> : null}
+            {!loading && error ? <p className="mb-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p> : null}
             {!loading && !error && branches.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 p-8 text-center">
                 <Store className="mx-auto mb-3 h-9 w-9 text-emerald-500" />
