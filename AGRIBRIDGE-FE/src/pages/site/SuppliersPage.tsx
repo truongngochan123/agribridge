@@ -39,10 +39,7 @@ interface CompanyItem {
   website?: string
 }
 
-interface CategoryOption {
-  id: number
-  name: string
-}
+
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -237,7 +234,7 @@ export function SuppliersPage() {
   usePageTitle('Nhà cung cấp uy tín')
 
   const [companies, setCompanies] = useState<CompanyItem[]>([])
-  const [categories, setCategories] = useState<CategoryOption[]>([])
+
   const [provinces, setProvinces] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -258,9 +255,8 @@ export function SuppliersPage() {
     setLoading(true)
     setError(null)
     try {
-      const [companiesRes, categoriesRes, provincesRes] = await Promise.allSettled([
+      const [companiesRes, provincesRes] = await Promise.allSettled([
         apiClient.get<CompanyItem[]>('/api/companies'),
-        apiClient.get<CategoryOption[]>('/api/public/metadata/categories'),
         apiClient.get<{ items: string[] }>('/api/public/metadata/provinces'),
       ])
 
@@ -272,11 +268,6 @@ export function SuppliersPage() {
         setCompanies(supplierOnly.length > 0 ? supplierOnly : trustedSuppliers.map(staticToCompanyItem))
       } else {
         setCompanies(trustedSuppliers.map(staticToCompanyItem))
-      }
-
-      // Categories
-      if (categoriesRes.status === 'fulfilled') {
-        setCategories(categoriesRes.value.data)
       }
 
       // Provinces
