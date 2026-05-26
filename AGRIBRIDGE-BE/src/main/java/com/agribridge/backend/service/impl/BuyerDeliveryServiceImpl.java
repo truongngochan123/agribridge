@@ -15,6 +15,7 @@ import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.ShipmentEventEntity;
 import com.agribridge.backend.entity.ShipmentIncidentEntity;
 import com.agribridge.backend.entity.UserEntity;
+import com.agribridge.backend.entity.enums.ComplaintStatusEnum;
 import com.agribridge.backend.entity.enums.ShipmentStatusEnum;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.BranchRepository;
@@ -53,6 +54,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
 
     private static final String VN_PHONE_PATTERN = "^(0|\\+84)(3|5|7|8|9)[0-9]{8}$";
+    private static final String COMPLAINT_SOURCE_SHIPMENT_INCIDENT = "SHIPMENT_INCIDENT";
 
     private final CurrentUserService currentUserService;
     private final ShipmentRepository shipmentRepository;
@@ -587,6 +589,9 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
             incident.setResolutionNote(firstText(incident.getProposedResolution(), incident.getSupplierResponse(), note, "Buyer đã đồng ý phương án xử lý"));
         }
         shipmentIncidentRepository.save(incident);
+        if ("ESCALATED".equals(nextStatus)) {
+            createAdminDisputeFromIncident(shipment, incident, note, now);
+        }
 
         shipmentEventRepository.save(ShipmentEventEntity.builder()
                 .shipmentId(shipment.getId())
@@ -601,6 +606,44 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
             notificationCenterService.notifySupplierShipmentIncidentBuyerAction(order, shipment, incident, buyerName, normalizedAction);
         }
         return toIncident(incident);
+    }
+
+    private void createAdminDisputeFromIncident(ShipmentEntity shipment, ShipmentIncidentEntity incident, String buyerNote, LocalDateTime now) {
+        if (shipment == null || incident == null || incident.getId() == null) return;
+        if (complaintRepository.findBySourceTypeAndSourceId(COMPLAINT_SOURCE_SHIPMENT_INCIDENT, incident.getId()).isPresent()) return;
+
+        OrderEntity order = orderRepository.findById(shipment.getOrderId())
+                .orElseThrow(() -> new IllegalArgumentException("ORDER_NOT_FOUND"));
+        Long batchId = orderItemRepository.findByOrderIdOrderByIdAsc(order.getId()).stream()
+                .map(OrderItemEntity::getBatchId)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+        String description = firstText(
+                buyerNote == null ? null : "Buyer yeu cau admin xu ly: " + buyerNote,
+                incident.getUpdateNote(),
+                incident.getDescription(),
+                "Buyer da chuyen su co giao hang len admin.");
+
+        complaintRepository.save(ComplaintEntity.builder()
+                .orderId(order.getId())
+                .batchId(batchId)
+                .shipmentId(shipment.getId())
+                .sourceType(COMPLAINT_SOURCE_SHIPMENT_INCIDENT)
+                .sourceId(incident.getId())
+                .createdByUserId(incident.getReportedByUserId())
+                .status(ComplaintStatusEnum.OPEN)
+                .severity(severityForIncident(incident))
+                .title("Su co giao hang can admin xu ly - SH-" + shipment.getId())
+                .description(description)
+                .createdAt(now)
+                .build());
+    }
+
+    private String severityForIncident(ShipmentIncidentEntity incident) {
+        String type = incident == null || incident.getIncidentType() == null ? "" : incident.getIncidentType().toUpperCase(Locale.ROOT);
+        if ("WRONG_PRODUCT".equals(type) || "DAMAGED".equals(type) || "MISSING_ITEMS".equals(type)) return "HIGH";
+        return "MEDIUM";
     }
 
     private String buyerIncidentEventDescription(String action, String note) {

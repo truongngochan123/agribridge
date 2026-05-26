@@ -10,6 +10,10 @@ public class AdminDisputeDto {
     private Long id;
     private Long orderId;
     private Long batchId;
+    private Long shipmentId;
+    private String sourceType;
+    private String sourceLabel;
+    private Long sourceId;
     private Long createdByUserId;
     private Long assignedToUserId;
     private String disputeCode;
@@ -28,4 +32,12 @@ public class AdminDisputeDto {
     private String assignedToName;
     private String createdAt;
     private String resolvedAt;
+    private String incidentType;
+    private String incidentStatus;
+    private String incidentStatusLabel;
+    private String buyerEvidenceUrls;
+    private String supplierResponse;
+    private String supplierEvidenceUrls;
+    private String proposedResolution;
+    private String resolutionType;
 }

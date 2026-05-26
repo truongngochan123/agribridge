@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { AdminShell } from '../../components/admin/AdminShell'
+import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   createAdminCategory,
   deleteAdminCategory,
@@ -178,6 +179,7 @@ function DeleteModal({
 
 /* ─── main page ─────────────────────────────────────────────── */
 export function AdminCategoriesPage() {
+  usePageTitle('Quản lý danh mục | Admin')
   const [items, setItems]           = useState<AdminCategoryItem[]>([])
   const [loading, setLoading]       = useState(true)
   const [refreshing, setRefreshing] = useState(false)

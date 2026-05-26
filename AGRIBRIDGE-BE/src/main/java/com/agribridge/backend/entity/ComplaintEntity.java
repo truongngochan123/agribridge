@@ -42,6 +42,19 @@ public class ComplaintEntity {
     @Column(name = "batch_id")
     private Long batchId;
 
+    @Column(name = "shipment_id")
+    private Long shipmentId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shipment_id", insertable = false, updatable = false)
+    private ShipmentEntity shipment;
+
+    @Column(name = "source_type")
+    private String sourceType;
+
+    @Column(name = "source_id")
+    private Long sourceId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "batch_id", insertable = false, updatable = false)
     private BatchEntity batch;

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 const menuItems = [
-  { label: 'Sản phẩm', path: '/suppliers' },
+  { label: 'Sản phẩm', path: '/products' },
   { label: 'Nhà cung cấp', path: '/suppliers' },
   { label: 'Về chúng tôi', path: '/about' },
   { label: 'Hỗ trợ', path: '/support' },

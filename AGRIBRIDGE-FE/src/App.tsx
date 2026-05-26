@@ -18,6 +18,7 @@ import { SupplierDebtPage } from './pages/supplier/SupplierDebtPage'
 import { SupplierWalletPage } from './pages/supplier/SupplierWalletPage'
 import { SupplierReportsPage } from './pages/supplier/SupplierReportsPage'
 import { SupplierProfilePage } from './pages/supplier/SupplierProfilePage'
+import { ProductsPage } from './pages/site/ProductsPage'
 import { SuppliersPage } from './pages/site/SuppliersPage'
 import { SupplierDetailPage } from './pages/site/SupplierDetailPage'
 import { SupportPage } from './pages/site/SupportPage'
@@ -78,6 +79,7 @@ function App() {
       <Route path="/supplier/wallet" element={<ProtectedAppRoute allowedCompanyTypes={['supplier']}><SupplierWalletPage /></ProtectedAppRoute>} />
       <Route path="/supplier/reports" element={<ProtectedAppRoute allowedCompanyTypes={['supplier']}><SupplierReportsPage /></ProtectedAppRoute>} />
       <Route path="/supplier/profile" element={<ProtectedAppRoute allowedCompanyTypes={['supplier']}><SupplierProfilePage /></ProtectedAppRoute>} />
+      <Route path="/products" element={<ProductsPage />} />
       <Route path="/suppliers" element={<SuppliersPage />} />
       <Route path="/suppliers/:supplierId" element={<SupplierDetailPage />} />
       <Route path="/support" element={<SupportPage />} />

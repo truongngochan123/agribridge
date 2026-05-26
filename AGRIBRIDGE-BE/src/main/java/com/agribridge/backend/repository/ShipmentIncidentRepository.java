@@ -12,4 +12,6 @@ public interface ShipmentIncidentRepository extends JpaRepository<ShipmentIncide
     List<ShipmentIncidentEntity> findByShipmentIdOrderByCreatedAtDesc(Long shipmentId);
 
     boolean existsByShipmentIdAndStatusIn(Long shipmentId, Collection<String> statuses);
+
+    boolean existsByIdAndStatus(Long id, String status);
 }

@@ -56,6 +56,20 @@ const disputeTabs: Array<{ key: AdminDisputeStatus | 'ALL'; label: string }> = [
   { key: 'REJECTED',     label: 'Đã từ chối'    },
 ]
 
+function getDisputeSourceLabel(item: AdminDisputeItem) {
+  if (item.sourceType === 'SHIPMENT_INCIDENT') return 'Sự cố giao hàng'
+  if (item.sourceType === 'ADMIN_MANUAL') return 'Admin tạo'
+  return item.sourceLabel || 'Khiếu nại đơn hàng'
+}
+
+function splitEvidenceUrls(value?: string | null) {
+  if (!value) return []
+  return value
+    .split(/[,\n;]/)
+    .map((url) => url.trim())
+    .filter(Boolean)
+}
+
 type FormState = {
   orderId: string
   batchId: string
@@ -230,6 +244,28 @@ export function AdminDisputesPage() {
       triggerReload()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Không cập nhật được trạng thái tranh chấp.')
+    } finally { setStatusLoadingId(null) }
+  }
+
+  async function handleRejectAction(item: AdminDisputeItem) {
+    const resolution = window.prompt('Nhập lý do từ chối tranh chấp:', item.resolution ?? '')
+    if (resolution === null) return
+    if (!resolution.trim()) {
+      setError('Vui lòng nhập lý do từ chối.')
+      return
+    }
+    const adminUserId = getAdminUserId()
+    try {
+      setStatusLoadingId(item.id); setError('')
+      const updated = await updateAdminDisputeStatus(item.id, {
+        assignedToUserId: adminUserId,
+        status: 'REJECTED',
+        resolution,
+      })
+      setSelected(updated)
+      triggerReload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Không thể từ chối tranh chấp.')
     } finally { setStatusLoadingId(null) }
   }
 
@@ -428,6 +464,9 @@ export function AdminDisputesPage() {
                         <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${sev.badge}`}>
                           {sev.icon} {item.severityLabel}
                         </span>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
+                          {getDisputeSourceLabel(item)}
+                        </span>
                       </div>
                       <h3 className="truncate text-sm font-extrabold text-slate-900" title={item.title}>{item.title}</h3>
                       <p className="mt-1 line-clamp-2 text-xs text-slate-500">{item.description}</p>
@@ -460,6 +499,15 @@ export function AdminDisputesPage() {
                         {isActioning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : actionBtn.icon}
                         {isActioning ? 'Xử lý...' : actionBtn.label}
                       </button>
+                      {item.status !== 'RESOLVED' && item.status !== 'REJECTED' ? (
+                        <button
+                          onClick={() => handleRejectAction(item)}
+                          disabled={isActioning}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-2.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
+                        >
+                          <X className="h-3.5 w-3.5" /> Từ chối
+                        </button>
+                      ) : null}
                     </div>
                   </div>
 
@@ -530,6 +578,9 @@ export function AdminDisputesPage() {
 function DetailPanel({ dispute }: { dispute: AdminDisputeItem }) {
   const sc  = statusConfig[dispute.status]
   const sev = severityConfig[dispute.severity]
+  const buyerEvidence = splitEvidenceUrls(dispute.buyerEvidenceUrls)
+  const supplierEvidence = splitEvidenceUrls(dispute.supplierEvidenceUrls)
+  const isShipmentIncident = dispute.sourceType === 'SHIPMENT_INCIDENT'
 
   return (
     <div
@@ -563,6 +614,8 @@ function DetailPanel({ dispute }: { dispute: AdminDisputeItem }) {
 
         {/* Info grid */}
         <div className="grid grid-cols-2 gap-2.5">
+          <DetailField label="Loại" value={getDisputeSourceLabel(dispute)} />
+          <DetailField label="Shipment" value={dispute.shipmentId ? `#${dispute.shipmentId}` : '—'} />
           <DetailField label="Người mua"   value={dispute.buyerName}     />
           <DetailField label="Nhà cung cấp" value={dispute.supplierName} />
           <DetailField label="Sản phẩm"    value={dispute.product}       />
@@ -572,6 +625,30 @@ function DetailPanel({ dispute }: { dispute: AdminDisputeItem }) {
           <DetailField label="Ngày tạo"    value={dispute.createdAt}      />
           <DetailField label="Ngày xử lý"  value={dispute.resolvedAt || '—'} />
         </div>
+
+        {isShipmentIncident ? (
+          <div className="rounded-xl border border-orange-100 bg-orange-50 p-3.5">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-orange-500">Ngữ cảnh sự cố giao hàng</p>
+            <div className="grid grid-cols-2 gap-2.5">
+              <DetailField label="Incident" value={dispute.incidentType || '—'} />
+              <DetailField label="Trạng thái" value={dispute.incidentStatusLabel || dispute.incidentStatus || '—'} />
+              <DetailField label="Phương án" value={dispute.proposedResolution || '—'} />
+              <DetailField label="Loại xử lý" value={dispute.resolutionType || '—'} />
+            </div>
+            {dispute.supplierResponse ? (
+              <div className="mt-3 rounded-lg bg-white/80 p-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-600">Phản hồi nhà cung cấp</p>
+                <p className="mt-1 whitespace-pre-wrap text-xs font-medium text-slate-700">{dispute.supplierResponse}</p>
+              </div>
+            ) : null}
+            {(buyerEvidence.length > 0 || supplierEvidence.length > 0) ? (
+              <div className="mt-3 grid gap-3">
+                <EvidenceLinks title="Bằng chứng buyer" urls={buyerEvidence} />
+                <EvidenceLinks title="Bằng chứng supplier" urls={supplierEvidence} />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {/* Description */}
         <div className="rounded-xl bg-slate-50 p-3.5">
@@ -594,6 +671,28 @@ function DetailPanel({ dispute }: { dispute: AdminDisputeItem }) {
 }
 
 /* ─── Form modal ─────────────────────────────────────────────── */
+function EvidenceLinks({ title, urls }: { title: string; urls: string[] }) {
+  if (urls.length === 0) return null
+  return (
+    <div>
+      <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">{title}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {urls.map((url, index) => (
+          <a
+            key={`${url}-${index}`}
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50"
+          >
+            File {index + 1}
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function DisputeFormModal({
   mode, form, saving, onClose, onSubmit, onChange,
 }: {

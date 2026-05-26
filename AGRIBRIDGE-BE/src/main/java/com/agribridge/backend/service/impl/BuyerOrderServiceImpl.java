@@ -67,6 +67,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class BuyerOrderServiceImpl implements BuyerOrderService {
+    private static final String COMPLAINT_SOURCE_ORDER_COMPLAINT = "ORDER_COMPLAINT";
 
     private static final String SENDER_ADDRESS_SOURCE_SUPPLIER = "SUPPLIER_ADDRESS";
     private static final String SHIPPING_FEE_SOURCE_QUOTE = "SUPPLIER_TO_BUYER_QUOTE";
@@ -445,6 +446,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
         ComplaintEntity complaint = complaintRepository.save(ComplaintEntity.builder()
                 .orderId(orderId)
                 .batchId(request.batchId())
+                .sourceType(COMPLAINT_SOURCE_ORDER_COMPLAINT)
                 .createdByUserId(currentUserId)
                 .title(trim(request.title()))
                 .description(trim(request.description()))

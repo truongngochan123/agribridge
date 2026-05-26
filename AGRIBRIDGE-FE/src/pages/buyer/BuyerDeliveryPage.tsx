@@ -668,20 +668,27 @@ function DetailDrawer({ detail, onClose, onIncident, onConfirm, onUpdateIncident
     ? formatDate(s.estimatedDeliveryAt)
     : 'Chưa có thời gian dự kiến'
 
-  const handleBuyerIncidentAction = async (incident: BuyerDeliveryDetail['incidents'][number], action: 'ACCEPT_RESOLUTION' | 'REJECT_RESOLUTION' | 'REQUEST_CONTINUE') => {
+  const handleBuyerIncidentAction = async (incident: BuyerDeliveryDetail['incidents'][number], action: 'ACCEPT_RESOLUTION' | 'REJECT_RESOLUTION' | 'REQUEST_CONTINUE' | 'ESCALATE') => {
     const promptText = action === 'ACCEPT_RESOLUTION'
       ? 'Nhập ghi chú đồng ý phương án (có thể để trống):'
       : action === 'REJECT_RESOLUTION'
         ? 'Nhập lý do chưa đồng ý phương án:'
         : 'Nhập yêu cầu xử lý tiếp:'
-    const note = window.prompt(promptText, '')
-    if ((action === 'REJECT_RESOLUTION' || action === 'REQUEST_CONTINUE') && !note?.trim()) {
+    const note = window.prompt(action === 'ESCALATE' ? 'Nhập lý do cần admin xử lý tranh chấp:' : promptText, '')
+    if ((action === 'REJECT_RESOLUTION' || action === 'REQUEST_CONTINUE' || action === 'ESCALATE') && !note?.trim()) {
       showToast('Vui lòng nhập nội dung phản hồi để nhà cung cấp tiếp tục xử lý.', 'error')
       return
     }
     try {
       await updateBuyerDeliveryIncident(s.shipmentId, incident.id, { action, note: note?.trim() || undefined })
-      showToast(action === 'ACCEPT_RESOLUTION' ? 'Đã đồng ý phương án xử lý.' : 'Đã gửi phản hồi cho nhà cung cấp.', 'success')
+      showToast(
+        action === 'ACCEPT_RESOLUTION'
+          ? 'Đã đồng ý phương án xử lý.'
+          : action === 'ESCALATE'
+            ? 'Đã chuyển sự cố lên admin xử lý.'
+            : 'Đã gửi phản hồi cho nhà cung cấp.',
+        'success'
+      )
       onIncidentActionDone()
     } catch (requestError) {
       showToast(readApiErrorMessage(requestError) || 'Không thể gửi phản hồi sự cố.', 'error')
@@ -885,6 +892,7 @@ function DetailDrawer({ detail, onClose, onIncident, onConfirm, onUpdateIncident
                               <button onClick={() => void handleBuyerIncidentAction(item, 'ACCEPT_RESOLUTION')} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white">Đồng ý phương án</button>
                               <button onClick={() => void handleBuyerIncidentAction(item, 'REJECT_RESOLUTION')} className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white">Không đồng ý</button>
                               <button onClick={() => void handleBuyerIncidentAction(item, 'REQUEST_CONTINUE')} className="rounded-lg border border-orange-200 bg-white px-3 py-2 text-xs font-bold text-orange-700">Yêu cầu xử lý tiếp</button>
+                              <button onClick={() => void handleBuyerIncidentAction(item, 'ESCALATE')} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">Chuyển admin</button>
                             </div>
                           ) : null}
                         </div>

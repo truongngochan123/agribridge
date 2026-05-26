@@ -2,12 +2,16 @@ package com.agribridge.backend.service.impl;
 
 import com.agribridge.backend.dto.AdminDisputeDto;
 import com.agribridge.backend.entity.ComplaintEntity;
+import com.agribridge.backend.entity.OrderEntity;
 import com.agribridge.backend.entity.enums.ComplaintStatusEnum;
+import com.agribridge.backend.entity.enums.NotificationTypeEnum;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.ComplaintRepository;
 import com.agribridge.backend.repository.OrderRepository;
+import com.agribridge.backend.repository.ShipmentIncidentRepository;
 import com.agribridge.backend.repository.UserRepository;
 import com.agribridge.backend.service.AdminDisputeService;
+import com.agribridge.backend.service.NotificationCenterService;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -15,6 +19,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -27,11 +32,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminDisputeServiceImpl implements AdminDisputeService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final String SOURCE_ORDER_COMPLAINT = "ORDER_COMPLAINT";
+    private static final String SOURCE_SHIPMENT_INCIDENT = "SHIPMENT_INCIDENT";
+    private static final String SOURCE_ADMIN_MANUAL = "ADMIN_MANUAL";
     private static final String DISPUTE_SELECT = """
             SELECT
                 c.id AS dispute_id,
                 c.order_id,
                 c.batch_id,
+                c.shipment_id,
+                CAST(c.source_type AS NVARCHAR(50)) AS source_type,
+                c.source_id,
                 c.created_by_user_id,
                 c.assigned_to_user_id,
                 CAST(c.status AS NVARCHAR(255)) AS dispute_status,
@@ -46,7 +57,14 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
                 CAST(product.name AS NVARCHAR(255)) AS product_name,
                 o.total_amount,
                 CAST(created_user.full_name AS NVARCHAR(255)) AS created_by_name,
-                CAST(assigned_user.full_name AS NVARCHAR(255)) AS assigned_to_name
+                CAST(assigned_user.full_name AS NVARCHAR(255)) AS assigned_to_name,
+                CAST(incident.incident_type AS NVARCHAR(100)) AS incident_type,
+                CAST(incident.status AS NVARCHAR(80)) AS incident_status,
+                CAST(incident.evidence_urls AS NVARCHAR(MAX)) AS buyer_evidence_urls,
+                CAST(incident.supplier_response AS NVARCHAR(MAX)) AS supplier_response,
+                CAST(incident.supplier_evidence_urls AS NVARCHAR(MAX)) AS supplier_evidence_urls,
+                CAST(incident.proposed_resolution AS NVARCHAR(MAX)) AS proposed_resolution,
+                CAST(incident.resolution_type AS NVARCHAR(80)) AS resolution_type
             FROM complaints c
             LEFT JOIN orders o ON o.id = c.order_id
             LEFT JOIN companies buyer ON buyer.id = o.buyer_company_id
@@ -55,6 +73,7 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
             LEFT JOIN products product ON product.id = batch.product_id
             LEFT JOIN users created_user ON created_user.id = c.created_by_user_id
             LEFT JOIN users assigned_user ON assigned_user.id = c.assigned_to_user_id
+            LEFT JOIN shipment_incidents incident ON incident.id = c.source_id AND c.source_type = 'SHIPMENT_INCIDENT'
             WHERE 1 = 1
             """;
 
@@ -62,6 +81,8 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
     private final OrderRepository orderRepository;
     private final BatchRepository batchRepository;
     private final UserRepository userRepository;
+    private final ShipmentIncidentRepository shipmentIncidentRepository;
+    private final NotificationCenterService notificationCenterService;
     private final JdbcTemplate jdbcTemplate;
 
     @Override
@@ -86,10 +107,16 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
                         OR LOWER(CAST(COALESCE(buyer.name, '') AS NVARCHAR(255))) LIKE ?
                         OR LOWER(CAST(COALESCE(supplier.name, '') AS NVARCHAR(255))) LIKE ?
                         OR LOWER(CAST(COALESCE(product.name, '') AS NVARCHAR(255))) LIKE ?
+                        OR LOWER(CAST(COALESCE(c.source_type, '') AS NVARCHAR(50))) LIKE ?
+                        OR LOWER(CAST(COALESCE(incident.incident_type, '') AS NVARCHAR(100))) LIKE ?
+                        OR CAST(COALESCE(c.shipment_id, 0) AS NVARCHAR(50)) LIKE ?
                         OR CAST(c.order_id AS NVARCHAR(50)) LIKE ?
                      )
                     """);
             String keyword = "%" + normalizedSearch + "%";
+            params.add(keyword);
+            params.add(keyword);
+            params.add(keyword);
             params.add(keyword);
             params.add(keyword);
             params.add(keyword);
@@ -103,6 +130,9 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
                 rs.getLong("dispute_id"),
                 rs.getLong("order_id"),
                 rs.getObject("batch_id") == null ? null : rs.getLong("batch_id"),
+                rs.getObject("shipment_id") == null ? null : rs.getLong("shipment_id"),
+                rs.getString("source_type"),
+                rs.getObject("source_id") == null ? null : rs.getLong("source_id"),
                 rs.getLong("created_by_user_id"),
                 rs.getObject("assigned_to_user_id") == null ? null : rs.getLong("assigned_to_user_id"),
                 rs.getString("dispute_status"),
@@ -117,7 +147,14 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
                 rs.getString("product_name"),
                 rs.getBigDecimal("total_amount"),
                 rs.getString("created_by_name"),
-                rs.getString("assigned_to_name"))), params.toArray());
+                rs.getString("assigned_to_name"),
+                rs.getString("incident_type"),
+                rs.getString("incident_status"),
+                rs.getString("buyer_evidence_urls"),
+                rs.getString("supplier_response"),
+                rs.getString("supplier_evidence_urls"),
+                rs.getString("proposed_resolution"),
+                rs.getString("resolution_type"))), params.toArray());
         log.info("Fetched {} disputes", disputes.size());
         return disputes;
     }
@@ -132,6 +169,9 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
                         rs.getLong("dispute_id"),
                         rs.getLong("order_id"),
                         rs.getObject("batch_id") == null ? null : rs.getLong("batch_id"),
+                        rs.getObject("shipment_id") == null ? null : rs.getLong("shipment_id"),
+                        rs.getString("source_type"),
+                        rs.getObject("source_id") == null ? null : rs.getLong("source_id"),
                         rs.getLong("created_by_user_id"),
                         rs.getObject("assigned_to_user_id") == null ? null : rs.getLong("assigned_to_user_id"),
                         rs.getString("dispute_status"),
@@ -146,7 +186,14 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
                         rs.getString("product_name"),
                         rs.getBigDecimal("total_amount"),
                         rs.getString("created_by_name"),
-                        rs.getString("assigned_to_name"))),
+                        rs.getString("assigned_to_name"),
+                        rs.getString("incident_type"),
+                        rs.getString("incident_status"),
+                        rs.getString("buyer_evidence_urls"),
+                        rs.getString("supplier_response"),
+                        rs.getString("supplier_evidence_urls"),
+                        rs.getString("proposed_resolution"),
+                        rs.getString("resolution_type"))),
                 disputeId);
 
         if (disputes.isEmpty()) {
@@ -179,6 +226,7 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
         ComplaintEntity complaint = complaintRepository.save(ComplaintEntity.builder()
                 .orderId(orderId)
                 .batchId(batchId)
+                .sourceType(SOURCE_ADMIN_MANUAL)
                 .createdByUserId(createdByUserId)
                 .assignedToUserId(assignedToUserId)
                 .status(parseStatusOrDefault(status))
@@ -230,6 +278,7 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
         complaint.setResolvedAt(resolveResolvedAt(nextStatus));
 
         complaintRepository.save(complaint);
+        syncLinkedIncident(complaint, nextStatus, resolution);
         AdminDisputeDto dispute = getDisputeById(disputeId);
         log.info("Updated dispute id={} newStatus={}", disputeId, dispute.getStatus());
         return dispute;
@@ -254,6 +303,7 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
         complaint.setResolvedAt(resolveResolvedAt(nextStatus));
 
         complaintRepository.save(complaint);
+        syncLinkedIncident(complaint, nextStatus, resolution);
         AdminDisputeDto dispute = getDisputeById(disputeId);
         log.info("Updated dispute status disputeId={} newStatus={}", disputeId, dispute.getStatus());
         return dispute;
@@ -274,10 +324,15 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
     private AdminDisputeDto mapRow(AdminDisputeRowSnapshot row) {
         ComplaintStatusEnum status = parseStatus(row.status());
         String severity = normalizeSeverity(row.severity());
+        String sourceType = resolveSourceType(row.sourceType());
         return AdminDisputeDto.builder()
                 .id(row.id())
                 .orderId(row.orderId())
                 .batchId(row.batchId())
+                .shipmentId(row.shipmentId())
+                .sourceType(sourceType)
+                .sourceLabel(toSourceLabel(sourceType))
+                .sourceId(row.sourceId())
                 .createdByUserId(row.createdByUserId())
                 .assignedToUserId(row.assignedToUserId())
                 .disputeCode("DSP-" + row.id())
@@ -292,11 +347,78 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
                 .supplierName(firstNonBlank(row.supplierName(), "Chưa xác định"))
                 .product(firstNonBlank(row.product(), "Chưa xác định"))
                 .amount(formatMoney(row.totalAmount()))
+                .incidentType(row.incidentType())
+                .incidentStatus(row.incidentStatus())
+                .incidentStatusLabel(toIncidentStatusLabel(row.incidentStatus()))
+                .buyerEvidenceUrls(row.buyerEvidenceUrls())
+                .supplierResponse(row.supplierResponse())
+                .supplierEvidenceUrls(row.supplierEvidenceUrls())
+                .proposedResolution(row.proposedResolution())
+                .resolutionType(row.resolutionType())
                 .createdByName(firstNonBlank(row.createdByName(), "Chưa xác định"))
                 .assignedToName(firstNonBlank(row.assignedToName(), "Chưa phân công"))
                 .createdAt(row.createdAt() == null ? null : row.createdAt().format(DATE_FORMATTER))
                 .resolvedAt(row.resolvedAt() == null ? null : row.resolvedAt().format(DATE_FORMATTER))
                 .build();
+    }
+
+    private void syncLinkedIncident(ComplaintEntity complaint, ComplaintStatusEnum status, String resolution) {
+        if (complaint == null
+                || !SOURCE_SHIPMENT_INCIDENT.equalsIgnoreCase(complaint.getSourceType())
+                || complaint.getSourceId() == null) {
+            return;
+        }
+        if (status != ComplaintStatusEnum.RESOLVED && status != ComplaintStatusEnum.REJECTED) {
+            return;
+        }
+
+        shipmentIncidentRepository.findById(complaint.getSourceId()).ifPresent(incident -> {
+            LocalDateTime now = LocalDateTime.now();
+            String note = normalizeText(resolution);
+            if (status == ComplaintStatusEnum.RESOLVED) {
+                incident.setStatus("RESOLVED");
+                incident.setResolvedAt(now);
+                incident.setResolutionNote(firstNonBlank(note, "Admin da giai quyet tranh chap."));
+            } else {
+                incident.setStatus("ESCALATED");
+                incident.setResolutionNote(firstNonBlank(note, "Admin da tu choi khieu nai."));
+            }
+            incident.setUpdatedAt(now);
+            shipmentIncidentRepository.save(incident);
+            notifyDisputeDecision(complaint, status, note);
+        });
+    }
+
+    private void notifyDisputeDecision(ComplaintEntity complaint, ComplaintStatusEnum status, String resolution) {
+        if (complaint.getOrderId() == null) {
+            return;
+        }
+        orderRepository.findById(complaint.getOrderId()).ifPresent(order -> {
+            String actionText = status == ComplaintStatusEnum.RESOLVED ? "da duoc giai quyet" : "da bi tu choi";
+            String body = "Tranh chap don #" + order.getId() + " " + actionText + "."
+                    + (resolution == null ? "" : " Ghi chu: " + resolution);
+            String buyerUrl = complaint.getShipmentId() == null ? "/buyer/orders?orderId=" + order.getId() : "/buyer/delivery?shipmentId=" + complaint.getShipmentId();
+            String supplierUrl = complaint.getShipmentId() == null ? "/supplier/orders?orderId=" + order.getId() : "/supplier/delivery?shipmentId=" + complaint.getShipmentId();
+            notifyOrderCompany(order, order.getBuyerCompanyId(), "Buyer", status, body, buyerUrl);
+            notifyOrderCompany(order, order.getSupplierCompanyId(), "Supplier", status, body, supplierUrl);
+        });
+    }
+
+    private void notifyOrderCompany(OrderEntity order, Long companyId, String audience, ComplaintStatusEnum status, String body, String actionUrl) {
+        if (companyId == null) {
+            return;
+        }
+        notificationCenterService.notifyCompanyOwner(
+                companyId,
+                NotificationTypeEnum.DELIVERY_DISPUTE,
+                "Ket qua xu ly tranh chap",
+                body,
+                "COMPLAINT",
+                actionUrl,
+                "COMPLAINT",
+                order.getId(),
+                false,
+                Map.of("orderId", order.getId(), "audience", audience, "status", status.name()));
     }
 
     private void validateOrder(Long orderId) {
@@ -364,6 +486,36 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
         return "HIGH".equalsIgnoreCase(severity) ? "Cao" : "Trung bình";
     }
 
+    private String resolveSourceType(String sourceType) {
+        String normalized = normalizeText(sourceType);
+        return normalized == null ? SOURCE_ORDER_COMPLAINT : normalized.toUpperCase(Locale.ROOT);
+    }
+
+    private String toSourceLabel(String sourceType) {
+        if (SOURCE_SHIPMENT_INCIDENT.equalsIgnoreCase(sourceType)) {
+            return "Su co giao hang";
+        }
+        if (SOURCE_ADMIN_MANUAL.equalsIgnoreCase(sourceType)) {
+            return "Admin tao";
+        }
+        return "Khieu nai don hang";
+    }
+
+    private String toIncidentStatusLabel(String status) {
+        String normalized = normalizeText(status);
+        if (normalized == null) {
+            return null;
+        }
+        return switch (normalized.toUpperCase(Locale.ROOT)) {
+            case "WAITING_SUPPLIER_RESPONSE" -> "Cho nha cung cap phan hoi";
+            case "WAITING_BUYER_CONFIRMATION" -> "Cho buyer xac nhan";
+            case "NEGOTIATING" -> "Dang thuong luong";
+            case "ESCALATED" -> "Da chuyen admin";
+            case "RESOLVED" -> "Da giai quyet";
+            default -> normalized;
+        };
+    }
+
     private String summarizeTitle(String description) {
         String normalized = normalizeText(description);
         if (normalized == null) {
@@ -423,6 +575,9 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
             Long id,
             Long orderId,
             Long batchId,
+            Long shipmentId,
+            String sourceType,
+            Long sourceId,
             Long createdByUserId,
             Long assignedToUserId,
             String status,
@@ -437,6 +592,13 @@ public class AdminDisputeServiceImpl implements AdminDisputeService {
             String product,
             BigDecimal totalAmount,
             String createdByName,
-            String assignedToName) {
+            String assignedToName,
+            String incidentType,
+            String incidentStatus,
+            String buyerEvidenceUrls,
+            String supplierResponse,
+            String supplierEvidenceUrls,
+            String proposedResolution,
+            String resolutionType) {
     }
 }

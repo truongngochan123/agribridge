@@ -109,6 +109,10 @@ export type AdminDisputeItem = {
   disputeCode: string
   orderId: number
   batchId: number | null
+  shipmentId?: number | null
+  sourceType?: 'ORDER_COMPLAINT' | 'SHIPMENT_INCIDENT' | 'ADMIN_MANUAL' | string | null
+  sourceLabel?: string | null
+  sourceId?: number | null
   createdByUserId: number
   assignedToUserId: number | null
   status: AdminDisputeStatus
@@ -124,6 +128,14 @@ export type AdminDisputeItem = {
   amount: string
   createdByName: string
   assignedToName: string
+  incidentType?: string | null
+  incidentStatus?: string | null
+  incidentStatusLabel?: string | null
+  buyerEvidenceUrls?: string | null
+  supplierResponse?: string | null
+  supplierEvidenceUrls?: string | null
+  proposedResolution?: string | null
+  resolutionType?: string | null
   createdAt: string
   resolvedAt?: string | null
 }
