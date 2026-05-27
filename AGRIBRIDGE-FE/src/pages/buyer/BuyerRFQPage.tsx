@@ -103,6 +103,7 @@ export function BuyerRFQPage() {
   const [submittingUpdate, setSubmittingUpdate] = useState(false)
   const [cancelling, setCancelling] = useState<number | null>(null)
   const [openedRfqParam, setOpenedRfqParam] = useState('')
+  const [openedActionParam, setOpenedActionParam] = useState('')
   const [categories, setCategories] = useState<CategoryOption[]>([])
   const [branches, setBranches] = useState<BuyerBranchSummary[]>([])
   const [optionsLoading, setOptionsLoading] = useState(false)
@@ -253,6 +254,36 @@ export function BuyerRFQPage() {
     setOpenedRfqParam(rfqId)
     void openDetail(parsed)
   }, [openedRfqParam, searchParams])
+
+  useEffect(() => {
+    const action = searchParams.get('action') || ''
+    const supplierName = searchParams.get('supplierName') || ''
+    const productName = searchParams.get('productName') || ''
+    const actionKey = `${action}:${searchParams.get('supplierId') || ''}:${searchParams.get('productId') || ''}:${productName}`
+    if (!action || openedActionParam === actionKey) return
+    setOpenedActionParam(actionKey)
+
+    if (action === 'create') {
+      setFormMode('create')
+      setEditingRfqId(null)
+      setFormError(null)
+      setForm((prev) => ({
+        ...prev,
+        title: productName ? `Cần báo giá ${productName}` : supplierName ? `Cần báo giá từ ${supplierName}` : prev.title,
+        productName: productName || prev.productName,
+        description: supplierName ? `Ưu tiên nhà cung cấp: ${supplierName}` : prev.description,
+      }))
+      return
+    }
+
+    if (action === 'contact' || action === 'compare') {
+      const keywordValue = supplierName || productName
+      if (keywordValue) {
+        setKeyword(keywordValue)
+        setAppliedKeyword(keywordValue)
+      }
+    }
+  }, [openedActionParam, searchParams])
 
   const handleSearch = () => {
     setAppliedKeyword(keyword.trim())

@@ -19,7 +19,6 @@ import {
 import { PublicPageLayout } from '../../components/site/PublicPageLayout'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { apiClient } from '../../services/apiClient'
-import { trustedSuppliers } from '../../data/site'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -62,6 +61,10 @@ const LOGO_GRADIENTS = [
 
 function getGradient(id: number) {
   return LOGO_GRADIENTS[id % LOGO_GRADIENTS.length]
+}
+
+function isPublicSupplier(company: CompanyItem): boolean {
+  return !company.companyType || company.companyType === 'SUPPLIER'
 }
 
 const ITEMS_PER_PAGE = 9
@@ -214,20 +217,6 @@ function formatCompanyType(type: string): string {
   return map[type] ?? type
 }
 
-// ─── Fallback from static data ───────────────────────────────────────────────
-
-function staticToCompanyItem(s: (typeof trustedSuppliers)[0], idx: number): CompanyItem {
-  return {
-    id: idx + 1,
-    name: s.name,
-    province: s.location,
-    description: s.description,
-    verifiedStatus: true,
-    verificationStatus: 'APPROVED',
-    trustLevel: s.certifications[0],
-  }
-}
-
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export function SuppliersPage() {
@@ -256,18 +245,16 @@ export function SuppliersPage() {
     setError(null)
     try {
       const [companiesRes, provincesRes] = await Promise.allSettled([
-        apiClient.get<CompanyItem[]>('/api/companies'),
+        apiClient.get<CompanyItem[]>('/api/public/suppliers'),
         apiClient.get<{ items: string[] }>('/api/public/metadata/provinces'),
       ])
 
       // Companies
       if (companiesRes.status === 'fulfilled') {
-        const supplierOnly = companiesRes.value.data.filter(
-          (c) => !c.companyType || c.companyType === 'SUPPLIER' || c.verifiedStatus,
-        )
-        setCompanies(supplierOnly.length > 0 ? supplierOnly : trustedSuppliers.map(staticToCompanyItem))
+        setCompanies(companiesRes.value.data.filter(isPublicSupplier))
       } else {
-        setCompanies(trustedSuppliers.map(staticToCompanyItem))
+        setCompanies([])
+        setError('Không thể tải dữ liệu nhà cung cấp. Vui lòng thử tải lại.')
       }
 
       // Provinces
@@ -275,8 +262,8 @@ export function SuppliersPage() {
         setProvinces(provincesRes.value.data.items)
       }
     } catch {
-      setError('Không thể tải dữ liệu. Hiển thị dữ liệu mẫu.')
-      setCompanies(trustedSuppliers.map(staticToCompanyItem))
+      setCompanies([])
+      setError('Không thể tải dữ liệu nhà cung cấp. Vui lòng thử tải lại.')
     } finally {
       setLoading(false)
     }

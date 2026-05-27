@@ -66,101 +66,6 @@ interface CategoryOption {
   name: string
 }
 
-// ─── Static fallback data ─────────────────────────────────────────────────────
-
-const FALLBACK_PRODUCTS: ProductItem[] = [
-  {
-    productId: 1,
-    productName: 'Tôm sú hữu cơ',
-    description: 'Tôm sú nuôi theo tiêu chuẩn hữu cơ, không sử dụng kháng sinh, đạt chuẩn xuất khẩu.',
-    supplierName: 'Công ty TNHH Thủy sản Miền Tây',
-    categoryName: 'Thủy sản',
-    originRegion: 'Cà Mau',
-    unit: 'kg',
-    minPrice: 320000,
-    maxPrice: 385000,
-    totalAvailableQuantity: 2500,
-    availableBatchCount: 3,
-    hasAvailableStock: true,
-    certifications: [{ id: 1, name: 'ASC' }, { id: 2, name: 'VietGAP' }],
-  },
-  {
-    productId: 2,
-    productName: 'Tôm thẻ chân trắng',
-    description: 'Tôm thẻ chân trắng size 40-50, thu hoạch tươi, sơ chế tại chỗ, đóng lạnh ngay.',
-    supplierName: 'HTX Nuôi trồng Thủy sản An Giang',
-    categoryName: 'Thủy sản',
-    originRegion: 'An Giang',
-    unit: 'kg',
-    minPrice: 200000,
-    maxPrice: 245000,
-    totalAvailableQuantity: 1800,
-    availableBatchCount: 2,
-    hasAvailableStock: true,
-    certifications: [{ id: 3, name: 'BAP' }, { id: 4, name: 'GlobalGAP' }],
-  },
-  {
-    productId: 3,
-    productName: 'Lúa ST25',
-    description: 'Lúa ST25 đạt giải gạo ngon nhất thế giới, canh tác theo tiêu chuẩn VietGAP.',
-    supplierName: 'Hợp tác xã Nông nghiệp Sóc Trăng',
-    categoryName: 'Ngũ cốc',
-    originRegion: 'Sóc Trăng',
-    unit: 'tấn',
-    minPrice: 8500000,
-    maxPrice: 9200000,
-    totalAvailableQuantity: 50,
-    availableBatchCount: 1,
-    hasAvailableStock: true,
-    certifications: [{ id: 5, name: 'VietGAP' }, { id: 6, name: 'Organic' }],
-  },
-  {
-    productId: 4,
-    productName: 'Thanh long ruột đỏ',
-    description: 'Thanh long ruột đỏ Bình Thuận, xuất khẩu sang Trung Quốc, Nhật Bản, độ ngọt cao.',
-    supplierName: 'Trang trại Trái cây Bình Thuận',
-    categoryName: 'Trái cây',
-    originRegion: 'Bình Thuận',
-    unit: 'kg',
-    minPrice: 25000,
-    maxPrice: 35000,
-    totalAvailableQuantity: 10000,
-    availableBatchCount: 4,
-    hasAvailableStock: true,
-    certifications: [{ id: 7, name: 'VietGAP' }, { id: 8, name: 'GlobalGAP' }],
-  },
-  {
-    productId: 5,
-    productName: 'Rau cải hữu cơ',
-    description: 'Rau cải hữu cơ đạt tiêu chuẩn EU, không hóa chất, thuốc trừ sâu, thu hoạch mỗi ngày.',
-    supplierName: 'Nông trại Organic Đà Lạt',
-    categoryName: 'Rau củ',
-    originRegion: 'Lâm Đồng',
-    unit: 'kg',
-    minPrice: 18000,
-    maxPrice: 25000,
-    totalAvailableQuantity: 5000,
-    availableBatchCount: 6,
-    hasAvailableStock: true,
-    certifications: [{ id: 9, name: 'EU Organic' }, { id: 10, name: 'USDA Organic' }],
-  },
-  {
-    productId: 6,
-    productName: 'Xoài cát Hòa Lộc',
-    description: 'Xoài cát Hòa Lộc Tiền Giang, thơm ngọt đặc trưng, đạt chứng nhận xuất khẩu.',
-    supplierName: 'HTX Trái cây Tiền Giang',
-    categoryName: 'Trái cây',
-    originRegion: 'Tiền Giang',
-    unit: 'kg',
-    minPrice: 45000,
-    maxPrice: 65000,
-    totalAvailableQuantity: 8000,
-    availableBatchCount: 3,
-    hasAvailableStock: true,
-    certifications: [{ id: 11, name: 'VietGAP' }, { id: 12, name: 'GlobalGAP' }],
-  },
-]
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatPrice(price?: number): string {
@@ -371,25 +276,23 @@ export function ProductsPage() {
     setError(null)
     try {
       const [productsRes, categoriesRes] = await Promise.allSettled([
-        apiClient.get<ProductItem[]>('/api/buyer/sourcing/products'),
+        apiClient.get<ProductItem[]>('/api/public/products'),
         apiClient.get<CategoryOption[]>('/api/public/metadata/categories'),
       ])
 
-      if (productsRes.status === 'fulfilled' && productsRes.value.data.length > 0) {
+      if (productsRes.status === 'fulfilled') {
         setProducts(productsRes.value.data)
       } else {
-        setProducts(FALLBACK_PRODUCTS)
-        if (productsRes.status === 'rejected') {
-          setError('Không thể tải dữ liệu sản phẩm. Đang hiển thị dữ liệu mẫu.')
-        }
+        setProducts([])
+        setError('Không thể tải dữ liệu sản phẩm. Vui lòng thử tải lại.')
       }
 
       if (categoriesRes.status === 'fulfilled') {
         setCategories(categoriesRes.value.data)
       }
     } catch {
-      setProducts(FALLBACK_PRODUCTS)
-      setError('Không thể tải dữ liệu sản phẩm. Đang hiển thị dữ liệu mẫu.')
+      setProducts([])
+      setError('Không thể tải dữ liệu sản phẩm. Vui lòng thử tải lại.')
     } finally {
       setLoading(false)
     }
