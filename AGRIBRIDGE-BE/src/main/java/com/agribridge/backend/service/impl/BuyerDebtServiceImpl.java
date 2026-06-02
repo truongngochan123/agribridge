@@ -37,12 +37,14 @@ import com.agribridge.backend.repository.ShipmentRepository;
 import com.agribridge.backend.service.BuyerDebtService;
 import com.agribridge.backend.service.CurrentUserService;
 import com.agribridge.backend.service.NotificationCenterService;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,6 +55,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -229,12 +233,11 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
 
     @Override
     @Transactional(readOnly = true)
-    public byte[] exportCsv(Long supplierId, String status, LocalDate fromDate, LocalDate toDate) {
+    public byte[] exportExcel(Long supplierId, String status, LocalDate fromDate, LocalDate toDate) {
         DebtContext context = loadContext();
         Map<Long, BuyerDebtDtos.SupplierDebt> supplierRows = buildSupplierRows(context).stream()
                 .collect(Collectors.toMap(BuyerDebtDtos.SupplierDebt::supplierId, Function.identity()));
-        StringBuilder csv = new StringBuilder("\uFEFFsupplier,invoice,order,due_date,status,total,paid,remaining,overdue\n");
-        context.invoices().stream()
+        List<DebtExportRow> rows = context.invoices().stream()
                 .filter(invoice -> supplierId == null || Objects.equals(context.ordersById().get(invoice.getOrderId()).getSupplierCompanyId(), supplierId))
                 .filter(invoice -> fromDate == null || invoice.getCreatedAt() == null || !invoice.getCreatedAt().toLocalDate().isBefore(fromDate))
                 .filter(invoice -> toDate == null || invoice.getCreatedAt() == null || !invoice.getCreatedAt().toLocalDate().isAfter(toDate))
@@ -244,21 +247,245 @@ public class BuyerDebtServiceImpl implements BuyerDebtService {
                     BuyerDebtDtos.SupplierDebt row = order == null ? null : supplierRows.get(order.getSupplierCompanyId());
                     return row != null && status.equalsIgnoreCase(row.status());
                 })
-                .forEach(invoice -> {
+                .map(invoice -> {
                     OrderEntity order = context.ordersById().get(invoice.getOrderId());
                     CompanyEntity supplier = order == null ? null : context.suppliersById().get(order.getSupplierCompanyId());
                     BuyerDebtDtos.InvoiceItem item = toInvoiceItem(invoice, context);
-                    csv.append(csv(supplier == null ? "N/A" : supplier.getName())).append(',')
-                            .append(csv(item.invoiceNumber())).append(',')
-                            .append(csv(item.orderRef())).append(',')
-                            .append(csv(item.dueDate() == null ? "" : item.dueDate().toString())).append(',')
-                            .append(csv(item.statusLabel())).append(',')
-                            .append(item.adjustedAmount()).append(',')
-                            .append(item.paidAmount()).append(',')
-                            .append(item.remainingAmount()).append(',')
-                            .append(item.overdueDays()).append('\n');
-                });
-        return csv.toString().getBytes(StandardCharsets.UTF_8);
+                    return new DebtExportRow(
+                            supplier == null ? "N/A" : supplier.getName(),
+                            item.invoiceNumber(),
+                            item.orderRef(),
+                            firstText(item.productName(), ""),
+                            item.quantity(),
+                            item.unit(),
+                            item.createdAt() == null ? null : item.createdAt().toLocalDate(),
+                            item.dueDate(),
+                            item.statusLabel(),
+                            item.adjustedAmount(),
+                            item.paidAmount(),
+                            item.remainingAmount(),
+                            item.overdueDays());
+                })
+                .toList();
+        return buildDebtWorkbook(rows, supplierId, status, fromDate, toDate);
+    }
+
+    private byte[] buildDebtWorkbook(List<DebtExportRow> rows, Long supplierId, String status, LocalDate fromDate, LocalDate toDate) {
+        try {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            try (ZipOutputStream zip = new ZipOutputStream(output)) {
+                writeZipEntry(zip, "[Content_Types].xml", contentTypesXml());
+                writeZipEntry(zip, "_rels/.rels", rootRelsXml());
+                writeZipEntry(zip, "xl/workbook.xml", workbookXml());
+                writeZipEntry(zip, "xl/_rels/workbook.xml.rels", workbookRelsXml());
+                writeZipEntry(zip, "xl/styles.xml", stylesXml());
+                writeZipEntry(zip, "xl/worksheets/sheet1.xml", debtSheetXml(rows, supplierId, status, fromDate, toDate));
+            }
+            return output.toByteArray();
+        } catch (IOException error) {
+            throw new IllegalStateException("Cannot build debt Excel report", error);
+        }
+    }
+
+    private String debtSheetXml(List<DebtExportRow> rows, Long supplierId, String status, LocalDate fromDate, LocalDate toDate) {
+        StringBuilder xml = new StringBuilder();
+        BigDecimal totalAmount = rows.stream().map(DebtExportRow::total).map(this::nullToZero).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal paidAmount = rows.stream().map(DebtExportRow::paid).map(this::nullToZero).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal remainingAmount = rows.stream().map(DebtExportRow::remaining).map(this::nullToZero).reduce(BigDecimal.ZERO, BigDecimal::add);
+        long overdueCount = rows.stream().filter(row -> row.overdueDays() != null && row.overdueDays() > 0).count();
+        int lastRow = rows.isEmpty() ? 7 : rows.size() + 6;
+
+        xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>");
+        xml.append("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">");
+        xml.append("<dimension ref=\"A1:M").append(Math.max(lastRow, 7)).append("\"/>");
+        xml.append("<sheetViews><sheetView workbookViewId=\"0\"><pane ySplit=\"6\" topLeftCell=\"A7\" activePane=\"bottomLeft\" state=\"frozen\"/></sheetView></sheetViews>");
+        xml.append("<cols>");
+        int[] widths = {24, 18, 14, 28, 12, 10, 14, 14, 20, 16, 16, 16, 12};
+        for (int i = 0; i < widths.length; i++) {
+            xml.append("<col min=\"").append(i + 1).append("\" max=\"").append(i + 1).append("\" width=\"").append(widths[i]).append("\" customWidth=\"1\"/>");
+        }
+        xml.append("</cols>");
+        xml.append("<sheetData>");
+        appendRow(xml, 1, List.of(textCell("A", 1, "\u0041\u0067\u0072\u0069\u0042\u0072\u0069\u0064\u0067\u0065 - B\u00e1o c\u00e1o c\u00f4ng n\u1ee3 ph\u1ea3i tr\u1ea3", 1)));
+        appendRow(xml, 2, List.of(textCell("A", 2, "Th\u1eddi gian xu\u1ea5t: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")), 2)));
+        appendRow(xml, 3, List.of(textCell("A", 3, exportFilterText(supplierId, status, fromDate, toDate), 2)));
+        appendRow(xml, 4, List.of(
+                textCell("A", 4, "T\u1ed5ng h\u00f3a \u0111\u01a1n", 3), numberCell("B", 4, BigDecimal.valueOf(rows.size()), 3),
+                textCell("D", 4, "Qu\u00e1 h\u1ea1n", 3), numberCell("E", 4, BigDecimal.valueOf(overdueCount), 3),
+                textCell("G", 4, "T\u1ed5ng c\u00f2n n\u1ee3", 3), moneyCell("H", 4, remainingAmount, 4)));
+        appendRow(xml, 5, List.of(
+                textCell("A", 5, "T\u1ed5ng h\u00f3a \u0111\u01a1n", 3), moneyCell("B", 5, totalAmount, 4),
+                textCell("D", 5, "\u0110\u00e3 thanh to\u00e1n", 3), moneyCell("E", 5, paidAmount, 4)));
+        appendRow(xml, 6, List.of(
+                textCell("A", 6, "Nh\u00e0 cung c\u1ea5p", 5),
+                textCell("B", 6, "H\u00f3a \u0111\u01a1n", 5),
+                textCell("C", 6, "\u0110\u01a1n h\u00e0ng", 5),
+                textCell("D", 6, "S\u1ea3n ph\u1ea9m", 5),
+                textCell("E", 6, "S\u1ed1 l\u01b0\u1ee3ng", 5),
+                textCell("F", 6, "\u0110\u01a1n v\u1ecb", 5),
+                textCell("G", 6, "Ng\u00e0y t\u1ea1o", 5),
+                textCell("H", 6, "H\u1ea1n thanh to\u00e1n", 5),
+                textCell("I", 6, "Tr\u1ea1ng th\u00e1i", 5),
+                textCell("J", 6, "T\u1ed5ng ti\u1ec1n", 5),
+                textCell("K", 6, "\u0110\u00e3 tr\u1ea3", 5),
+                textCell("L", 6, "C\u00f2n n\u1ee3", 5),
+                textCell("M", 6, "Qu\u00e1 h\u1ea1n", 5)));
+
+        int rowIndex = 7;
+        for (DebtExportRow row : rows) {
+            int overdueStyle = row.overdueDays() != null && row.overdueDays() > 0 ? 7 : 6;
+            appendRow(xml, rowIndex, List.of(
+                    textCell("A", rowIndex, row.supplier(), 6),
+                    textCell("B", rowIndex, row.invoice(), 6),
+                    textCell("C", rowIndex, row.orderRef(), 6),
+                    textCell("D", rowIndex, row.product(), 6),
+                    numberCell("E", rowIndex, nullToZero(row.quantity()), 6),
+                    textCell("F", rowIndex, row.unit(), 6),
+                    textCell("G", rowIndex, formatExcelDate(row.createdDate()), 6),
+                    textCell("H", rowIndex, formatExcelDate(row.dueDate()), 6),
+                    textCell("I", rowIndex, row.statusLabel(), overdueStyle),
+                    moneyCell("J", rowIndex, row.total(), 4),
+                    moneyCell("K", rowIndex, row.paid(), 4),
+                    moneyCell("L", rowIndex, row.remaining(), 4),
+                    numberCell("M", rowIndex, BigDecimal.valueOf(row.overdueDays() == null ? 0 : row.overdueDays()), overdueStyle)));
+            rowIndex++;
+        }
+        if (rows.isEmpty()) {
+            appendRow(xml, 7, List.of(textCell("A", 7, "Kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u ph\u00f9 h\u1ee3p v\u1edbi b\u1ed9 l\u1ecdc.", 2)));
+        }
+
+        xml.append("</sheetData>");
+        xml.append("<autoFilter ref=\"A6:M").append(Math.max(lastRow, 7)).append("\"/>");
+        xml.append("<mergeCells count=\"3\"><mergeCell ref=\"A1:M1\"/><mergeCell ref=\"A2:M2\"/><mergeCell ref=\"A3:M3\"/></mergeCells>");
+        xml.append("<pageMargins left=\"0.7\" right=\"0.7\" top=\"0.75\" bottom=\"0.75\" header=\"0.3\" footer=\"0.3\"/>");
+        xml.append("</worksheet>");
+        return xml.toString();
+    }
+
+    private String exportFilterText(Long supplierId, String status, LocalDate fromDate, LocalDate toDate) {
+        List<String> parts = new ArrayList<>();
+        parts.add("Nh\u00e0 cung c\u1ea5p: " + (supplierId == null ? "T\u1ea5t c\u1ea3" : "#" + supplierId));
+        parts.add("Tr\u1ea1ng th\u00e1i: " + (status == null || status.isBlank() || "all".equalsIgnoreCase(status) ? "T\u1ea5t c\u1ea3" : status));
+        parts.add("T\u1eeb ng\u00e0y: " + formatExcelDate(fromDate));
+        parts.add("\u0110\u1ebfn ng\u00e0y: " + formatExcelDate(toDate));
+        return String.join(" | ", parts);
+    }
+
+    private void appendRow(StringBuilder xml, int rowIndex, List<String> cells) {
+        xml.append("<row r=\"").append(rowIndex).append("\">");
+        cells.forEach(xml::append);
+        xml.append("</row>");
+    }
+
+    private String textCell(String col, int row, String value, int style) {
+        return "<c r=\"" + col + row + "\" s=\"" + style + "\" t=\"inlineStr\"><is><t>" + xml(value) + "</t></is></c>";
+    }
+
+    private String numberCell(String col, int row, BigDecimal value, int style) {
+        return "<c r=\"" + col + row + "\" s=\"" + style + "\"><v>" + nullToZero(value).stripTrailingZeros().toPlainString() + "</v></c>";
+    }
+
+    private String moneyCell(String col, int row, BigDecimal value, int style) {
+        return numberCell(col, row, value, style);
+    }
+
+    private String formatExcelDate(LocalDate date) {
+        return date == null ? "" : date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+    }
+
+    private void writeZipEntry(ZipOutputStream zip, String name, String content) throws IOException {
+        zip.putNextEntry(new ZipEntry(name));
+        zip.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        zip.closeEntry();
+    }
+
+    private String contentTypesXml() {
+        return """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+                  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+                  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+                </Types>
+                """.trim();
+    }
+
+    private String rootRelsXml() {
+        return """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+                </Relationships>
+                """.trim();
+    }
+
+    private String workbookXml() {
+        return """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                  <sheets>
+                    <sheet name="Cong no" sheetId="1" r:id="rId1"/>
+                  </sheets>
+                </workbook>
+                """.trim();
+    }
+
+    private String workbookRelsXml() {
+        return """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+                  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+                </Relationships>
+                """.trim();
+    }
+
+    private String stylesXml() {
+        return """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+                  <numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0 &quot;VND&quot;"/></numFmts>
+                  <fonts count="4">
+                    <font><sz val="11"/><color rgb="FF0F172A"/><name val="Calibri"/></font>
+                    <font><b/><sz val="18"/><color rgb="FF047857"/><name val="Calibri"/></font>
+                    <font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+                    <font><b/><sz val="11"/><color rgb="FFB91C1C"/><name val="Calibri"/></font>
+                  </fonts>
+                  <fills count="5">
+                    <fill><patternFill patternType="none"/></fill>
+                    <fill><patternFill patternType="gray125"/></fill>
+                    <fill><patternFill patternType="solid"><fgColor rgb="FFEFFDF5"/><bgColor indexed="64"/></patternFill></fill>
+                    <fill><patternFill patternType="solid"><fgColor rgb="FF059669"/><bgColor indexed="64"/></patternFill></fill>
+                    <fill><patternFill patternType="solid"><fgColor rgb="FFFFF1F2"/><bgColor indexed="64"/></patternFill></fill>
+                  </fills>
+                  <borders count="2">
+                    <border><left/><right/><top/><bottom/><diagonal/></border>
+                    <border><left style="thin"><color rgb="FFE2E8F0"/></left><right style="thin"><color rgb="FFE2E8F0"/></right><top style="thin"><color rgb="FFE2E8F0"/></top><bottom style="thin"><color rgb="FFE2E8F0"/></bottom><diagonal/></border>
+                  </borders>
+                  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+                  <cellXfs count="8">
+                    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+                    <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0"/>
+                    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+                    <xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyFill="1" applyBorder="1"/>
+                    <xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>
+                    <xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+                    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>
+                    <xf numFmtId="0" fontId="3" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+                  </cellXfs>
+                </styleSheet>
+                """.trim();
+    }
+
+    private String xml(String value) {
+        return value == null ? "" : value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&apos;");
     }
 
     private DebtContext loadContext() {
@@ -705,9 +932,21 @@ private Integer paymentTermDays(InvoiceEntity invoice) {
         return paidByInvoice;
     }
 
-    private String csv(String value) {
-        String escaped = value == null ? "" : value.replace("\"", "\"\"");
-        return "\"" + escaped + "\"";
+    private record DebtExportRow(
+            String supplier,
+            String invoice,
+            String orderRef,
+            String product,
+            BigDecimal quantity,
+            String unit,
+            LocalDate createdDate,
+            LocalDate dueDate,
+            String statusLabel,
+            BigDecimal total,
+            BigDecimal paid,
+            BigDecimal remaining,
+            Long overdueDays
+    ) {
     }
 
     private record DebtContext(
@@ -734,5 +973,3 @@ private Integer paymentTermDays(InvoiceEntity invoice) {
     private record InvoiceLine(String productName, BigDecimal quantity, String unit) {
     }
 }
-
-

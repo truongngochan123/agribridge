@@ -11,5 +11,5 @@ public interface BuyerDebtService {
 
     java.util.List<BuyerDebtDtos.PaymentItem> getInvoicePayments(Long invoiceId);
 
-    byte[] exportCsv(Long supplierId, String status, java.time.LocalDate fromDate, java.time.LocalDate toDate);
+    byte[] exportExcel(Long supplierId, String status, java.time.LocalDate fromDate, java.time.LocalDate toDate);
 }

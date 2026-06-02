@@ -8,13 +8,28 @@ import com.agribridge.backend.dto.MarketPriceDto;
 import com.agribridge.backend.dto.StepDto;
 import com.agribridge.backend.dto.TestimonialDto;
 import com.agribridge.backend.entity.MarketPriceEntity;
+import com.agribridge.backend.entity.MarketPriceSnapshotEntity;
+import com.agribridge.backend.entity.ProductImageEntity;
 import com.agribridge.backend.repository.MarketPriceRepository;
+import com.agribridge.backend.repository.MarketPriceSnapshotRepository;
+import com.agribridge.backend.repository.ProductImageRepository;
+import com.agribridge.backend.service.MarketPriceAggregationService;
 import com.agribridge.backend.service.HomeService;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +37,9 @@ import java.util.List;
 public class HomeServiceImpl implements HomeService {
 
     private final MarketPriceRepository marketPriceRepository;
+    private final MarketPriceSnapshotRepository marketPriceSnapshotRepository;
+    private final ProductImageRepository productImageRepository;
+    private final MarketPriceAggregationService marketPriceAggregationService;
 
     @Override
     public HeroStatsDto getStats() {
@@ -125,10 +143,22 @@ public class HomeServiceImpl implements HomeService {
     @Override
     public List<MarketPriceDto> getMarketPrices() {
         log.info("Loading market prices for home page");
+        List<MarketPriceSnapshotEntity> snapshots = loadInternalMarketPriceSnapshots();
+        if (!snapshots.isEmpty()) {
+            Map<Long, String> imageByProductId = loadProductImages(snapshots);
+            List<MarketPriceDto> marketPrices = latestByMarketGroup(snapshots).stream()
+                    .sorted(Comparator.comparing(MarketPriceSnapshotEntity::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                    .limit(4)
+                    .map(item -> toDto(item, previousFor(item, snapshots), imageByProductId.get(item.getProductId())))
+                    .toList();
+            log.info("Loaded {} realtime market prices", marketPrices.size());
+            return marketPrices;
+        }
+
         List<MarketPriceDto> marketPrices = marketPriceRepository.findAll().stream()
                 .map(this::toDto)
                 .toList();
-        log.info("Loaded {} market prices", marketPrices.size());
+        log.info("Loaded {} fallback market prices", marketPrices.size());
         return marketPrices;
     }
 
@@ -167,5 +197,123 @@ public class HomeServiceImpl implements HomeService {
                 .region(entity.getRegion())
                 .trend(entity.getTrend())
                 .build();
+    }
+
+    private List<MarketPriceSnapshotEntity> loadInternalMarketPriceSnapshots() {
+        List<String> sourceTypes = List.of(
+                MarketPriceAggregationServiceImpl.SOURCE_LISTING,
+                MarketPriceAggregationServiceImpl.SOURCE_TRANSACTION);
+        List<MarketPriceSnapshotEntity> snapshots = marketPriceSnapshotRepository.findBySourceTypeIn(sourceTypes);
+        if (!snapshots.isEmpty()) {
+            return snapshots;
+        }
+        marketPriceAggregationService.updateFromSupplierListings();
+        return marketPriceSnapshotRepository.findBySourceTypeIn(sourceTypes);
+    }
+
+    private List<MarketPriceSnapshotEntity> latestByMarketGroup(List<MarketPriceSnapshotEntity> snapshots) {
+        return snapshots.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        this::marketGroupKey,
+                        Function.identity(),
+                        (left, right) -> left.getPriceDate().isAfter(right.getPriceDate()) ? left : right,
+                        LinkedHashMap::new))
+                .values()
+                .stream()
+                .toList();
+    }
+
+    private MarketPriceSnapshotEntity previousFor(MarketPriceSnapshotEntity current, List<MarketPriceSnapshotEntity> snapshots) {
+        return snapshots.stream()
+                .filter(item -> marketGroupKey(item).equals(marketGroupKey(current)))
+                .filter(item -> item.getPriceDate().isBefore(current.getPriceDate()))
+                .max(Comparator.comparing(MarketPriceSnapshotEntity::getPriceDate))
+                .orElse(null);
+    }
+
+    private String marketGroupKey(MarketPriceSnapshotEntity item) {
+        return String.join("|",
+                nullToEmpty(item.getNormalizedProductName()),
+                nullToEmpty(item.getRegion()),
+                nullToEmpty(item.getGrade()),
+                nullToEmpty(item.getSize()),
+                nullToEmpty(item.getUnit()),
+                nullToEmpty(item.getSourceType()));
+    }
+
+    private Map<Long, String> loadProductImages(List<MarketPriceSnapshotEntity> snapshots) {
+        List<Long> productIds = snapshots.stream()
+                .map(MarketPriceSnapshotEntity::getProductId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (productIds.isEmpty()) {
+            return Map.of();
+        }
+        return productImageRepository.findByProductIdIn(productIds).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        ProductImageEntity::getProductId,
+                        ProductImageEntity::getImageUrl,
+                        (left, right) -> left));
+    }
+
+    private MarketPriceDto toDto(MarketPriceSnapshotEntity item, MarketPriceSnapshotEntity previous, String imageUrl) {
+        return MarketPriceDto.builder()
+                .id(item.getId())
+                .name(firstText(item.getProductTypeName(), item.getNormalizedProductName(), "San pham"))
+                .image(firstText(imageUrl, fallbackImage(item.getNormalizedProductName()), "/images/seafood-market.jpg"))
+                .price(formatCurrencyNumber(item.getAvgPrice()))
+                .unit(firstText(item.getUnit(), "kg"))
+                .region(firstText(item.getRegion(), "Khong xac dinh"))
+                .trend(formatTrend(changePercent(item, previous)))
+                .build();
+    }
+
+    private BigDecimal changePercent(MarketPriceSnapshotEntity current, MarketPriceSnapshotEntity previous) {
+        if (current == null || previous == null || current.getAvgPrice() == null || previous.getAvgPrice() == null || previous.getAvgPrice().compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO;
+        }
+        return current.getAvgPrice().subtract(previous.getAvgPrice())
+                .divide(previous.getAvgPrice().abs(), 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(1, RoundingMode.HALF_UP);
+    }
+
+    private String formatTrend(BigDecimal change) {
+        if (change == null) {
+            return "+0.0%";
+        }
+        return (change.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "") + change.toPlainString() + "%";
+    }
+
+    private String formatCurrencyNumber(BigDecimal value) {
+        if (value == null) {
+            return "0";
+        }
+        DecimalFormat formatter = new DecimalFormat("#,###", DecimalFormatSymbols.getInstance(Locale.US));
+        formatter.setRoundingMode(RoundingMode.HALF_UP);
+        return formatter.format(value.setScale(0, RoundingMode.HALF_UP));
+    }
+
+    private String fallbackImage(String normalizedProductName) {
+        String value = normalizedProductName == null ? "" : normalizedProductName.toLowerCase(Locale.ROOT);
+        if (value.contains("tom") || value.contains("shrimp")) return "/images/shrimp.jpg";
+        if (value.contains("ca") || value.contains("fish")) return "/images/fish-fillet.jpg";
+        if (value.contains("gao") || value.contains("rice")) return "/images/rice.jpg";
+        if (value.contains("thanh long") || value.contains("dragon")) return "/images/dragon-fruit.jpg";
+        return "/images/seafood-market.jpg";
+    }
+
+    private String firstText(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 }

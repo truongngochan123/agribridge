@@ -399,13 +399,13 @@ export function BuyerDebtPage() {
     }
   }
 
-  const exportCsv = async () => {
+  const exportReport = async () => {
     try {
       const blob = await exportBuyerDebts({ status })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = 'buyer-debts.csv'
+      link.download = 'buyer-debts.xlsx'
       link.click()
       URL.revokeObjectURL(url)
     } catch (requestError) {
@@ -438,7 +438,7 @@ export function BuyerDebtPage() {
             <SearchInput value={keyword} onChange={setKeyword} placeholder="Tìm nhà cung cấp..." className="min-w-[220px] max-w-sm" />
             <DebtLedgerSegmentedToggle value={ledgerTab} onChange={(value) => { setLedgerTab(value); setStatus('all'); setActiveTab('invoices') }} />
             <FilterTabBar tabs={debtTabs} activeKey={status === 'all' ? 'all' : status} onChange={(key) => setStatus(key)} />
-            <button onClick={() => void exportCsv()} className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-xs font-bold text-white shadow-sm">
+            <button onClick={() => void exportReport()} className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-xs font-bold text-white shadow-sm">
               <Download className="h-3.5 w-3.5" />
               Xuất báo cáo
             </button>
@@ -1211,6 +1211,5 @@ function Notice({ text, tone }: { text: string; tone: 'emerald' | 'red' }) {
 function Overlay({ children }: { children: React.ReactNode }) {
   return <div className="fixed inset-0 z-[85] bg-black/30 p-4"><div className="mx-auto mt-20 max-w-md rounded-2xl bg-white p-4 text-sm font-semibold text-emerald-700">{children}</div></div>
 }
-
 
 

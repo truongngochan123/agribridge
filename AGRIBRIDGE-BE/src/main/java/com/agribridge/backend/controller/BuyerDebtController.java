@@ -51,8 +51,8 @@ public class BuyerDebtController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=buyer-debts.csv")
-                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
-                .body(buyerDebtService.exportCsv(supplierId, status, fromDate, toDate));
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=buyer-debts.xlsx")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(buyerDebtService.exportExcel(supplierId, status, fromDate, toDate));
     }
 }
