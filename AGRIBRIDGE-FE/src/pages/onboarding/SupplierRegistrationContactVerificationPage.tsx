@@ -22,9 +22,16 @@ const inputClass =
   'h-9 w-full rounded-lg border border-[#D9E1EA] bg-[#F8FAFC] px-2.5 text-[13px] text-[#0F172A] outline-none transition placeholder:text-[#98A2B3] focus:border-[#2F8F3A] focus:bg-white'
 const uploadBoxClass =
   'block cursor-pointer rounded-xl border-2 border-dashed border-[#D9E1EA] bg-[#F8FAFC] px-4 py-3 text-center transition hover:border-[#A7B8CC]'
-const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
 const SIMPLE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const SIMPLE_PHONE_REGEX = /^(?:\+84|84|0)\d{9,10}$/
+const SIMPLE_PHONE_REGEX = /^(03|05|07|08|09)\d{8}$/
+const PASSWORD_REQUIREMENTS = [
+  { key: 'minLength', label: 'Tối thiểu 8 ký tự', test: (value: string) => value.length >= 8 },
+  { key: 'uppercase', label: 'Có ít nhất 1 chữ hoa', test: (value: string) => /[A-Z]/.test(value) },
+  { key: 'lowercase', label: 'Có ít nhất 1 chữ thường', test: (value: string) => /[a-z]/.test(value) },
+  { key: 'number', label: 'Có ít nhất 1 số', test: (value: string) => /\d/.test(value) },
+  { key: 'special', label: 'Có ít nhất 1 ký tự đặc biệt', test: (value: string) => /[^A-Za-z0-9]/.test(value) },
+]
 
 type ApiErrorPayload = {
   message?: string
@@ -41,6 +48,15 @@ type SavedContactDraft = {
   contactPosition: string
   otpSentEmail: string
   otpVerifiedEmail: string
+}
+
+type DocumentUploadKey = 'identityDocumentUrl' | 'identityDocumentBackUrl' | 'businessDocumentUrl'
+
+type UploadedDocumentMeta = {
+  name: string
+  size: number
+  previewUrl: string
+  isImage: boolean
 }
 
 type ContactFieldErrors = {
@@ -61,7 +77,24 @@ function isValidEmail(value?: string): boolean {
 function normalizePhoneForValidation(value?: string): string {
   const raw = String(value ?? '').trim()
   if (!raw) return ''
-  return raw.replace(/[^\d+]/g, '')
+  return raw.replace(/\D/g, '')
+}
+
+function getPasswordChecks(password: string) {
+  return PASSWORD_REQUIREMENTS.map((requirement) => ({
+    ...requirement,
+    met: requirement.test(password),
+  }))
+}
+
+function isStrongPassword(password: string): boolean {
+  return getPasswordChecks(password).every((requirement) => requirement.met)
+}
+
+function isValidCitizenId(value: string, currentRole: 'supplier' | 'buyer'): boolean {
+  const trimmed = value.trim()
+  if (currentRole === 'buyer' && !trimmed) return true
+  return /^\d{12}$/.test(trimmed)
 }
 
 function validateContactField(
@@ -79,8 +112,8 @@ function validateContactField(
     }
     case 'loginPhone': {
       const normalized = normalizePhoneForValidation(String(value))
-      if (!normalized) return 'Vui long nhap so dien thoai.'
-      if (!SIMPLE_PHONE_REGEX.test(normalized)) return 'So dien thoai khong dung dinh dang.'
+      if (!normalized) return 'Vui lòng nhập số điện thoại.'
+      if (!SIMPLE_PHONE_REGEX.test(normalized)) return 'Số điện thoại phải có 10 số và bắt đầu bằng 03/05/07/08/09.'
       return ''
     }
     case 'loginEmail': {
@@ -96,22 +129,22 @@ function validateContactField(
       return ''
     }
     case 'citizenId': {
-      const normalized = String(value).replace(/\D/g, '')
-      if (currentRole === 'buyer' && !normalized) return ''
-      if (!normalized) return 'Vui long nhap so CCCD.'
-      if (normalized.length !== 12) return 'CCCD phai dung 12 chu so.'
+      const trimmed = String(value).trim()
+      if (currentRole === 'buyer' && !trimmed) return ''
+      if (!trimmed) return 'Vui lòng nhập số CCCD.'
+      if (!isValidCitizenId(trimmed, currentRole)) return 'CCCD phải đúng 12 số.'
       return ''
     }
     case 'password': {
       const password = String(value)
-      if (!password.trim()) return 'Vui long nhap mat khau.'
-      if (password.trim().length < 6) return 'Mat khau phai co it nhat 6 ky tu.'
+      if (!password) return 'Vui lòng nhập mật khẩu.'
+      if (!isStrongPassword(password)) return 'Mật khẩu chưa đáp ứng đầy đủ yêu cầu bảo mật.'
       return ''
     }
     case 'confirmPassword': {
       const confirmPassword = String(value)
-      if (!confirmPassword.trim()) return 'Vui long nhap lai mat khau.'
-      if (confirmPassword !== form.password) return 'Mat khau xac nhan khong khop.'
+      if (!confirmPassword) return 'Vui lòng nhập lại mật khẩu.'
+      if (confirmPassword !== form.password) return 'Mật khẩu không khớp.'
       return ''
     }
     case 'agreedTerms':
@@ -119,6 +152,21 @@ function validateContactField(
     default:
       return ''
   }
+}
+
+function isAllowedDocumentFile(file: File): boolean {
+  const allowedTypes = ['image/png', 'image/jpeg', 'application/pdf']
+  const allowedExtensions = /\.(png|jpe?g|pdf)$/i
+  return allowedTypes.includes(file.type) || allowedExtensions.test(file.name)
+}
+
+function isImageDocumentFile(file: File): boolean {
+  return file.type.startsWith('image/') || /\.(png|jpe?g)$/i.test(file.name)
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
 function extractApiErrorMessage(error: unknown): string {
@@ -167,6 +215,7 @@ export function SupplierRegistrationContactVerificationPage() {
     password: '',
     confirmPassword: '',
     identityDocumentUrl: '',
+    identityDocumentBackUrl: '',
     businessDocumentUrl: '',
     agreedTerms: false,
   })
@@ -178,7 +227,8 @@ export function SupplierRegistrationContactVerificationPage() {
   const [citizenError, setCitizenError] = useState('')
   const [step, setStep] = useState<1 | 2>(1)
   const [resultHint, setResultHint] = useState('')
-  const [uploadingField, setUploadingField] = useState<'identityDocumentUrl' | 'businessDocumentUrl' | null>(null)
+  const [uploadingField, setUploadingField] = useState<DocumentUploadKey | null>(null)
+  const [documentMeta, setDocumentMeta] = useState<Partial<Record<DocumentUploadKey, UploadedDocumentMeta>>>({})
   const [sendingOtp, setSendingOtp] = useState(false)
   const [verifyingOtp, setVerifyingOtp] = useState(false)
   const [otpSentEmail, setOtpSentEmail] = useState('')
@@ -189,6 +239,24 @@ export function SupplierRegistrationContactVerificationPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const contactDraftKey = `${CONTACT_DRAFT_PREFIX}.${currentRole}`
+  const passwordChecks = getPasswordChecks(form.password)
+  const normalizedLoginEmail = form.loginEmail.trim().toLowerCase()
+  const isBusinessDocumentRequired = currentRole === 'supplier'
+  const isDocumentStepValid =
+    Boolean(form.identityDocumentUrl.trim()) &&
+    Boolean(form.identityDocumentBackUrl.trim()) &&
+    (!isBusinessDocumentRequired || Boolean(form.businessDocumentUrl.trim())) &&
+    form.agreedTerms
+  const isAccountStepValid =
+    !validateContactField('fullName', form.fullName, form, currentRole) &&
+    !validateContactField('loginPhone', form.loginPhone, form, currentRole) &&
+    !validateContactField('loginEmail', form.loginEmail, form, currentRole) &&
+    !validateContactField('password', form.password, form, currentRole) &&
+    !validateContactField('confirmPassword', form.confirmPassword, form, currentRole) &&
+    !validateContactField('citizenId', form.citizenId, form, currentRole) &&
+    form.agreedTerms &&
+    otpVerifiedEmail === normalizedLoginEmail
+  const canSendOtp = isValidEmail(normalizedLoginEmail)
 
   useEffect(() => {
     const raw = localStorage.getItem(contactDraftKey)
@@ -196,7 +264,9 @@ export function SupplierRegistrationContactVerificationPage() {
 
     try {
       const parsed = JSON.parse(raw) as SavedContactDraft
-      if (parsed.form) setForm(parsed.form)
+      if (parsed.form) {
+        setForm((prev) => ({ ...prev, ...parsed.form, identityDocumentBackUrl: parsed.form.identityDocumentBackUrl ?? '' }))
+      }
       setContactPosition(parsed.contactPosition ?? '')
       setOtpSentEmail(parsed.otpSentEmail ?? '')
       setOtpVerifiedEmail(parsed.otpVerifiedEmail ?? '')
@@ -215,13 +285,24 @@ export function SupplierRegistrationContactVerificationPage() {
     localStorage.setItem(contactDraftKey, JSON.stringify(draft))
   }, [contactDraftKey, contactPosition, form, otpSentEmail, otpVerifiedEmail])
 
+  useEffect(() => {
+    return () => {
+      Object.values(documentMeta).forEach((meta) => {
+        if (meta?.previewUrl) URL.revokeObjectURL(meta.previewUrl)
+      })
+    }
+  }, [documentMeta])
+
   const handleChange = <K extends keyof ContactVerificationPayload>(key: K, value: ContactVerificationPayload[K]) => {
+    const nextForm = { ...form, [key]: value }
+
     setForm((prev) => {
       const next = { ...prev, [key]: value }
       if (key === 'loginEmail') {
         const normalizedEmail = String(value ?? '').trim().toLowerCase()
         if (normalizedEmail !== otpSentEmail) {
           next.emailOtp = ''
+          nextForm.emailOtp = ''
         }
       }
       return next
@@ -230,7 +311,17 @@ export function SupplierRegistrationContactVerificationPage() {
     if (key === 'loginPhone') setPhoneError('')
     if (key === 'citizenId') setCitizenError('')
     if (key === 'fullName' || key === 'loginPhone' || key === 'loginEmail' || key === 'emailOtp' || key === 'citizenId' || key === 'password' || key === 'confirmPassword' || key === 'agreedTerms') {
-      setFieldErrors((prev) => ({ ...prev, [key]: '' }))
+      const fieldKey = key as keyof ContactFieldErrors
+      setFieldErrors((prev) => {
+        const nextErrors = { ...prev }
+        nextErrors[fieldKey] = validateContactField(fieldKey, nextForm[key], nextForm, currentRole)
+        if (key === 'password') {
+          nextErrors.confirmPassword = nextForm.confirmPassword
+            ? validateContactField('confirmPassword', nextForm.confirmPassword, nextForm, currentRole)
+            : ''
+        }
+        return nextErrors
+      })
     }
     if (key === 'loginEmail') {
       const normalizedEmail = String(value ?? '').trim().toLowerCase()
@@ -263,29 +354,57 @@ export function SupplierRegistrationContactVerificationPage() {
     return nextErrors
   }
 
-  const handleFileUpload = async (key: 'identityDocumentUrl' | 'businessDocumentUrl', file?: File) => {
+  const handleFileUpload = async (key: DocumentUploadKey, file?: File) => {
     if (!file) return
-    const isImage = file.type.startsWith('image/')
-    const isPdf = file.type === 'application/pdf'
-    if (!isImage && !isPdf) {
+    if (!isAllowedDocumentFile(file)) {
+      setError('Tệp tải lên phải là PNG, JPG, JPEG hoặc PDF.')
+      return
+    }
+    const isImage = isImageDocumentFile(file)
+    if (!isAllowedDocumentFile(file)) {
       setError('Tệp tải lên phải là PNG, JPG hoặc PDF.')
       return
     }
     if (file.size > MAX_DOCUMENT_BYTES) {
-      setError('Tệp tài liệu phải nhỏ hơn hoặc bằng 5MB.')
+      setError('Tệp tài liệu phải nhỏ hơn hoặc bằng 10MB.')
       return
     }
+
+    const previewUrl = isImage ? URL.createObjectURL(file) : ''
 
     try {
       setUploadingField(key)
       setError('')
       const uploaded = await uploadRegistrationFile(file)
       handleChange(key, uploaded.url)
+      setDocumentMeta((prev) => {
+        if (prev[key]?.previewUrl) URL.revokeObjectURL(prev[key]?.previewUrl ?? '')
+        return {
+          ...prev,
+          [key]: {
+            name: file.name,
+            size: file.size,
+            previewUrl,
+            isImage,
+          },
+        }
+      })
     } catch {
       setError('Upload tài liệu thất bại. Vui lòng thử lại.')
     } finally {
       setUploadingField(null)
     }
+  }
+
+  const handleRemoveUploadedDocument = (key: DocumentUploadKey) => {
+    if (documentMeta[key]?.previewUrl) URL.revokeObjectURL(documentMeta[key]?.previewUrl ?? '')
+    setDocumentMeta((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    handleChange(key, '')
+    setError('')
   }
 
   const validateAvailability = async () => {
@@ -434,8 +553,18 @@ export function SupplierRegistrationContactVerificationPage() {
         return
       }
 
-      if (currentRole === 'supplier' && !form.identityDocumentUrl.trim()) {
+      if (!form.identityDocumentUrl.trim()) {
         setError('Nhà cung cấp cần tải lên giấy tờ định danh để xác minh.')
+        return
+      }
+
+      if (!form.identityDocumentBackUrl.trim()) {
+        setError('Vui lòng tải lên CCCD mặt sau.')
+        return
+      }
+
+      if (isBusinessDocumentRequired && !form.businessDocumentUrl.trim()) {
+        setError('Vui lòng tải lên giấy phép kinh doanh.')
         return
       }
 
@@ -443,13 +572,13 @@ export function SupplierRegistrationContactVerificationPage() {
         ...form,
         loginEmail: normalizedLoginEmail,
         emailOtp: form.emailOtp.trim(),
-        identityDocumentUrl: skipOptionalDocs ? '' : form.identityDocumentUrl,
+        identityDocumentUrl: form.identityDocumentUrl,
+        identityDocumentBackUrl: form.identityDocumentBackUrl,
         businessDocumentUrl: skipOptionalDocs ? '' : form.businessDocumentUrl,
         citizenId: form.citizenId.replace(/\D/g, ''),
       }
 
       if (isBuyerIndividual && skipOptionalDocs) {
-        payload.identityDocumentUrl = ''
         payload.businessDocumentUrl = ''
       }
 
@@ -496,6 +625,33 @@ export function SupplierRegistrationContactVerificationPage() {
     }
   }
 
+  const renderDocumentUpload = (key: DocumentUploadKey, label: string, required: boolean, actionLabel: string) => {
+    const meta = documentMeta[key]
+    const hasUploaded = Boolean(form[key]?.trim())
+
+    return (
+      <div>
+        <label className={labelClass}>{label}{required ? '*' : ' (không bắt buộc)'}</label>
+        <label className={uploadBoxClass}>
+          <input type="file" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf" className="hidden" onChange={(event) => handleFileUpload(key, event.target.files?.[0])} />
+          <UploadCloud className="mx-auto h-6 w-6 text-[#98A2B3]" />
+          <p className="mt-1 text-xs font-semibold text-[#344054]">{uploadingField === key ? 'Đang upload...' : actionLabel}</p>
+          <p className="text-[11px] text-[#98A2B3]">PNG, JPG, JPEG hoặc PDF (tối đa 10MB)</p>
+        </label>
+        {hasUploaded ? (
+          <div className="mt-2 rounded-lg border border-[#D9E1EA] bg-[#F8FAFC] p-2">
+            {meta?.isImage && meta.previewUrl ? <img src={meta.previewUrl} alt={label} className="mb-2 h-24 max-w-full rounded-md border border-[#D9E1EA] object-cover" /> : null}
+            <p className="text-xs font-semibold text-[#2F8F3A]">{meta?.name ?? 'Đã tải lên tài liệu.'}</p>
+            {meta ? <p className="mt-0.5 text-[11px] text-[#667085]">{formatFileSize(meta.size)}</p> : null}
+            <button type="button" onClick={() => handleRemoveUploadedDocument(key)} className="mt-1 text-[11px] font-semibold text-[#DC2626]">
+              Xóa và upload lại
+            </button>
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[#F3F5F7]">
       <Header variant="onboarding" />
@@ -525,7 +681,7 @@ export function SupplierRegistrationContactVerificationPage() {
                   <label className={labelClass}>Số điện thoại liên hệ *</label>
                   <input
                     className={inputClass}
-                    placeholder="+84 000 000 000"
+                    placeholder="0912345678"
                     value={form.loginPhone}
                     onChange={(event) => handleChange('loginPhone', event.target.value)}
                     onBlur={() => validateContactFields(['loginPhone'])}
@@ -550,7 +706,7 @@ export function SupplierRegistrationContactVerificationPage() {
                     <button
                       type="button"
                       onClick={handleSendOtp}
-                      disabled={sendingOtp}
+                      disabled={sendingOtp || !canSendOtp}
                       className="shrink-0 rounded-lg border border-[#2F8F3A] px-3 text-[12px] font-semibold text-[#2F8F3A] disabled:opacity-60"
                     >
                       {sendingOtp ? 'Đang gửi...' : 'Gửi OTP'}
@@ -616,6 +772,13 @@ export function SupplierRegistrationContactVerificationPage() {
                     </button>
                   </div>
                   {fieldErrors.password ? <p className="mt-1 text-xs font-semibold text-[#DC2626]">{fieldErrors.password}</p> : null}
+                  <ul className="mt-1 space-y-0.5 text-[11px] font-semibold">
+                    {passwordChecks.map((requirement) => (
+                      <li key={requirement.key} className={requirement.met ? 'text-[#2F8F3A]' : 'text-[#667085]'}>
+                        {requirement.label}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
                 <div>
                   <label className={labelClass}>Nhập lại mật khẩu *</label>
@@ -651,13 +814,19 @@ export function SupplierRegistrationContactVerificationPage() {
               </p>
 
               <div className="space-y-4">
+                {renderDocumentUpload('identityDocumentUrl', 'CCCD mặt trước ', true, 'Chọn tệp CCCD mặt trước để tải lên')}
+                {renderDocumentUpload('identityDocumentBackUrl', 'CCCD mặt sau ', true, 'Chọn tệp CCCD mặt sau để tải lên')}
+                {renderDocumentUpload('businessDocumentUrl', 'Giấy phép kinh doanh ', isBusinessDocumentRequired, 'Tải lên giấy phép kinh doanh')}
+              </div>
+
+              <div className="hidden">
                 <div>
                   <label className={labelClass}>Xác minh danh tính người đăng ký (CCCD/Hộ chiếu){currentRole === 'supplier' ? '*' : '(không bắt buộc)'}</label>
                   <label className={uploadBoxClass}>
                     <input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => handleFileUpload('identityDocumentUrl', event.target.files?.[0])} />
                     <UploadCloud className="mx-auto h-6 w-6 text-[#98A2B3]" />
                     <p className="mt-1 text-xs font-semibold text-[#344054]">{uploadingField === 'identityDocumentUrl' ? 'Đang upload...' : 'Chọn tệp định danh để tải lên'}</p>
-                    <p className="text-[11px] text-[#98A2B3]">PNG, JPG hoặc PDF (tối đa 5MB)</p>
+                    <p className="text-[11px] text-[#98A2B3]">PNG, JPG hoặc PDF (tối đa 10MB)</p>
                   </label>
                   {form.identityDocumentUrl ? <p className="mt-1 text-xs text-[#2F8F3A]">Đã tải lên tệp định danh.</p> : null}
                 </div>
@@ -668,7 +837,7 @@ export function SupplierRegistrationContactVerificationPage() {
                     <input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => handleFileUpload('businessDocumentUrl', event.target.files?.[0])} />
                     <UploadCloud className="mx-auto h-6 w-6 text-[#98A2B3]" />
                     <p className="mt-1 text-xs font-semibold text-[#344054]">{uploadingField === 'businessDocumentUrl' ? 'Đang upload...' : 'Tải lên giấy phép kinh doanh'}</p>
-                    <p className="text-[11px] text-[#98A2B3]">PNG, JPG hoặc PDF (tối đa 5MB)</p>
+                    <p className="text-[11px] text-[#98A2B3]">PNG, JPG hoặc PDF (tối đa 10MB)</p>
                   </label>
                   {form.businessDocumentUrl ? <p className="mt-1 text-xs text-[#2F8F3A]">Đã tải lên tài liệu doanh nghiệp.</p> : null}
                 </div>
@@ -703,7 +872,8 @@ export function SupplierRegistrationContactVerificationPage() {
               <button
                 type="button"
                 onClick={handleNextStep}
-                className="inline-flex min-w-40 items-center justify-center gap-2 rounded-lg bg-[#2F8F3A] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#277A31]"
+                disabled={!isAccountStepValid}
+                className="inline-flex min-w-40 items-center justify-center gap-2 rounded-lg bg-[#2F8F3A] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#277A31] disabled:cursor-not-allowed disabled:bg-[#93c5a1]"
               >
                 Tiếp tục đến tài liệu
               </button>
@@ -713,7 +883,7 @@ export function SupplierRegistrationContactVerificationPage() {
                   <button
                     type="button"
                     onClick={() => handleSubmit(true)}
-                    disabled={submitting}
+                    disabled={submitting || !isDocumentStepValid}
                     className="inline-flex min-w-24 items-center justify-center rounded-lg border border-[#D9E1EA] bg-white px-3 py-2 text-xs font-semibold text-[#344054]"
                   >
                     Bỏ qua
@@ -722,7 +892,7 @@ export function SupplierRegistrationContactVerificationPage() {
                 <button
                   type="button"
                   onClick={() => handleSubmit(false)}
-                  disabled={submitting}
+                  disabled={submitting || !isDocumentStepValid}
                   className="inline-flex min-w-40 items-center justify-center gap-2 rounded-lg bg-[#2F8F3A] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#277A31] disabled:cursor-not-allowed disabled:bg-[#93c5a1]"
                 >
                   {submitting ? 'Đang gửi...' : 'Hoàn tất đăng ký'}

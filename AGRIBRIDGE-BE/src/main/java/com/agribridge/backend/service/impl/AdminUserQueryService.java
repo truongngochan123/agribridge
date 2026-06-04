@@ -34,10 +34,15 @@ public class AdminUserQueryService {
                 CAST(c.owner_name AS NVARCHAR(255)) AS owner_name,
                 CAST(c.address AS NVARCHAR(255)) AS address,
                 CAST(c.province AS NVARCHAR(255)) AS province,
-                CAST(c.tax_code AS NVARCHAR(255)) AS tax_code
+                CAST(c.tax_code AS NVARCHAR(255)) AS tax_code,
+                (
+                    SELECT COUNT(1)
+                    FROM orders o
+                    WHERE o.buyer_company_id = c.id OR o.supplier_company_id = c.id
+                ) AS order_count
             FROM users u
             INNER JOIN companies c ON c.id = u.company_id
-            WHERE COALESCE(CAST(c.verification_status AS NVARCHAR(255)), N'PENDING') = N'APPROVED'
+            WHERE COALESCE(CAST(c.verification_status AS NVARCHAR(255)), N'PENDING') IN (N'APPROVED', N'AUTO_APPROVED', N'MANUAL_APPROVED')
               AND CAST(c.company_type AS NVARCHAR(255)) IN (N'SUPPLIER', N'BUYER')
             """;
 
@@ -83,7 +88,8 @@ public class AdminUserQueryService {
                 rs.getString("owner_name"),
                 rs.getString("address"),
                 rs.getString("province"),
-                rs.getString("tax_code"))), params.toArray());
+                rs.getString("tax_code"),
+                rs.getInt("order_count"))), params.toArray());
         log.info("Admin query fetched {} approved users", users.size());
         return users;
     }
@@ -128,7 +134,8 @@ public class AdminUserQueryService {
                         rs.getString("owner_name"),
                         rs.getString("address"),
                         rs.getString("province"),
-                        rs.getString("tax_code"))),
+                        rs.getString("tax_code"),
+                        rs.getInt("order_count"))),
                 userId);
 
         if (rows.isEmpty()) {
@@ -152,8 +159,8 @@ public class AdminUserQueryService {
                 .companyTypeLabel(toCompanyTypeLabel(companyType))
                 .userStatus(normalizedStatus.name())
                 .userStatusLabel(toUserStatusLabel(normalizedStatus))
-                .orderCount(0)
-                .rating("Chưa có")
+                .orderCount(row.orderCount())
+                .rating("N/A")
                 .joinedAt(row.createdAt() != null ? row.createdAt().format(DATE_FORMATTER) : null)
                 .ownerName(row.ownerName())
                 .address(row.address())
@@ -246,6 +253,7 @@ public class AdminUserQueryService {
             String ownerName,
             String address,
             String province,
-            String taxCode) {
+            String taxCode,
+            Integer orderCount) {
     }
 }

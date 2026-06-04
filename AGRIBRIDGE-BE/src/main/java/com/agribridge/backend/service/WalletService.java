@@ -15,7 +15,11 @@ public interface WalletService {
 
     List<WalletDtos.LedgerItem> getSupplierLedger();
 
+    List<WalletDtos.LedgerItem> getBuyerLedger();
+
     WalletDtos.WithdrawalItem createSupplierWithdrawal(WalletDtos.WithdrawalRequest request);
+
+    WalletDtos.WithdrawalItem createBuyerWithdrawal(WalletDtos.WithdrawalRequest request);
 
     List<WalletDtos.WithdrawalItem> getAdminWithdrawals();
 

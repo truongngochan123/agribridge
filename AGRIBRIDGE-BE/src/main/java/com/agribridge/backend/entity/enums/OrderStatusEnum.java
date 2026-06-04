@@ -19,5 +19,6 @@ public enum OrderStatusEnum {
     CANCELLED,
     DISPUTED,
     REFUND_PENDING,
+    PARTIALLY_REFUNDED,
     REFUNDED
 }

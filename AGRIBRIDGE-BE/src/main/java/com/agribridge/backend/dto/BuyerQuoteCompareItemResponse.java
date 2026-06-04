@@ -6,6 +6,7 @@ import java.util.List;
 
 public record BuyerQuoteCompareItemResponse(
         Long id,
+        Long productId,
         Long supplierId,
         String supplierName,
         String supplierProvince,
@@ -19,6 +20,7 @@ public record BuyerQuoteCompareItemResponse(
         String batchCode,
         String gradeSize,
         LocalDate harvestDate,
+        LocalDate expiryDate,
         Integer deliveryDays,
         LocalDate estimatedDeliveryDate,
         BigDecimal shippingFee,

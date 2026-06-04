@@ -21,6 +21,7 @@ public class AdminRegistrationProfileDto {
     private String email;
     private String address;
     private String province;
+    private String district;
     private String ward;
     private String taxCode;
     private String registrationNumber;
@@ -30,6 +31,8 @@ public class AdminRegistrationProfileDto {
     private String verificationStatus;
     private String verificationStatusLabel;
     private String verificationNote;
+    private Integer verificationScore;
+    private String verificationReason;
     private List<String> reasonCodes;
     private String lastProcessedAt;
     private Long lastProcessedByUserId;

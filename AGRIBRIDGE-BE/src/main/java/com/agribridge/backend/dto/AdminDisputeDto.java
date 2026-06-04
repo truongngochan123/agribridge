@@ -1,5 +1,6 @@
 package com.agribridge.backend.dto;
 
+import java.math.BigDecimal;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -24,10 +25,23 @@ public class AdminDisputeDto {
     private String title;
     private String description;
     private String resolution;
+    private String decisionType;
+    private BigDecimal refundAmount;
+    private BigDecimal compensationAmount;
+    private Long resolvedByUserId;
     private String buyerName;
     private String supplierName;
     private String product;
     private String amount;
+    private BigDecimal totalPaid;
+    private BigDecimal orderQuantity;
+    private String orderItemUnit;
+    private BigDecimal unitPrice;
+    private BigDecimal shippingFee;
+    private String orderStatus;
+    private String shipmentStatus;
+    private String paymentStatus;
+    private Boolean canRefund;
     private String createdByName;
     private String assignedToName;
     private String createdAt;

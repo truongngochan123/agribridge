@@ -1,6 +1,7 @@
 package com.agribridge.backend.service.impl;
 
 import com.agribridge.backend.dto.AdminUserAccountDto;
+import com.agribridge.backend.dto.ChangePasswordDto;
 import com.agribridge.backend.dto.UpdateUserPersonalProfileDto;
 import com.agribridge.backend.entity.UserEntity;
 import com.agribridge.backend.entity.enums.CompanyTypeEnum;
@@ -18,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,15 +44,21 @@ public class UserServiceImpl implements UserService {
                 CAST(c.owner_name AS NVARCHAR(255)) AS owner_name,
                 CAST(c.address AS NVARCHAR(255)) AS address,
                 CAST(c.province AS NVARCHAR(255)) AS province,
-                CAST(c.tax_code AS NVARCHAR(255)) AS tax_code
+                CAST(c.tax_code AS NVARCHAR(255)) AS tax_code,
+                (
+                    SELECT COUNT(1)
+                    FROM orders o
+                    WHERE o.buyer_company_id = c.id OR o.supplier_company_id = c.id
+                ) AS order_count
             FROM users u
             INNER JOIN companies c ON c.id = u.company_id
-            WHERE COALESCE(CAST(c.verification_status AS NVARCHAR(255)), N'PENDING') = N'APPROVED'
+            WHERE COALESCE(CAST(c.verification_status AS NVARCHAR(255)), N'PENDING') IN (N'APPROVED', N'AUTO_APPROVED', N'MANUAL_APPROVED')
               AND CAST(c.company_type AS NVARCHAR(255)) IN (N'SUPPLIER', N'BUYER')
             """;
 
     private final UserRepository userRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
     public List<UserEntity> findAll() {
@@ -118,6 +126,21 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    public void changePassword(Long id, ChangePasswordDto request) {
+        log.info("Changing password for user id={}", id);
+        UserEntity existing = findById(id);
+        String currentPassword = normalizeRequired(request.getCurrentPassword(), "Mật khẩu hiện tại là bắt buộc.");
+        String newPassword = normalizeRequired(request.getNewPassword(), "Mật khẩu mới là bắt buộc.");
+        if (!passwordEncoder.matches(currentPassword, existing.getPasswordHash())) {
+            throw new IllegalArgumentException("CURRENT_PASSWORD_INVALID");
+        }
+        existing.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(existing);
+        log.info("Changed password for user id={}", id);
+    }
+
+    @Override
     public void delete(Long id) {
         log.info("Deleting user id={}", id);
         UserEntity existing = findById(id);
@@ -163,7 +186,8 @@ public class UserServiceImpl implements UserService {
                         rs.getString("owner_name"),
                         rs.getString("address"),
                         rs.getString("province"),
-                        rs.getString("tax_code"))),
+                        rs.getString("tax_code"),
+                        rs.getInt("order_count"))),
                 params.toArray());
         log.info("Fetched {} approved users", users.size());
         return users;
@@ -211,7 +235,8 @@ public class UserServiceImpl implements UserService {
                         rs.getString("owner_name"),
                         rs.getString("address"),
                         rs.getString("province"),
-                        rs.getString("tax_code"))),
+                        rs.getString("tax_code"),
+                        rs.getInt("order_count"))),
                 userId);
 
         if (rows.isEmpty()) {
@@ -235,8 +260,8 @@ public class UserServiceImpl implements UserService {
                 .companyTypeLabel(toCompanyTypeLabel(companyType))
                 .userStatus(normalizedStatus.name())
                 .userStatusLabel(toUserStatusLabel(normalizedStatus))
-                .orderCount(0)
-                .rating("Chưa có")
+                .orderCount(row.orderCount())
+                .rating("N/A")
                 .joinedAt(row.createdAt() != null ? row.createdAt().format(DATE_FORMATTER) : null)
                 .ownerName(row.ownerName())
                 .address(row.address())
@@ -345,6 +370,7 @@ public class UserServiceImpl implements UserService {
             String ownerName,
             String address,
             String province,
-            String taxCode) {
+            String taxCode,
+            Integer orderCount) {
     }
 }

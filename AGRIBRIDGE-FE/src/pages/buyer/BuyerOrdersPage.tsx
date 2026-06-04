@@ -352,7 +352,7 @@ function paymentStateLabel(order: BuyerOrder) {
 function statusTone(status?: string | null) {
   if (status === 'COMPLETED' || status === 'PAID' || status === 'CONFIRMED' || status === 'SUPPLIER_CONFIRMED' || status === 'DELIVERED') return 'success'
   if (status === 'OVERDUE' || status === 'DISPUTED' || status === 'FAILED' || status === 'FAILED_DELIVERY') return 'danger'
-  if (status === 'CANCELLED' || status === 'REFUNDED') return 'muted'
+  if (status === 'CANCELLED' || status === 'REFUNDED' || status === 'PARTIALLY_REFUNDED') return 'muted'
   if (status === 'IN_DELIVERY' || status === 'SHIPPING' || status === 'IN_TRANSIT') return 'info'
   return 'pending'
 }

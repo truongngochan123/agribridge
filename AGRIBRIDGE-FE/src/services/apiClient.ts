@@ -40,7 +40,7 @@ apiClient.interceptors.response.use(
         if (key?.startsWith('agribridge.') && !rememberedKeys.has(key)) keysToDelete.push(key)
       }
       keysToDelete.forEach((key) => localStorage.removeItem(key))
-      window.location.href = '/auth/login'
+      window.location.href = window.location.pathname.startsWith('/admin') ? '/admin/login' : '/auth/login'
     }
     return Promise.reject(error)
   },

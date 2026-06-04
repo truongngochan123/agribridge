@@ -38,6 +38,16 @@ public interface NotificationCenterService {
             boolean actionRequired,
             Map<String, Object> metadata);
 
+    void notifyAdmins(
+            String title,
+            String body,
+            String module,
+            String actionUrl,
+            String entityType,
+            Long entityId,
+            boolean actionRequired,
+            Map<String, Object> metadata);
+
     void pushRealtime(NotificationEntity notification);
 
     void notifySupplierOrderCreated(OrderEntity order, String buyerName);

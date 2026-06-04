@@ -7,6 +7,8 @@ import java.math.BigDecimal;
 
 public record BuyerQuickOrderRequestDto(
         Long buyerCompanyId,
+        Long rfqId,
+        Long quoteId,
         Long supplierId,
         Long branchId,
         @NotNull(message = "productId is required") Long productId,

@@ -6,13 +6,12 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class AdminDisputeStatusUpdateRequestDto {
+public class AdminDisputeResolveRequestDto {
 
     private Long assignedToUserId;
-    private String status;
-    private String resolution;
     private String decisionType;
     private BigDecimal refundAmount;
     private BigDecimal compensationAmount;
+    private String resolution;
     private Boolean releaseRemainingToSupplier;
 }

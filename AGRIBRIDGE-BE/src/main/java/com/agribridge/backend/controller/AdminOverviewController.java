@@ -3,6 +3,7 @@ package com.agribridge.backend.controller;
 import com.agribridge.backend.dto.AdminOverviewActivityRequestDto;
 import com.agribridge.backend.dto.AdminOverviewResponseDto;
 import com.agribridge.backend.dto.AdminQuickStatRequestDto;
+import com.agribridge.backend.service.AdminAuthorizationService;
 import com.agribridge.backend.service.AdminOverviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,15 +24,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminOverviewController {
 
     private final AdminOverviewService adminOverviewService;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     @GetMapping
     public AdminOverviewResponseDto getOverview(@RequestParam(defaultValue = "30d") String filter) {
+        adminAuthorizationService.requireAdmin();
         return adminOverviewService.getOverview(filter);
     }
 
     @PostMapping("/activities")
     @ResponseStatus(HttpStatus.CREATED)
     public AdminOverviewResponseDto.AdminActivityDto createActivity(@RequestBody AdminOverviewActivityRequestDto request) {
+        adminAuthorizationService.requireAdmin();
         return adminOverviewService.createActivity(request);
     }
 
@@ -39,18 +43,21 @@ public class AdminOverviewController {
     public AdminOverviewResponseDto.AdminActivityDto updateActivity(
             @PathVariable Long activityId,
             @RequestBody AdminOverviewActivityRequestDto request) {
+        adminAuthorizationService.requireAdmin();
         return adminOverviewService.updateActivity(activityId, request);
     }
 
     @DeleteMapping("/activities/{activityId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteActivity(@PathVariable Long activityId) {
+        adminAuthorizationService.requireAdmin();
         adminOverviewService.deleteActivity(activityId);
     }
 
     @PostMapping("/quick-stats")
     @ResponseStatus(HttpStatus.CREATED)
     public AdminOverviewResponseDto.AdminQuickStatDto createQuickStat(@RequestBody AdminQuickStatRequestDto request) {
+        adminAuthorizationService.requireAdmin();
         return adminOverviewService.createQuickStat(request);
     }
 
@@ -58,12 +65,14 @@ public class AdminOverviewController {
     public AdminOverviewResponseDto.AdminQuickStatDto updateQuickStat(
             @PathVariable Long statId,
             @RequestBody AdminQuickStatRequestDto request) {
+        adminAuthorizationService.requireAdmin();
         return adminOverviewService.updateQuickStat(statId, request);
     }
 
     @DeleteMapping("/quick-stats/{statId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteQuickStat(@PathVariable Long statId) {
+        adminAuthorizationService.requireAdmin();
         adminOverviewService.deleteQuickStat(statId);
     }
 }

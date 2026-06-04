@@ -69,6 +69,14 @@ export async function fetchCurrentUserProfile(forceRefresh = false): Promise<Cur
     return cachedProfile
   }
 
+  try {
+    const response = await apiClient.get<CurrentUserProfile>('/api/current-user/profile')
+    cachedProfile = response.data
+    return cachedProfile
+  } catch (error) {
+    console.warn('GET /api/current-user/profile failed, using legacy profile fallback', error)
+  }
+
   const companyTypeRaw = (localStorage.getItem('agribridge.auth.companyType') ?? '').trim()
   const normalizedCompanyType = companyTypeRaw.toLowerCase()
   if (normalizedCompanyType === 'admin' || normalizedCompanyType === 'system') {

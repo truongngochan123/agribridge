@@ -17,6 +17,8 @@ import com.agribridge.backend.entity.OrderItemEntity;
 import com.agribridge.backend.entity.PaymentAllocationEntity;
 import com.agribridge.backend.entity.PaymentEntity;
 import com.agribridge.backend.entity.ProductEntity;
+import com.agribridge.backend.entity.QuoteEntity;
+import com.agribridge.backend.entity.RfqEntity;
 import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.ShipmentEventEntity;
 import com.agribridge.backend.entity.enums.BatchStatusEnum;
@@ -24,6 +26,7 @@ import com.agribridge.backend.entity.enums.ComplaintStatusEnum;
 import com.agribridge.backend.entity.enums.CreditLimitStatusEnum;
 import com.agribridge.backend.entity.enums.InvoiceStatusEnum;
 import com.agribridge.backend.entity.enums.OrderStatusEnum;
+import com.agribridge.backend.entity.enums.RfqStatusEnum;
 import com.agribridge.backend.entity.enums.ShipmentStatusEnum;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.BranchRepository;
@@ -38,6 +41,8 @@ import com.agribridge.backend.repository.OrderRepository;
 import com.agribridge.backend.repository.PaymentAllocationRepository;
 import com.agribridge.backend.repository.PaymentRepository;
 import com.agribridge.backend.repository.ProductRepository;
+import com.agribridge.backend.repository.QuoteRepository;
+import com.agribridge.backend.repository.RfqRepository;
 import com.agribridge.backend.repository.ShipmentEventRepository;
 import com.agribridge.backend.repository.ShipmentRepository;
 import com.agribridge.backend.service.BatchAvailabilityService;
@@ -71,6 +76,9 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
 
     private static final String SENDER_ADDRESS_SOURCE_SUPPLIER = "SUPPLIER_ADDRESS";
     private static final String SHIPPING_FEE_SOURCE_QUOTE = "SUPPLIER_TO_BUYER_QUOTE";
+    private static final String QUOTE_ACCEPTED = "ACCEPTED";
+    private static final String QUOTE_REJECTED = "REJECTED";
+    private static final String QUOTE_CANCELLED = "CANCELLED";
 
     private static final BigDecimal SUBTOTAL_TOLERANCE = new BigDecimal("1.00");
     private static final DateTimeFormatter INVOICE_TS = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
@@ -87,6 +95,8 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
     private final ShipmentEventRepository shipmentEventRepository;
     private final ProductRepository productRepository;
     private final BatchRepository batchRepository;
+    private final RfqRepository rfqRepository;
+    private final QuoteRepository quoteRepository;
     private final CompanyRepository companyRepository;
     private final CreditLimitRepository creditLimitRepository;
     private final BranchRepository branchRepository;
@@ -159,6 +169,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
             throw new IllegalArgumentException(BatchAvailabilityService.UNAVAILABLE_MESSAGE);
         }
         batchAvailabilityService.validateOrderable(batch, product.getId(), request.quantity());
+        QuoteEntity rfqQuote = validateRfqQuoteForQuickOrder(request, buyer.getId(), supplier.getId(), product.getId(), batch.getId());
 
         BigDecimal unitPrice = request.unitPrice() == null ? batch.getPrice() : request.unitPrice();
         BigDecimal subtotal = request.quantity().multiply(unitPrice);
@@ -179,6 +190,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .buyerCompanyId(buyer.getId())
                 .supplierCompanyId(supplier.getId())
                 .branchId(request.branchId())
+                .quoteId(rfqQuote == null ? null : rfqQuote.getId())
                 .status(orderInitialStatus(paymentMethod))
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
@@ -201,13 +213,13 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .remainingAmount(paymentMethod == PaymentMethod.CREDIT || paymentMethod == PaymentMethod.DEBT
                         ? grandTotal
                         : remainingAmount)
-                .deliveryName(firstText(buyer.getOwnerName(), buyer.getName()))
-                .deliveryPhone(trim(buyer.getPhone()))
-                .deliveryProvince(trim(buyer.getProvince()))
-                .deliveryDistrict(trim(buyer.getDistrict()))
-                .deliveryWard(trim(buyer.getWard()))
-                .deliveryAddress(trim(buyer.getAddress()))
-                .shippingAddressSnapshot(addressSnapshot(buyer))
+                .deliveryName(firstText(request.deliveryName(), firstText(buyer.getOwnerName(), buyer.getName())))
+                .deliveryPhone(firstText(request.deliveryPhone(), buyer.getPhone()))
+                .deliveryProvince(firstText(request.deliveryProvince(), buyer.getProvince()))
+                .deliveryDistrict(firstText(request.deliveryDistrict(), buyer.getDistrict()))
+                .deliveryWard(firstText(request.deliveryWard(), buyer.getWard()))
+                .deliveryAddress(firstText(request.deliveryAddress(), buyer.getAddress()))
+                .shippingAddressSnapshot(addressSnapshot(request, buyer))
                 .expectedDeliveryDate(expectedDeliveryDate)
                 .note(trim(request.note()))
                 .createdAt(now)
@@ -268,6 +280,7 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
 
         }
         notificationCenterService.notifySupplierOrderCreated(order, buyer.getName());
+        acceptRfqQuoteIfPresent(request, rfqQuote, order);
         return new BuyerQuickOrderResponseDto(
                 order.getId(),
                 orderCode(order.getId()),
@@ -454,9 +467,20 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .severity(firstText(request.severity(), "MEDIUM"))
                 .createdAt(LocalDateTime.now())
                 .build());
+        markOrderDisputed(order);
         String buyerName = companyRepository.findById(order.getBuyerCompanyId()).map(CompanyEntity::getName).orElse("Buyer");
         notificationCenterService.notifySupplierComplaintCreated(order, complaint.getId(), buyerName);
         return mapComplaint(complaint);
+    }
+
+    private void markOrderDisputed(OrderEntity order) {
+        if (order == null || order.getStatus() == OrderStatusEnum.CANCELLED || order.getStatus() == OrderStatusEnum.REFUNDED) {
+            return;
+        }
+        order.setStatus(OrderStatusEnum.DISPUTED);
+        order.setEscrowStatus(firstText(order.getEscrowStatus(), "HELD"));
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepository.save(order);
     }
 
     private List<BuyerOrderDto> mapOrders(List<OrderEntity> orders) {
@@ -1094,6 +1118,62 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
                 .build();
     }
 
+    private QuoteEntity validateRfqQuoteForQuickOrder(
+            BuyerQuickOrderRequestDto request,
+            Long buyerCompanyId,
+            Long supplierCompanyId,
+            Long productId,
+            Long batchId) {
+        if (request.rfqId() == null && request.quoteId() == null) {
+            return null;
+        }
+        if (request.rfqId() == null || request.quoteId() == null) {
+            throw new IllegalArgumentException("rfqId and quoteId must be provided together");
+        }
+        RfqEntity rfq = rfqRepository.findByIdAndBuyerCompanyId(request.rfqId(), buyerCompanyId)
+                .orElseThrow(() -> new IllegalArgumentException("RFQ_NOT_FOUND"));
+        if (RfqStatusEnum.CLOSED.equals(rfq.getStatus()) || RfqStatusEnum.ACCEPTED.equals(rfq.getStatus())) {
+            throw new IllegalArgumentException("RFQ_ALREADY_CONVERTED");
+        }
+        if (RfqStatusEnum.CANCELLED.equals(rfq.getStatus())) {
+            throw new IllegalArgumentException("RFQ_CANCELLED");
+        }
+        QuoteEntity quote = quoteRepository.findByIdAndRfqId(request.quoteId(), request.rfqId())
+                .orElseThrow(() -> new IllegalArgumentException("QUOTE_NOT_FOUND"));
+        String quoteStatus = quote.getStatus() == null ? "" : quote.getStatus().trim().toUpperCase(Locale.ROOT);
+        if (QUOTE_ACCEPTED.equals(quoteStatus) || QUOTE_REJECTED.equals(quoteStatus) || QUOTE_CANCELLED.equals(quoteStatus)) {
+            throw new IllegalArgumentException("QUOTE_NOT_AVAILABLE");
+        }
+        if (orderRepository.existsByQuoteId(quote.getId())) {
+            throw new IllegalArgumentException("RFQ_ALREADY_CONVERTED");
+        }
+        if (!Objects.equals(quote.getSupplierCompanyId(), supplierCompanyId)) {
+            throw new IllegalArgumentException("QUOTE_SUPPLIER_MISMATCH");
+        }
+        if (!Objects.equals(quote.getBatchId(), batchId)) {
+            throw new IllegalArgumentException("QUOTE_BATCH_MISMATCH");
+        }
+        if (rfq.getProductId() != null && !Objects.equals(rfq.getProductId(), productId)) {
+            throw new IllegalArgumentException("QUOTE_PRODUCT_MISMATCH");
+        }
+        return quote;
+    }
+
+    private void acceptRfqQuoteIfPresent(BuyerQuickOrderRequestDto request, QuoteEntity quote, OrderEntity order) {
+        if (quote == null || request.rfqId() == null) {
+            return;
+        }
+        RfqEntity rfq = rfqRepository.findById(request.rfqId())
+                .orElseThrow(() -> new IllegalArgumentException("RFQ_NOT_FOUND"));
+        quote.setStatus(QUOTE_ACCEPTED);
+        quoteRepository.save(quote);
+        quoteRepository.updateOtherQuotesStatus(rfq.getId(), quote.getId(), QUOTE_REJECTED, List.of(QUOTE_ACCEPTED, QUOTE_REJECTED, QUOTE_CANCELLED));
+        rfq.setStatus(RfqStatusEnum.ACCEPTED);
+        rfq.setUpdatedAt(LocalDateTime.now());
+        rfqRepository.save(rfq);
+        notificationCenterService.notifySupplierQuoteSelected(rfq, quote, order);
+    }
+
 
     private PaymentMethod parsePaymentMethod(String raw) {
         String normalized = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
@@ -1206,6 +1286,18 @@ public class BuyerOrderServiceImpl implements BuyerOrderService {
 
     private String addressSnapshot(CompanyEntity buyer) {
         return List.of(buyer.getAddress(), buyer.getWard(), buyer.getProvince()).stream()
+                .map(this::trim)
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining(", "));
+    }
+
+    private String addressSnapshot(BuyerQuickOrderRequestDto request, CompanyEntity buyer) {
+        return List.of(
+                        firstText(request.deliveryAddress(), buyer.getAddress()),
+                        firstText(request.deliveryWard(), buyer.getWard()),
+                        firstText(request.deliveryDistrict(), buyer.getDistrict()),
+                        firstText(request.deliveryProvince(), buyer.getProvince()))
+                .stream()
                 .map(this::trim)
                 .filter(Objects::nonNull)
                 .collect(Collectors.joining(", "));

@@ -129,6 +129,23 @@ function canConfirm(item: BuyerDeliveryItem) {
   return item.status === 'WAITING_CONFIRMATION' && !item.confirmedReceivedAt
 }
 
+function canReportIncident(item: BuyerDeliveryItem, hasOpenIncident = false) {
+  return item.status === 'WAITING_CONFIRMATION' && !item.confirmedReceivedAt && !hasOpenIncident
+}
+
+const OPEN_INCIDENT_STATUSES = [
+  'OPEN',
+  'PENDING_SUPPLIER_RESPONSE',
+  'WAITING_SUPPLIER_RESPONSE',
+  'PROCESSING',
+  'UNDER_REVIEW',
+  'SUPPLIER_PROPOSED_RESOLUTION',
+  'WAITING_BUYER_RESPONSE',
+  'WAITING_BUYER_CONFIRMATION',
+  'NEGOTIATING',
+  'ESCALATED',
+]
+
 function DeliveryCard({
   item,
   onTimeline,
@@ -344,6 +361,14 @@ export function BuyerDeliveryPage() {
     await loadDeliveries()
   }
 
+  const openIncidentReport = (shipment: BuyerDeliveryItem) => {
+    if (!canReportIncident(shipment)) {
+      showToast('Chỉ có thể báo sự cố khi đơn hàng đang chờ xác nhận nhận hàng.', 'error')
+      return
+    }
+    setIncidentShipment(shipment)
+  }
+
   usePageTitle('Theo dõi Giao hàng')
   return (
     <>
@@ -432,7 +457,7 @@ export function BuyerDeliveryPage() {
       {detail ? <DetailDrawer
         detail={detail}
         onClose={() => setDetail(null)}
-        onIncident={() => setIncidentShipment(detail.shipment)}
+        onIncident={() => openIncidentReport(detail.shipment)}
         onConfirm={() => { setDetail(null); setConfirmShipment(detail.shipment) }}
         onUpdateIncident={(incident) => setUpdateIncidentTarget({ shipment: detail.shipment, incident })}
         onIncidentActionDone={async () => {
@@ -656,9 +681,11 @@ function DetailDrawer({ detail, onClose, onIncident, onConfirm, onUpdateIncident
   const { showToast } = useToast()
   const s = detail.shipment
   const progress = s.progress ?? 0
-  const hasOpenIncident = detail.incidents.some((i) => ['OPEN', 'PENDING_SUPPLIER_RESPONSE', 'WAITING_SUPPLIER_RESPONSE', 'PROCESSING', 'UNDER_REVIEW', 'SUPPLIER_PROPOSED_RESOLUTION', 'WAITING_BUYER_RESPONSE', 'WAITING_BUYER_CONFIRMATION', 'NEGOTIATING', 'ESCALATED'].includes(i.status))
+  const openIncident = detail.incidents.find((i) => OPEN_INCIDENT_STATUSES.includes(i.status))
+  const hasOpenIncident = Boolean(openIncident)
   // Chỉ cho xác nhận khi đang chờ buyer xác nhận, không bao gồm DELIVERED hay các trạng thái trung gian
   const showConfirm = s.status === 'WAITING_CONFIRMATION' && !s.confirmedReceivedAt && !hasOpenIncident
+  const showReportIncident = canReportIncident(s, hasOpenIncident)
 
   // Fallback receiver
   const receiverText = (s as any).receiverName || (s as any).buyerName || (s as any).branchContactName || s.branchName || 'Chưa có'
@@ -971,15 +998,15 @@ function DetailDrawer({ detail, onClose, onIncident, onConfirm, onUpdateIncident
         {/* Footer */}
         <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 bg-white px-5 py-3">
           <div className="flex gap-2">
-            {hasOpenIncident ? (
-              <button className="rounded-xl border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 px-4 py-2 text-xs font-bold transition active:scale-95" onClick={onIncident}>
+            {openIncident ? (
+              <button className="rounded-xl border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 px-4 py-2 text-xs font-bold transition active:scale-95" onClick={() => onUpdateIncident(openIncident)}>
                 Xem / Cập nhật sự cố
               </button>
-            ) : (
+            ) : showReportIncident ? (
               <button className="rounded-xl border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 px-4 py-2 text-xs font-bold transition active:scale-95" onClick={onIncident}>
                 Báo sự cố giao hàng
               </button>
-            )}
+            ) : null}
 
             {showConfirm && (
               <button className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 text-white hover:opacity-90 px-4 py-2 text-xs font-bold transition active:scale-95" onClick={onConfirm}>
@@ -1007,13 +1034,22 @@ function DetailDrawer({ detail, onClose, onIncident, onConfirm, onUpdateIncident
 
 function IncidentModal({ shipment, detail, onClose, onDone }: { shipment: BuyerDeliveryItem; detail?: BuyerDeliveryDetail; onClose: () => void; onDone: () => void }) {
   const { showToast } = useToast()
+  const s = detail?.shipment || shipment
+  const reportAllowed = canReportIncident(s)
+
+  useEffect(() => {
+    if (!reportAllowed) {
+      showToast('Chỉ có thể báo sự cố khi đơn hàng đang chờ xác nhận nhận hàng.', 'error')
+      onClose()
+    }
+  }, [onClose, reportAllowed, showToast])
 
   // Determine delivery phase from shipment status
-  const status = shipment.status
+  const status = s.status
   // Phase A: hàng đang trên đường, chưa tới buyer
   const IN_TRANSIT_STATUSES = ['PENDING', 'PREPARING', 'SHIPPED', 'SHIPPING', 'IN_TRANSIT']
   // Phase B: hàng đã tới hoặc đang chờ xác nhận
-  const RECEIVED_STATUSES = ['WAITING_CONFIRMATION', 'DELIVERED']
+  const RECEIVED_STATUSES = ['WAITING_CONFIRMATION']
   const isInTransit = IN_TRANSIT_STATUSES.includes(status)
   const isReceived = RECEIVED_STATUSES.includes(status)
 
@@ -1039,7 +1075,6 @@ function IncidentModal({ shipment, detail, onClose, onDone }: { shipment: BuyerD
   const [saving, setSaving] = useState(false)
 
   // Summary logic
-  const s = detail?.shipment || shipment
   const productInfo = detail?.products?.length
     ? detail.products.map(p => `${p.productName} (${p.quantity} ${p.unit})`).join(', ')
     : s.productsText || 'Chưa có'
@@ -1090,6 +1125,12 @@ function IncidentModal({ shipment, detail, onClose, onDone }: { shipment: BuyerD
   }
 
   const submit = async () => {
+    if (!reportAllowed) {
+      showToast('Chỉ có thể báo sự cố khi đơn hàng đang chờ xác nhận nhận hàng.', 'error')
+      onClose()
+      return
+    }
+
     // Guard: không được báo MISSING/DAMAGED/WRONG_PRODUCT khi hàng chưa tới
     const DELIVERY_ONLY_TYPES = ['MISSING_ITEMS', 'DAMAGED', 'WRONG_PRODUCT']
     if (DELIVERY_ONLY_TYPES.includes(incidentType) && !isReceived) {

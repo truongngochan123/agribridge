@@ -2,10 +2,9 @@ package com.agribridge.backend.controller;
 
 import com.agribridge.backend.dto.AdminCategoryDtos;
 import com.agribridge.backend.entity.CategoryEntity;
-import com.agribridge.backend.entity.enums.UserRoleEnum;
 import com.agribridge.backend.repository.CategoryRepository;
 import com.agribridge.backend.repository.ProductRepository;
-import com.agribridge.backend.service.CurrentUserService;
+import com.agribridge.backend.service.AdminAuthorizationService;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -30,11 +29,11 @@ public class AdminCategoryController {
 
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
-    private final CurrentUserService currentUserService;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     @GetMapping
     public List<AdminCategoryDtos.CategoryItem> listCategories() {
-        requireAdmin();
+        adminAuthorizationService.requireAdmin();
         return categoryRepository.findAll().stream()
                 .sorted(Comparator.comparing((CategoryEntity item) -> item.getName() == null ? "" : item.getName(), String.CASE_INSENSITIVE_ORDER))
                 .map(this::toItem)
@@ -44,7 +43,7 @@ public class AdminCategoryController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public AdminCategoryDtos.CategoryItem createCategory(@RequestBody AdminCategoryDtos.CategoryRequest request) {
-        requireAdmin();
+        adminAuthorizationService.requireAdmin();
         String name = cleanName(request == null ? null : request.name());
         ensureUniqueName(name, null);
         CategoryEntity saved = categoryRepository.save(CategoryEntity.builder()
@@ -58,7 +57,7 @@ public class AdminCategoryController {
 
     @PutMapping("/{id}")
     public AdminCategoryDtos.CategoryItem updateCategory(@PathVariable Long id, @RequestBody AdminCategoryDtos.CategoryRequest request) {
-        requireAdmin();
+        adminAuthorizationService.requireAdmin();
         CategoryEntity category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "CATEGORY_NOT_FOUND"));
         String name = cleanName(request == null ? null : request.name());
@@ -71,7 +70,7 @@ public class AdminCategoryController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteCategory(@PathVariable Long id) {
-        requireAdmin();
+        adminAuthorizationService.requireAdmin();
         CategoryEntity category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "CATEGORY_NOT_FOUND"));
         long productCount = productRepository.countByCategoryId(id);
@@ -79,12 +78,6 @@ public class AdminCategoryController {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "CATEGORY_IN_USE");
         }
         categoryRepository.delete(category);
-    }
-
-    private void requireAdmin() {
-        if (!UserRoleEnum.ADMIN.equals(currentUserService.requireCurrentUser().getRole())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "ADMIN_REQUIRED");
-        }
     }
 
     private String cleanName(String value) {

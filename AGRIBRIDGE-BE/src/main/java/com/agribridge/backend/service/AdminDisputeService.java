@@ -1,6 +1,7 @@
 package com.agribridge.backend.service;
 
 import com.agribridge.backend.dto.AdminDisputeDto;
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface AdminDisputeService {
@@ -33,6 +34,17 @@ public interface AdminDisputeService {
             String resolution);
 
     AdminDisputeDto updateDisputeStatus(Long disputeId, Long assignedToUserId, String status, String resolution);
+
+    AdminDisputeDto resolveDispute(
+            Long disputeId,
+            Long assignedToUserId,
+            String decisionType,
+            BigDecimal refundAmount,
+            BigDecimal compensationAmount,
+            String resolution,
+            Boolean releaseRemainingToSupplier);
+
+    void refundDispute(Long disputeId, BigDecimal refundAmount, String reason);
 
     void deleteDispute(Long disputeId);
 }

@@ -29,6 +29,7 @@ import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.UserRepository;
 import com.agribridge.backend.service.AuthService;
 import com.agribridge.backend.service.AuthTokenService;
+import com.agribridge.backend.service.NotificationCenterService;
 import com.agribridge.backend.service.OutboundEmailService;
 import com.agribridge.backend.service.SupplierVerificationScoringService;
 import com.agribridge.backend.service.TaxCodeLookupService;
@@ -75,6 +76,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuthTokenService authTokenService;
     private final TaxCodeLookupService taxCodeLookupService;
     private final SupplierVerificationScoringService verificationScoringService;
+    private final NotificationCenterService notificationCenterService;
 
     @Value("${app.mail.enabled:false}")
     private boolean mailEnabled;
@@ -195,6 +197,19 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("Supplier PENDING_REVIEW companyId={} userId={} score={}",
                 company.getId(), user.getId(), scoring.score());
+        notificationCenterService.notifyAdmins(
+                "Ho so nha cung cap cho duyet",
+                (safeTrim(company.getName()) == null ? "Nha cung cap" : safeTrim(company.getName())) + " vua gui ho so can admin xet duyet.",
+                "REGISTRATION",
+                "/admin/registrations?companyId=" + company.getId(),
+                "COMPANY",
+                company.getId(),
+                true,
+                Map.of(
+                        "companyId", company.getId(),
+                        "userId", user.getId(),
+                        "verificationStatus", VerificationStatusEnum.PENDING_REVIEW.name(),
+                        "verificationScore", scoring.score()));
         return AuthResponseDto.builder()
                 .status(STATUS_PENDING)
                 .message("Hồ sơ của bạn đang chờ admin duyệt. Bạn có thể đăng nhập nhưng một số chức năng sẽ bị giới hạn.")

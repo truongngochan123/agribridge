@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bell, CheckCheck, CircleDot, Hand, MessageSquareWarning, Package, ReceiptText, Truck, Volume2, X } from 'lucide-react'
+import { Bell, CheckCheck, CircleDot, FileCheck2, Hand, MessageSquareWarning, Package, ReceiptText, Truck, UserCircle2, Volume2, Wallet, X } from 'lucide-react'
 import { NOTIFICATION_REALTIME_EVENT } from '../../services/notificationRealtimeService'
 import {
   fetchNotifications,
@@ -21,6 +21,11 @@ const moduleStyle = {
   INCIDENT:  { label: 'Sự cố',     bg: 'bg-orange-100',  text: 'text-orange-700', accent: 'bg-orange-500', icon: MessageSquareWarning },
   PRODUCT:   { label: 'Sản phẩm',  bg: 'bg-slate-100',   text: 'text-slate-600',  accent: 'bg-slate-400',  icon: Package },
   SYSTEM:    { label: 'Hệ thống',  bg: 'bg-slate-100',   text: 'text-slate-600',  accent: 'bg-slate-400',  icon: Bell },
+  ADMIN:     { label: 'Admin', bg: 'bg-indigo-100', text: 'text-indigo-700', accent: 'bg-indigo-500', icon: UserCircle2 },
+  REGISTRATION: { label: 'Hồ sơ', bg: 'bg-emerald-100', text: 'text-emerald-700', accent: 'bg-emerald-500', icon: FileCheck2 },
+  WITHDRAWAL: { label: 'Rút tiền', bg: 'bg-emerald-100', text: 'text-emerald-700', accent: 'bg-emerald-500', icon: Wallet },
+  USER:      { label: 'Người dùng', bg: 'bg-sky-100', text: 'text-sky-700', accent: 'bg-sky-500', icon: UserCircle2 },
+  CATEGORY:  { label: 'Danh mục', bg: 'bg-lime-100', text: 'text-lime-700', accent: 'bg-lime-500', icon: Package },
 } as const
 
 type ModuleKey = keyof typeof moduleStyle
@@ -40,6 +45,10 @@ const moduleByType: Record<string, ModuleKey> = {
   DELIVERY_DISPUTE: 'INCIDENT',
   BUYER_COMPLAINT: 'INCIDENT',
   COMPLAINT_CREATED_FOR_SUPPLIER: 'INCIDENT',
+  REGISTRATION_APPROVED: 'REGISTRATION',
+  REGISTRATION_NEED_MORE_INFO: 'REGISTRATION',
+  REGISTRATION_REJECTED: 'REGISTRATION',
+  REGISTRATION_REOPENED: 'REGISTRATION',
 }
 
 const incidentTypes = new Set(['SHIPMENT_INCIDENT', 'DELIVERY_DISPUTE', 'BUYER_COMPLAINT', 'COMPLAINT_CREATED_FOR_SUPPLIER'])

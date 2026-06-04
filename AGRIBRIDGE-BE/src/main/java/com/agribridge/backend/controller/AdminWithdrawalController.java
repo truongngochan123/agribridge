@@ -1,6 +1,7 @@
 package com.agribridge.backend.controller;
 
 import com.agribridge.backend.dto.WalletDtos;
+import com.agribridge.backend.service.AdminAuthorizationService;
 import com.agribridge.backend.service.WalletService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -16,24 +17,29 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AdminWithdrawalController {
     private final WalletService walletService;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     @GetMapping
     public List<WalletDtos.WithdrawalItem> getWithdrawals() {
+        adminAuthorizationService.requireAdmin();
         return walletService.getAdminWithdrawals();
     }
 
     @PostMapping("/{id}/approve")
     public WalletDtos.WithdrawalItem approve(@PathVariable Long id, @RequestBody(required = false) WalletDtos.AdminWithdrawalAction action) {
+        adminAuthorizationService.requireAdmin();
         return walletService.approveWithdrawal(id, action);
     }
 
     @PostMapping("/{id}/reject")
     public WalletDtos.WithdrawalItem reject(@PathVariable Long id, @RequestBody(required = false) WalletDtos.AdminWithdrawalAction action) {
+        adminAuthorizationService.requireAdmin();
         return walletService.rejectWithdrawal(id, action);
     }
 
     @PostMapping("/{id}/mark-paid")
     public WalletDtos.WithdrawalItem markPaid(@PathVariable Long id, @RequestBody(required = false) WalletDtos.AdminWithdrawalAction action) {
+        adminAuthorizationService.requireAdmin();
         return walletService.markWithdrawalPaid(id, action);
     }
 }

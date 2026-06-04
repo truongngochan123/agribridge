@@ -14,6 +14,8 @@ public record BuyerRfqCompareResponse(
             String code,
             String title,
             String type,
+            Long productId,
+            Long categoryId,
             String product,
             String productName,
             BigDecimal quantity,

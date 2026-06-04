@@ -360,12 +360,17 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
     public SupplierOrderDto startShippingDemoOrder(Long orderId) {
         Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
         OrderEntity order = getSupplierOrder(supplierCompanyId, orderId);
-        requireOrderStatus(order, OrderStatusEnum.READY_TO_SHIP);
         ShipmentEntity shipment = findActiveShipment(orderId);
         if (shipment == null) {
             throw new IllegalArgumentException("Shipment not found");
         }
         LocalDateTime now = LocalDateTime.now();
+        ShipmentStatusEnum currentShipmentStatus = normalizeShipmentStatus(shipment.getStatus());
+        if (!OrderStatusEnum.READY_TO_SHIP.equals(order.getStatus())
+                && !OrderStatusEnum.SHIPPING.equals(order.getStatus())
+                && !isStartedShippingStatus(currentShipmentStatus)) {
+            throw new IllegalArgumentException("Order must be " + OrderStatusEnum.READY_TO_SHIP);
+        }
         shipment.setStatus(ShipmentStatusEnum.WAITING_PICKUP);
         shipment.setAutoProgressEnabled(Boolean.TRUE);
         shipment.setDemoTrackingEnabled(Boolean.TRUE);
@@ -379,6 +384,15 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
         OrderEntity saved = orderRepository.save(order);
         notificationCenterService.notifyBuyerDeliveryInTransit(saved);
         return toOrderDto(saved, buildLookup(List.of(saved)));
+    }
+
+    private boolean isStartedShippingStatus(ShipmentStatusEnum status) {
+        return status == ShipmentStatusEnum.WAITING_PICKUP
+                || status == ShipmentStatusEnum.PICKED_UP
+                || status == ShipmentStatusEnum.SHIPPED
+                || status == ShipmentStatusEnum.IN_TRANSIT
+                || status == ShipmentStatusEnum.OUT_FOR_DELIVERY
+                || status == ShipmentStatusEnum.SHIPPING;
     }
 
     @Override
@@ -777,7 +791,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
             case SUPPLIER_CONFIRMED -> List.of("VIEW_DETAIL", "PREPARE_ORDER");
             case PREPARING -> List.of("VIEW_DETAIL", "READY_TO_SHIP");
             case READY_TO_SHIP -> List.of("VIEW_DETAIL", "START_SHIPPING");
-            case WAITING_FINAL_PAYMENT, WAITING_BUYER_CONFIRM, COMPLETED, DISPUTED, REFUND_PENDING, REFUNDED ->
+            case WAITING_FINAL_PAYMENT, WAITING_BUYER_CONFIRM, COMPLETED, DISPUTED, REFUND_PENDING, PARTIALLY_REFUNDED, REFUNDED ->
                 List.of("VIEW_DETAIL");
             case PENDING_PAYMENT, PENDING_DEPOSIT -> List.of("VIEW_DETAIL");
             case PENDING_SUPPLIER_CONFIRMATION -> List.of("VIEW_DETAIL", "CONFIRM_ORDER", "CANCEL_ORDER");
@@ -982,6 +996,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
             case COMPLETED -> "Hoàn tất";
             case DISPUTED -> "Đang khiếu nại";
             case REFUND_PENDING -> "Chờ hoàn tiền";
+            case PARTIALLY_REFUNDED -> "Đã hoàn tiền một phần";
             case REFUNDED -> "Đã hoàn tiền";
             case PENDING_SUPPLIER_CONFIRMATION -> "Chờ nhà cung cấp xác nhận";
             case PENDING -> "Chờ xác nhận";
@@ -1006,6 +1021,7 @@ public class SupplierOrderServiceImpl implements SupplierOrderService {
             case SHIPPED -> "Đã rời kho";
             case IN_TRANSIT -> "Đang vận chuyển";
             case WAITING_CONFIRMATION -> "Chờ buyer xác nhận";
+            case WAITING_REPLACEMENT -> "Chờ giao bù";
             case DELIVERED -> "Đã giao thành công";
             case CANCELLED -> "Đã hủy giao hàng";
             case INCIDENT, FAILED, FAILED_DELIVERY -> "Giao thất bại";

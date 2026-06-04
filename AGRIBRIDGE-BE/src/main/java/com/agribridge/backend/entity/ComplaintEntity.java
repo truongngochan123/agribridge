@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -88,6 +89,18 @@ public class ComplaintEntity {
 
     @Column(name = "resolution")
     private String resolution;
+
+    @Column(name = "decision_type")
+    private String decisionType;
+
+    @Column(name = "refund_amount")
+    private BigDecimal refundAmount;
+
+    @Column(name = "compensation_amount")
+    private BigDecimal compensationAmount;
+
+    @Column(name = "resolved_by_user_id")
+    private Long resolvedByUserId;
 
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;

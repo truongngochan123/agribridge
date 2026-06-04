@@ -16,6 +16,7 @@ import com.agribridge.backend.entity.ShipmentEventEntity;
 import com.agribridge.backend.entity.ShipmentIncidentEntity;
 import com.agribridge.backend.entity.UserEntity;
 import com.agribridge.backend.entity.enums.ComplaintStatusEnum;
+import com.agribridge.backend.entity.enums.OrderStatusEnum;
 import com.agribridge.backend.entity.enums.ShipmentStatusEnum;
 import com.agribridge.backend.repository.BatchRepository;
 import com.agribridge.backend.repository.BranchRepository;
@@ -148,15 +149,9 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
         ShipmentEntity shipment = requireBuyerShipment(shipmentId);
         Long userId = currentUserService.requireCurrentUser().getId();
 
-        // Validate: MISSING/DAMAGED/WRONG_PRODUCT chỉ được báo khi hàng đã tới
-        if (request != null && request.incidentType() != null) {
-            String type = request.incidentType().toUpperCase(Locale.ROOT);
-            boolean isDeliveryOnlyType = java.util.Set.of("MISSING_ITEMS", "DAMAGED", "WRONG_PRODUCT").contains(type);
-            boolean isReceived = shipment.getStatus() == ShipmentStatusEnum.WAITING_CONFIRMATION
-                    || shipment.getStatus() == ShipmentStatusEnum.DELIVERED;
-            if (isDeliveryOnlyType && !isReceived) {
-                throw new IllegalArgumentException("INCIDENT_TYPE_NOT_ALLOWED_FOR_STATUS");
-            }
+        if (!ShipmentStatusEnum.WAITING_CONFIRMATION.equals(shipment.getStatus())
+                || shipment.getConfirmedReceivedAt() != null) {
+            throw new IllegalArgumentException("SHIPMENT_INCIDENT_NOT_ALLOWED_FOR_STATUS");
         }
 
         return toIncident(createIncidentInternal(
@@ -222,6 +217,7 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
                 .build());
         OrderEntity order = orderRepository.findById(shipment.getOrderId()).orElse(null);
         if (order != null) {
+            markOrderDisputed(order, now);
             String buyerName = companyRepository.findById(order.getBuyerCompanyId())
                     .map(CompanyEntity::getName)
                     .orElse("Buyer");
@@ -614,6 +610,7 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
 
         OrderEntity order = orderRepository.findById(shipment.getOrderId())
                 .orElseThrow(() -> new IllegalArgumentException("ORDER_NOT_FOUND"));
+        markOrderDisputed(order, now);
         Long batchId = orderItemRepository.findByOrderIdOrderByIdAsc(order.getId()).stream()
                 .map(OrderItemEntity::getBatchId)
                 .filter(Objects::nonNull)
@@ -625,7 +622,7 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
                 incident.getDescription(),
                 "Buyer da chuyen su co giao hang len admin.");
 
-        complaintRepository.save(ComplaintEntity.builder()
+        ComplaintEntity complaint = complaintRepository.save(ComplaintEntity.builder()
                 .orderId(order.getId())
                 .batchId(batchId)
                 .shipmentId(shipment.getId())
@@ -638,6 +635,32 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
                 .description(description)
                 .createdAt(now)
                 .build());
+        notificationCenterService.notifyAdmins(
+                "Su co giao hang can xu ly",
+                "Shipment SH-" + shipment.getId() + " vua duoc chuyen len admin xu ly.",
+                "INCIDENT",
+                "/admin/disputes?disputeId=" + complaint.getId(),
+                "COMPLAINT",
+                complaint.getId(),
+                true,
+                Map.of(
+                        "disputeId", complaint.getId(),
+                        "complaintId", complaint.getId(),
+                        "orderId", order.getId(),
+                        "shipmentId", shipment.getId(),
+                        "incidentId", incident.getId(),
+                        "sourceType", COMPLAINT_SOURCE_SHIPMENT_INCIDENT,
+                        "severity", complaint.getSeverity()));
+    }
+
+    private void markOrderDisputed(OrderEntity order, LocalDateTime now) {
+        if (order == null || order.getStatus() == OrderStatusEnum.CANCELLED || order.getStatus() == OrderStatusEnum.REFUNDED) {
+            return;
+        }
+        order.setStatus(OrderStatusEnum.DISPUTED);
+        order.setEscrowStatus(firstText(order.getEscrowStatus(), "HELD"));
+        order.setUpdatedAt(now);
+        orderRepository.save(order);
     }
 
     private String severityForIncident(ShipmentIncidentEntity incident) {
@@ -686,6 +709,7 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
             case OUT_FOR_DELIVERY -> 80;
             case WAITING_CONFIRMATION -> 90;
             case DELIVERED -> 100;
+            case WAITING_REPLACEMENT -> 35;
             case CANCELLED, INCIDENT, FAILED, FAILED_DELIVERY -> 45;
         };
     }
@@ -707,6 +731,7 @@ public class BuyerDeliveryServiceImpl implements BuyerDeliveryService {
             case "SHIPPED", "SHIPPING" -> "Đã xuất kho";
             case "IN_TRANSIT" -> "Đang giao";
             case "WAITING_CONFIRMATION" -> "Chờ xác nhận";
+            case "WAITING_REPLACEMENT" -> "Chờ giao bù";
             case "DELIVERED" -> "Đã giao";
             case "INCIDENT" -> "Có sự cố";
             case "FAILED" -> "Giao thất bại";

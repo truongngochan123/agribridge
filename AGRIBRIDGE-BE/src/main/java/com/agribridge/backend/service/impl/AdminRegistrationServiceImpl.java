@@ -64,6 +64,7 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                     email,
                     address,
                     province,
+                    district,
                     ward,
                     tax_code,
                     citizen_id,
@@ -71,6 +72,8 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                     created_at,
                     verification_status,
                     verification_note,
+                    verification_score,
+                    verification_reason,
                     verified_at,
                     verified_by_user_id
                 FROM companies
@@ -78,10 +81,9 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                 """);
 
         if (status == null) {
-            sql.append(" AND COALESCE(verification_status, 'PENDING') <> 'APPROVED'");
+            sql.append(" AND COALESCE(verification_status, 'PENDING') NOT IN ('APPROVED', 'AUTO_APPROVED', 'MANUAL_APPROVED')");
         } else {
-            sql.append(" AND COALESCE(verification_status, 'PENDING') = ?");
-            params.add(status.name());
+            appendStatusFilter(sql, params, status);
         }
 
         String normalizedSearch = normalizeSearch(search);
@@ -118,7 +120,7 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
             boolean sendNotification) {
         log.info("Approving registration companyId={} adminUserId={} sendEmail={} sendNotification={}",
                 companyId, adminUserId, sendEmail, sendNotification);
-        return updateRegistration(companyId, adminUserId, VerificationStatusEnum.APPROVED, List.of(), null, sendEmail,
+        return updateRegistration(companyId, adminUserId, VerificationStatusEnum.MANUAL_APPROVED, List.of(), null, sendEmail,
                 sendNotification);
     }
 
@@ -189,7 +191,7 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                 status.name(),
                 verificationNote,
                 resolvedAdminUserId,
-                VerificationStatusEnum.APPROVED.equals(status),
+                isApprovedStatus(status),
                 Timestamp.valueOf(processedAt),
                 companyId);
 
@@ -248,6 +250,33 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
             return null;
         }
         return userRepository.existsById(adminUserId) ? adminUserId : null;
+    }
+
+    private void appendStatusFilter(StringBuilder sql, List<Object> params, VerificationStatusEnum status) {
+        if (status == VerificationStatusEnum.APPROVED
+                || status == VerificationStatusEnum.AUTO_APPROVED
+                || status == VerificationStatusEnum.MANUAL_APPROVED) {
+            sql.append(" AND COALESCE(verification_status, 'PENDING') IN ('APPROVED', 'AUTO_APPROVED', 'MANUAL_APPROVED')");
+            return;
+        }
+        if (status == VerificationStatusEnum.PENDING
+                || status == VerificationStatusEnum.PENDING_REVIEW
+                || status == VerificationStatusEnum.DRAFT) {
+            sql.append(" AND COALESCE(verification_status, 'PENDING') IN ('PENDING', 'PENDING_REVIEW', 'DRAFT')");
+            return;
+        }
+        if (status == VerificationStatusEnum.NEED_MORE_INFO || status == VerificationStatusEnum.NEEDS_MORE_INFO) {
+            sql.append(" AND COALESCE(verification_status, 'PENDING') IN ('NEED_MORE_INFO', 'NEEDS_MORE_INFO')");
+            return;
+        }
+        sql.append(" AND COALESCE(verification_status, 'PENDING') = ?");
+        params.add(status.name());
+    }
+
+    private boolean isApprovedStatus(VerificationStatusEnum status) {
+        return status == VerificationStatusEnum.APPROVED
+                || status == VerificationStatusEnum.AUTO_APPROVED
+                || status == VerificationStatusEnum.MANUAL_APPROVED;
     }
 
     private void validateDecisionPayload(List<String> reasonCodes, String note, String actionLabel) {
@@ -332,6 +361,7 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                 .email(owner != null ? owner.getEmail() : company.email())
                 .address(company.address())
                 .province(company.province())
+                .district(company.district())
                 .ward(company.ward())
                 .taxCode(company.taxCode())
                 .registrationNumber(RegistrationDescriptionUtils.extractRegistrationNumber(company.description()))
@@ -341,6 +371,8 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                 .verificationStatus(toVerificationStatus(company.verificationStatus()))
                 .verificationStatusLabel(toVerificationStatusLabel(company.verificationStatus()))
                 .verificationNote(parsedNote.note())
+                .verificationScore(company.verificationScore())
+                .verificationReason(company.verificationReason())
                 .reasonCodes(parsedNote.reasonCodes())
                 .lastProcessedAt(formatDateTime(company.verifiedAt()))
                 .lastProcessedByUserId(company.verifiedByUserId())
@@ -359,10 +391,10 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
     }
 
     private String toVerificationStatusLabel(VerificationStatusEnum status) {
-        if (status == null || status == VerificationStatusEnum.PENDING) {
+        if (status == null || status == VerificationStatusEnum.PENDING || status == VerificationStatusEnum.PENDING_REVIEW || status == VerificationStatusEnum.DRAFT) {
             return "Chưa duyệt";
         }
-        if (status == VerificationStatusEnum.NEED_MORE_INFO) {
+        if (status == VerificationStatusEnum.NEED_MORE_INFO || status == VerificationStatusEnum.NEEDS_MORE_INFO) {
             return "Yêu cầu bổ sung";
         }
         if (status == VerificationStatusEnum.REJECTED) {
@@ -483,6 +515,7 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                     email,
                     address,
                     province,
+                    district,
                     ward,
                     tax_code,
                     citizen_id,
@@ -490,6 +523,8 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                     created_at,
                     verification_status,
                     verification_note,
+                    verification_score,
+                    verification_reason,
                     verified_at,
                     verified_by_user_id
                 FROM companies
@@ -519,6 +554,7 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                     rs.getString("email"),
                     Objects.requireNonNull(rs.getString("address")),
                     Objects.requireNonNull(rs.getString("province")),
+                    rs.getString("district"),
                     rs.getString("ward"),
                     rs.getString("tax_code"),
                     rs.getString("citizen_id"),
@@ -526,6 +562,8 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
                     createdAt == null ? null : createdAt.toLocalDateTime(),
                     parseVerificationStatus(rs.getString("verification_status")),
                     rs.getString("verification_note"),
+                    rs.getObject("verification_score") == null ? null : rs.getInt("verification_score"),
+                    rs.getString("verification_reason"),
                     verifiedAt == null ? null : verifiedAt.toLocalDateTime(),
                     rs.getObject("verified_by_user_id") == null ? null : rs.getLong("verified_by_user_id"));
         }
@@ -611,6 +649,7 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
             String email,
             String address,
             String province,
+            String district,
             String ward,
             String taxCode,
             String citizenId,
@@ -618,6 +657,8 @@ public class AdminRegistrationServiceImpl implements AdminRegistrationService {
             LocalDateTime createdAt,
             VerificationStatusEnum verificationStatus,
             String verificationNote,
+            Integer verificationScore,
+            String verificationReason,
             LocalDateTime verifiedAt,
             Long verifiedByUserId) {
     }

@@ -3,6 +3,7 @@ import type {
   AdminActivityItem,
   AdminActivityUpsertRequest,
   AdminDisputeItem,
+  AdminDisputeRefundRequest,
   AdminDisputeStatus,
   AdminDisputeStatusUpdateRequest,
   AdminDisputeUpsertRequest,
@@ -198,6 +199,22 @@ export async function updateAdminDisputeStatus(
     return response.data
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, 'Không cập nhật được trạng thái tranh chấp.'))
+  }
+}
+
+export async function refundAdminDispute(disputeId: number, payload: AdminDisputeRefundRequest): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await apiClient.post<{ success: boolean; message: string }>(
+      `/api/admin/disputes/${disputeId}/refund`,
+      {
+        refundAmount: payload.refundAmount,
+        reason: payload.reason?.trim(),
+      },
+    )
+    dispatchStateSync(['ADMIN', 'COMPLAINT', 'ORDER', 'DELIVERY', 'DASHBOARD', 'PAYMENT'], { source: 'admin-dispute:refund', entityId: disputeId })
+    return response.data
+  } catch (error) {
+    throw new Error(resolveApiErrorMessage(error, 'Không hoàn tiền được tranh chấp.'))
   }
 }
 

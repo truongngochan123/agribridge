@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class ShipmentStatusConstraintFix {
 
-    private static final String NEW_CONSTRAINT_NAME = "CK_shipments_status_v3";
+    private static final String NEW_CONSTRAINT_NAME = "CK_shipments_status_v4";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -35,6 +35,9 @@ public class ShipmentStatusConstraintFix {
         ensureColumn("demo_tracking_enabled", "BIT NOT NULL CONSTRAINT DF_shipments_demo_tracking_enabled_runtime DEFAULT 0");
         ensureColumn("last_status_changed_at", "DATETIME2 NULL");
         ensureColumn("progress", "INT NULL");
+        ensureColumn("parent_shipment_id", "BIGINT NULL");
+        ensureColumn("shipment_type", "NVARCHAR(50) NULL");
+        ensureColumn("replacement_incident_id", "BIGINT NULL");
     }
 
     private void ensureColumn(String columnName, String definition) {
@@ -92,7 +95,7 @@ public class ShipmentStatusConstraintFix {
 
         jdbcTemplate.execute("""
                 ALTER TABLE dbo.shipments
-                ADD CONSTRAINT CK_shipments_status_v3
+                ADD CONSTRAINT CK_shipments_status_v4
                 CHECK (status IN (
                     'CREATED',
                     'PENDING',
@@ -107,6 +110,7 @@ public class ShipmentStatusConstraintFix {
                     'SHIPPING',
                     'DELIVERED',
                     'INCIDENT',
+                    'WAITING_REPLACEMENT',
                     'FAILED',
                     'FAILED_DELIVERY'
                 ))

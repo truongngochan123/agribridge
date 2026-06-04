@@ -45,6 +45,15 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     long countByCompanyIdAndBranchId(Long companyId, Long branchId);
 
+    @Query(value = """
+            SELECT u.*
+            FROM users u
+            INNER JOIN companies c ON c.id = u.company_id
+            WHERE UPPER(CAST(c.company_type AS NVARCHAR(50))) = 'ADMIN'
+              AND UPPER(CAST(u.status AS NVARCHAR(50))) = 'ACTIVE'
+            """, nativeQuery = true)
+    List<UserEntity> findActiveAdminUsers();
+
     interface SupplierOwnerRef {
         Long getId();
 

@@ -3,8 +3,11 @@ package com.agribridge.backend.controller;
 import com.agribridge.backend.dto.WalletDtos;
 import com.agribridge.backend.service.MomoPaymentService;
 import com.agribridge.backend.service.WalletService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,5 +31,15 @@ public class BuyerPaymentController {
     @GetMapping("/api/buyer/wallet/summary")
     public WalletDtos.WalletSummary getBuyerWalletSummary() {
         return walletService.getBuyerWalletSummary();
+    }
+
+    @GetMapping("/api/buyer/wallet/ledger")
+    public List<WalletDtos.LedgerItem> getBuyerWalletLedger() {
+        return walletService.getBuyerLedger();
+    }
+
+    @PostMapping("/api/buyer/wallet/withdrawals")
+    public WalletDtos.WithdrawalItem createBuyerWithdrawal(@RequestBody WalletDtos.WithdrawalRequest request) {
+        return walletService.createBuyerWithdrawal(request);
     }
 }

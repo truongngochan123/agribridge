@@ -46,5 +46,6 @@ ALTER TABLE dbo.orders WITH CHECK ADD CONSTRAINT CK_orders_status
         'CANCELLED',
         'DISPUTED',
         'REFUND_PENDING',
+        'PARTIALLY_REFUNDED',
         'REFUNDED'
     ));

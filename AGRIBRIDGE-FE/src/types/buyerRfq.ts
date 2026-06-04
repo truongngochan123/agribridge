@@ -47,6 +47,8 @@ export type BuyerRfqCompareInfo = {
   id: number
   code?: string | null
   title?: string | null
+  productId?: number | null
+  categoryId?: number | null
   product?: string | null
   productName?: string | null
   quantity?: number | null
@@ -60,6 +62,7 @@ export type BuyerRfqCompareInfo = {
 
 export type BuyerQuoteCompareItem = {
   id: number
+  productId?: number | null
   supplierId?: number | null
   supplierName?: string | null
   supplierProvince?: string | null
@@ -74,6 +77,7 @@ export type BuyerQuoteCompareItem = {
   batchCode?: string | null
   gradeSize?: string | null
   harvestDate?: string | null
+  expiryDate?: string | null
   deliveryDays?: number | null
   estimatedDeliveryDate?: string | null
   shippingFee?: number | null

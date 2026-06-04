@@ -54,6 +54,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -62,6 +63,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BuyerRfqServiceImpl implements BuyerRfqService {
 
     private static final String RFQ_NOT_FOUND = "RFQ_NOT_FOUND";
@@ -140,6 +142,8 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
                         rfqCode(rfq.getId()),
                         rfq.getTitle(),
                         rfqType(rfq).name(),
+                        rfq.getProductId(),
+                        rfq.getCategoryId(),
                         productName(rfq),
                         productName(rfq),
                         rfq.getQuantity(),
@@ -217,6 +221,8 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build());
+        log.debug("RFQ created id={} buyerCompanyId={} type={} supplierCompanyId={} categoryId={} productId={} province={}",
+                rfq.getId(), buyerCompanyId, type, supplierCompanyId, categoryId, rfq.getProductId(), rfq.getProvince());
         CompanyEntity buyer = companyRepository.findById(buyerCompanyId).orElse(null);
         notificationCenterService.notifySuppliersNewRfq(rfq, buyer == null ? "Buyer" : buyer.getName());
         return toDetail(rfq, 0);
@@ -507,6 +513,7 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
                 : LocalDate.now().plusDays(quote.getDeliveryDays());
         return new BuyerQuoteCompareItemResponse(
                 quote.getId(),
+                batch == null ? rfq.getProductId() : batch.getProductId(),
                 quote.getSupplierCompanyId(),
                 supplier == null ? null : supplier.getName(),
                 supplier == null ? null : supplier.getProvince(),
@@ -520,6 +527,7 @@ public class BuyerRfqServiceImpl implements BuyerRfqService {
                 batch == null ? null : batchCode(batch.getId()),
                 gradeSize(batch),
                 batch == null ? null : batch.getHarvestDate(),
+                batch == null ? null : batch.getExpiryDate(),
                 quote.getDeliveryDays(),
                 estimatedDeliveryDate,
                 null,

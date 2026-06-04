@@ -94,6 +94,7 @@ public class ShipmentStatusTransitionService {
             case OUT_FOR_DELIVERY -> 80;
             case WAITING_CONFIRMATION -> 90;
             case DELIVERED -> 100;
+            case WAITING_REPLACEMENT -> 35;
             case CANCELLED, INCIDENT, FAILED, FAILED_DELIVERY -> 45;
         };
     }

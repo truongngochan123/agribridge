@@ -86,6 +86,7 @@ public class OrderStatusConstraintFix {
                     'CANCELLED',
                     'DISPUTED',
                     'REFUND_PENDING',
+                    'PARTIALLY_REFUNDED',
                     'REFUNDED'
                 ))
                 """);

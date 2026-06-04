@@ -69,7 +69,16 @@ export type AdminQuickStatUpsertRequest = {
 
 export type AdminUserCompanyType = 'SUPPLIER' | 'BUYER'
 export type AdminUserStatus = 'ACTIVE' | 'BLOCKED' | 'LOCKED'
-export type AdminRegistrationStatus = 'PENDING' | 'NEED_MORE_INFO' | 'REJECTED' | 'APPROVED'
+export type AdminRegistrationStatus =
+  | 'PENDING'
+  | 'PENDING_REVIEW'
+  | 'DRAFT'
+  | 'NEED_MORE_INFO'
+  | 'NEEDS_MORE_INFO'
+  | 'REJECTED'
+  | 'APPROVED'
+  | 'AUTO_APPROVED'
+  | 'MANUAL_APPROVED'
 export type AdminDisputeStatus = 'OPEN' | 'INVESTIGATING' | 'RESOLVED' | 'REJECTED'
 export type AdminDisputeSeverity = 'HIGH' | 'MEDIUM'
 
@@ -126,6 +135,15 @@ export type AdminDisputeItem = {
   supplierName: string
   product: string
   amount: string
+  totalPaid?: number | null
+  orderQuantity?: number | null
+  orderItemUnit?: string | null
+  unitPrice?: number | null
+  shippingFee?: number | null
+  orderStatus?: string | null
+  shipmentStatus?: string | null
+  paymentStatus?: string | null
+  canRefund?: boolean | null
   createdByName: string
   assignedToName: string
   incidentType?: string | null
@@ -156,6 +174,11 @@ export type AdminDisputeStatusUpdateRequest = {
   assignedToUserId?: number | null
   status: AdminDisputeStatus
   resolution?: string
+}
+
+export type AdminDisputeRefundRequest = {
+  refundAmount: number
+  reason: string
 }
 
 export type UploadedDocument = {
@@ -197,6 +220,8 @@ export type AdminRegistrationProfile = {
   verificationStatus: AdminRegistrationStatus
   verificationStatusLabel: string
   verificationNote?: string | null
+  verificationScore?: number | null
+  verificationReason?: string | null
   reasonCodes: string[]
   lastProcessedAt?: string | null
   lastProcessedByUserId?: number | null

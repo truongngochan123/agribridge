@@ -71,6 +71,37 @@ export function resolveNotificationRoute(item: AppNotification): string {
   const quoteId = asPositiveInt(metadata.quoteId || item.entityId)
   const shipmentId = metadata.shipmentId || metadata.rawShipmentId || (item.entityType === 'SHIPMENT_INCIDENT' ? item.entityId : '')
   const incidentId = asPositiveInt(metadata.incidentId || (item.entityType === 'SHIPMENT_INCIDENT' ? item.entityId : 0))
+  const companyId = asPositiveInt(metadata.companyId || metadata.companyProfileId || item.entityId)
+  const disputeId = asPositiveInt(metadata.disputeId || metadata.complaintId || (item.entityType === 'COMPLAINT' ? item.entityId : 0))
+  const withdrawalId = asPositiveInt(metadata.withdrawalId || metadata.withdrawalRequestId || (item.entityType === 'WITHDRAWAL' ? item.entityId : 0))
+
+  if (role === 'admin' || role === 'system' || (typeof route === 'string' && route.startsWith('/admin'))) {
+    if (typeof route === 'string' && route.startsWith('/admin')) return withTargetModal(route)
+    if (item.type?.startsWith('REGISTRATION_') || item.entityType === 'companies' || item.entityType === 'COMPANY') {
+      return companyId ? `/admin/registrations?companyId=${companyId}` : '/admin/registrations'
+    }
+    if (
+      item.type === 'SHIPMENT_INCIDENT'
+      || item.type === 'DELIVERY_DISPUTE'
+      || item.type === 'BUYER_COMPLAINT'
+      || item.type?.startsWith('COMPLAINT_')
+      || item.entityType === 'SHIPMENT_INCIDENT'
+      || item.entityType === 'COMPLAINT'
+    ) {
+      return disputeId ? `/admin/disputes?disputeId=${disputeId}` : '/admin/disputes'
+    }
+    if (
+      item.module === 'WITHDRAWAL'
+      || item.entityType === 'WITHDRAWAL'
+      || item.entityType === 'withdrawal_requests'
+      || withdrawalId > 0
+    ) {
+      return withdrawalId ? `/admin/withdrawals?withdrawalId=${withdrawalId}` : '/admin/withdrawals'
+    }
+    if (item.module === 'USER') return '/admin/users'
+    if (item.module === 'CATEGORY') return '/admin/categories'
+    return '/admin/overview'
+  }
 
   if (item.type === 'SHIPMENT_INCIDENT' || item.type === 'DELIVERY_DISPUTE' || item.type === 'BUYER_COMPLAINT' || item.entityType === 'SHIPMENT_INCIDENT') {
     const encodedShipmentId = shipmentId ? encodeURIComponent(String(shipmentId)) : ''

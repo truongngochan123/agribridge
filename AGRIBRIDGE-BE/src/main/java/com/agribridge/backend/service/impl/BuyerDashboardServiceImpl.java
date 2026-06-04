@@ -236,6 +236,7 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
             case WAITING_CONFIRMATION -> "Chờ xác nhận";
             case DELIVERED -> "Đã giao";
             case CANCELLED -> "Đã hủy";
+            case WAITING_REPLACEMENT -> "Chờ giao bù";
             case FAILED, FAILED_DELIVERY -> "Thất bại";
             case INCIDENT -> "Có sự cố";
         };

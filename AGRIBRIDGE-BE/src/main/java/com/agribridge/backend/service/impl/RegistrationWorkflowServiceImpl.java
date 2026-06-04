@@ -19,6 +19,7 @@ import com.agribridge.backend.repository.CompanyImageRepository;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.NotificationRepository;
 import com.agribridge.backend.repository.UserRepository;
+import com.agribridge.backend.service.NotificationCenterService;
 import com.agribridge.backend.service.OutboundEmailService;
 import com.agribridge.backend.service.RegistrationWorkflowService;
 import com.agribridge.backend.util.RegistrationDescriptionUtils;
@@ -26,6 +27,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +52,7 @@ public class RegistrationWorkflowServiceImpl implements RegistrationWorkflowServ
     private final NotificationRepository notificationRepository;
     private final JdbcTemplate jdbcTemplate;
     private final OutboundEmailService outboundEmailService;
+    private final NotificationCenterService notificationCenterService;
 
     @Value("${app.mail.enabled:false}")
     private boolean mailEnabled;
@@ -169,6 +172,18 @@ public class RegistrationWorkflowServiceImpl implements RegistrationWorkflowServ
         companyImageRepository.deleteByCompanyIdAndImageType(company.getId(), ImageTypeEnum.DOCUMENT);
         saveLogo(company.getId(), normalizedLogoUrl);
         saveDocuments(company.getId(), normalizedDocuments);
+        notificationCenterService.notifyAdmins(
+                "Ho so duoc gui lai",
+                firstNonBlank(company.getName(), "Doanh nghiep") + " vua cap nhat va gui lai ho so can xet duyet.",
+                "REGISTRATION",
+                "/admin/registrations?companyId=" + company.getId(),
+                "COMPANY",
+                company.getId(),
+                true,
+                Map.of(
+                        "companyId", company.getId(),
+                        "userId", owner.getId(),
+                        "verificationStatus", VerificationStatusEnum.PENDING.name()));
 
         AuthResponseDto response = AuthResponseDto.builder()
                 .status(STATUS_PENDING)
@@ -268,7 +283,7 @@ public class RegistrationWorkflowServiceImpl implements RegistrationWorkflowServ
         StringBuilder builder = new StringBuilder();
         builder.append("Xin chào ").append(recipientName).append(",\n\n");
         builder.append(resolveBody(status, profile.getCompanyName(), note)).append("\n\n");
-        if (status == VerificationStatusEnum.NEED_MORE_INFO) {
+        if (status == VerificationStatusEnum.NEED_MORE_INFO || status == VerificationStatusEnum.NEEDS_MORE_INFO) {
             builder.append("Vui ḷng dang nh?p vào AgriBridge, c?p nh?t l?i h? so và g?i l?i d? du?c xét duy?t.\n\n");
         } else if (status == VerificationStatusEnum.REJECTED) {
             builder.append("H? so hi?n t?i không th? ti?p t?c s? d?ng. Vui ḷng dang kư l?i b?ng thông tin h?p l? n?u mu?n tham gia n?n t?ng.\n\n");
@@ -282,10 +297,10 @@ public class RegistrationWorkflowServiceImpl implements RegistrationWorkflowServ
     }
 
     private NotificationTypeEnum resolveNotificationType(VerificationStatusEnum status) {
-        if (status == VerificationStatusEnum.APPROVED) {
+        if (isApprovedStatus(status)) {
             return NotificationTypeEnum.REGISTRATION_APPROVED;
         }
-        if (status == VerificationStatusEnum.NEED_MORE_INFO) {
+        if (status == VerificationStatusEnum.NEED_MORE_INFO || status == VerificationStatusEnum.NEEDS_MORE_INFO) {
             return NotificationTypeEnum.REGISTRATION_NEED_MORE_INFO;
         }
         if (status == VerificationStatusEnum.REJECTED) {
@@ -295,10 +310,10 @@ public class RegistrationWorkflowServiceImpl implements RegistrationWorkflowServ
     }
 
     private String resolveTitle(VerificationStatusEnum status) {
-        if (status == VerificationStatusEnum.APPROVED) {
+        if (isApprovedStatus(status)) {
             return "H? so dă du?c phê duy?t";
         }
-        if (status == VerificationStatusEnum.NEED_MORE_INFO) {
+        if (status == VerificationStatusEnum.NEED_MORE_INFO || status == VerificationStatusEnum.NEEDS_MORE_INFO) {
             return "Yêu c?u b? sung h? so";
         }
         if (status == VerificationStatusEnum.REJECTED) {
@@ -310,10 +325,10 @@ public class RegistrationWorkflowServiceImpl implements RegistrationWorkflowServ
     private String resolveBody(VerificationStatusEnum status, String companyName, String note) {
         String safeCompanyName = firstNonBlank(companyName, "H? so doanh nghi?p");
         String safeNote = normalizeOptional(note);
-        if (status == VerificationStatusEnum.APPROVED) {
+        if (isApprovedStatus(status)) {
             return safeCompanyName + " dă du?c phê duy?t và có th? s? d?ng h? th?ng.";
         }
-        if (status == VerificationStatusEnum.NEED_MORE_INFO) {
+        if (status == VerificationStatusEnum.NEED_MORE_INFO || status == VerificationStatusEnum.NEEDS_MORE_INFO) {
             return safeNote == null
                     ? safeCompanyName + " c?n b? sung thêm thông tin tru?c khi du?c xét duy?t ti?p."
                     : safeCompanyName + " c?n b? sung h? so: " + safeNote;
@@ -326,6 +341,12 @@ public class RegistrationWorkflowServiceImpl implements RegistrationWorkflowServ
         return safeNote == null
                 ? safeCompanyName + " dă du?c m? l?i và chuy?n v? tr?ng thái ch? duy?t."
                 : safeCompanyName + " dă du?c m? l?i: " + safeNote;
+    }
+
+    private boolean isApprovedStatus(VerificationStatusEnum status) {
+        return status == VerificationStatusEnum.APPROVED
+                || status == VerificationStatusEnum.AUTO_APPROVED
+                || status == VerificationStatusEnum.MANUAL_APPROVED;
     }
 
     private void saveLogo(Long companyId, String logoUrl) {

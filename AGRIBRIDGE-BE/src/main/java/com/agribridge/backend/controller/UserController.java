@@ -1,5 +1,6 @@
 package com.agribridge.backend.controller;
 
+import com.agribridge.backend.dto.ChangePasswordDto;
 import com.agribridge.backend.dto.UpdateUserPersonalProfileDto;
 import com.agribridge.backend.entity.UserEntity;
 import com.agribridge.backend.service.CurrentUserService;
@@ -55,6 +56,16 @@ public class UserController {
             throw new IllegalArgumentException("USER_PROFILE_ACCESS_DENIED");
         }
         return userService.updatePersonalProfile(id, request);
+    }
+
+    @PutMapping("/{id}/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(@PathVariable Long id, @Valid @RequestBody ChangePasswordDto request) {
+        Long currentUserId = currentUserService.requireCurrentUser().getId();
+        if (!currentUserId.equals(id)) {
+            throw new IllegalArgumentException("USER_PROFILE_ACCESS_DENIED");
+        }
+        userService.changePassword(id, request);
     }
 
     @DeleteMapping("/{id}")

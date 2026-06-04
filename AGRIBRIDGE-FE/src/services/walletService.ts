@@ -60,10 +60,27 @@ export async function fetchSupplierWalletLedger(): Promise<WalletLedgerItem[]> {
   return response.data?.data ?? response.data
 }
 
+export async function fetchBuyerWalletLedger(): Promise<WalletLedgerItem[]> {
+  const response = await apiClient.get('/api/buyer/wallet/ledger')
+  return response.data?.data ?? response.data
+}
+
+export async function fetchBuyerWallet(): Promise<WalletSummary> {
+  const response = await apiClient.get('/api/buyer/wallet/summary')
+  return response.data?.data ?? response.data
+}
+
 export async function createSupplierWithdrawal(payload: WithdrawalRequest): Promise<WithdrawalItem> {
   const response = await apiClient.post('/api/supplier/wallet/withdrawals', payload)
   const data = response.data?.data ?? response.data
   dispatchStateSync(['PAYMENT', 'DEBT', 'DASHBOARD'], { source: 'supplier-wallet:withdrawal-create', entityId: data?.id })
+  return data
+}
+
+export async function createBuyerWithdrawal(payload: WithdrawalRequest): Promise<WithdrawalItem> {
+  const response = await apiClient.post('/api/buyer/wallet/withdrawals', payload)
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['PAYMENT', 'DEBT', 'DASHBOARD'], { source: 'buyer-wallet:withdrawal-create', entityId: data?.id })
   return data
 }
 
@@ -74,15 +91,21 @@ export async function fetchAdminWithdrawals(): Promise<WithdrawalItem[]> {
 
 export async function approveAdminWithdrawal(id: number, note?: string): Promise<WithdrawalItem> {
   const response = await apiClient.post(`/api/admin/withdrawals/${id}/approve`, { note })
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['ADMIN', 'PAYMENT', 'DASHBOARD'], { source: 'admin-withdrawal:approve', entityId: id })
+  return data
 }
 
 export async function rejectAdminWithdrawal(id: number, note?: string): Promise<WithdrawalItem> {
   const response = await apiClient.post(`/api/admin/withdrawals/${id}/reject`, { note })
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['ADMIN', 'PAYMENT', 'DASHBOARD'], { source: 'admin-withdrawal:reject', entityId: id })
+  return data
 }
 
 export async function markAdminWithdrawalPaid(id: number, note?: string): Promise<WithdrawalItem> {
   const response = await apiClient.post(`/api/admin/withdrawals/${id}/mark-paid`, { note })
-  return response.data?.data ?? response.data
+  const data = response.data?.data ?? response.data
+  dispatchStateSync(['ADMIN', 'PAYMENT', 'DASHBOARD'], { source: 'admin-withdrawal:mark-paid', entityId: id })
+  return data
 }

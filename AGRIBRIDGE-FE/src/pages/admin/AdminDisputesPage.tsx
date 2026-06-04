@@ -8,6 +8,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  RotateCcw,
   Search,
   ShieldAlert,
   ShieldCheck,
@@ -22,6 +23,7 @@ import {
   deleteAdminDispute,
   fetchAdminDisputeById,
   fetchAdminDisputes,
+  refundAdminDispute,
   updateAdminDispute,
   updateAdminDisputeStatus,
 } from '../../services/adminService'
@@ -82,6 +84,13 @@ type FormState = {
   resolution: string
 }
 
+type RefundState = {
+  dispute: AdminDisputeItem
+  refundType: 'FULL' | 'PARTIAL'
+  missingQuantity: string
+  reason?: string
+}
+
 function createInitialFormState(item?: AdminDisputeItem | null): FormState {
   const adminId = getAdminUserId()
   return {
@@ -95,6 +104,10 @@ function createInitialFormState(item?: AdminDisputeItem | null): FormState {
     description:       item?.description ?? '',
     resolution:        item?.resolution  ?? '',
   }
+}
+
+function money(value?: number | null) {
+  return new Intl.NumberFormat('vi-VN').format(Number(value || 0)) + ' VNĐ'
 }
 
 /* ─── skeleton ───────────────────────────────────────────────── */
@@ -153,6 +166,8 @@ export function AdminDisputesPage() {
   const [saving, setSaving]           = useState(false)
   const [statusLoadingId, setStatusLoadingId] = useState<number | null>(null)
   const [deleteLoadingId, setDeleteLoadingId] = useState<number | null>(null)
+  const [refundState, setRefundState] = useState<RefundState | null>(null)
+  const [refundSaving, setRefundSaving] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -199,6 +214,63 @@ export function AdminDisputesPage() {
   }
 
   function closeFormModal() { setFormOpen(false); setFormState(createInitialFormState(selected)) }
+
+  function openRefundModal(item: AdminDisputeItem) {
+    setRefundState({
+      dispute: item,
+      refundType: 'PARTIAL',
+      missingQuantity: '10',
+      reason: 'Thiếu hàng khi giao',
+    })
+  }
+
+  async function handleRefundSubmit() {
+    if (!refundState) return
+    const missingQuantity = Number(refundState.missingQuantity)
+    const orderQuantity = Number(refundState.dispute.orderQuantity || 0)
+    const unitPrice = Number(refundState.dispute.unitPrice || 0)
+    const shippingFee = Number(refundState.dispute.shippingFee || 0)
+    const productRefund = Math.round(Math.max(missingQuantity, 0) * Math.max(unitPrice, 0))
+    const shippingRefund = Math.round(Math.max(shippingFee, 0) * 0.1)
+    const totalPaid = Number(refundState.dispute.totalPaid || 0)
+    const amount = refundState.refundType === 'FULL' ? totalPaid : productRefund + shippingRefund
+    if (refundState.refundType === 'PARTIAL' && (!Number.isFinite(missingQuantity) || missingQuantity <= 0)) {
+      setError('Số kg thiếu phải lớn hơn 0.')
+      return
+    }
+    if (refundState.refundType === 'PARTIAL' && orderQuantity > 0 && missingQuantity > orderQuantity) {
+      setError('Số kg thiếu không được vượt quá số lượng đơn hàng.')
+      return
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('Không tính được số tiền hoàn. Vui lòng kiểm tra đơn giá và phí vận chuyển.')
+      return
+    }
+    if (amount > totalPaid) {
+      setError('Số tiền hoàn không được vượt quá số tiền đã thanh toán.')
+      return
+    }
+    if (false) {
+      setError('Vui lòng nhập lý do hoàn tiền.')
+      return
+    }
+
+    try {
+      setRefundSaving(true); setError('')
+      const unit = refundState.dispute.orderItemUnit || 'kg'
+      const reason = refundState.refundType === 'FULL' ? 'Hoan toan bo theo quyet dinh tranh chap' : `Thieu hang khi giao: thieu ${missingQuantity} ${unit}`
+        || `Hoàn tiền do thiếu ${missingQuantity} ${refundState.dispute.orderItemUnit || 'kg'}`
+      await refundAdminDispute(refundState.dispute.id, { refundAmount: amount, reason })
+      const updated = await fetchAdminDisputeById(refundState.dispute.id)
+      setSelected(updated)
+      setRefundState(null)
+      triggerReload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Không hoàn tiền được tranh chấp.')
+    } finally {
+      setRefundSaving(false)
+    }
+  }
 
   async function handleSubmitForm() {
     if (!formState.orderId.trim() || !formState.title.trim() || !formState.description.trim()) {
@@ -499,6 +571,15 @@ export function AdminDisputesPage() {
                         {isActioning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : actionBtn.icon}
                         {isActioning ? 'Xử lý...' : actionBtn.label}
                       </button>
+                      {item.canRefund ? (
+                        <button
+                          onClick={() => openRefundModal(item)}
+                          disabled={isActioning}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" /> Hoàn tiền
+                        </button>
+                      ) : null}
                       {item.status !== 'RESOLVED' && item.status !== 'REJECTED' ? (
                         <button
                           onClick={() => handleRejectAction(item)}
@@ -545,7 +626,7 @@ export function AdminDisputesPage() {
                 {[...Array(8)].map((_, i) => <Pulse key={i} className="h-10 rounded-xl" />)}
               </div>
             ) : selected ? (
-              <DetailPanel dispute={selected} />
+              <DetailPanel dispute={selected} onRefund={openRefundModal} />
             ) : (
               <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 py-16 px-6 text-center">
                 <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200">
@@ -570,12 +651,22 @@ export function AdminDisputesPage() {
           onChange={(patch) => setFormState((c) => ({ ...c, ...patch }))}
         />
       )}
+
+      {refundState && (
+        <RefundModalV2
+          state={refundState}
+          saving={refundSaving}
+          onClose={() => setRefundState(null)}
+          onSubmit={handleRefundSubmit}
+          onChange={(patch) => setRefundState((current) => current ? { ...current, ...patch } : current)}
+        />
+      )}
     </AdminShell>
   )
 }
 
 /* ─── Detail panel ───────────────────────────────────────────── */
-function DetailPanel({ dispute }: { dispute: AdminDisputeItem }) {
+function DetailPanel({ dispute, onRefund }: { dispute: AdminDisputeItem; onRefund: (item: AdminDisputeItem) => void }) {
   const sc  = statusConfig[dispute.status]
   const sev = severityConfig[dispute.severity]
   const buyerEvidence = splitEvidenceUrls(dispute.buyerEvidenceUrls)
@@ -608,6 +699,15 @@ function DetailPanel({ dispute }: { dispute: AdminDisputeItem }) {
           </div>
           <h3 className="text-base font-extrabold text-slate-900 leading-snug">{dispute.title}</h3>
           <p className="mt-1 text-xs text-slate-400">{dispute.disputeCode} · Đơn #{dispute.orderId}</p>
+          {dispute.canRefund ? (
+            <button
+              type="button"
+              onClick={() => onRefund(dispute)}
+              className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Hoàn tiền
+            </button>
+          ) : null}
         </div>
 
         <hr className="border-slate-100" />
@@ -671,6 +771,267 @@ function DetailPanel({ dispute }: { dispute: AdminDisputeItem }) {
 }
 
 /* ─── Form modal ─────────────────────────────────────────────── */
+function RefundModalV2({
+  state, saving, onClose, onSubmit, onChange,
+}: {
+  state: RefundState
+  saving: boolean
+  onClose: () => void
+  onSubmit: () => void
+  onChange: (patch: Partial<RefundState>) => void
+}) {
+  const totalPaid = Number(state.dispute.totalPaid || 0)
+  const missingQuantity = Number(state.missingQuantity || 0)
+  const orderQuantity = Number(state.dispute.orderQuantity || 0)
+  const unitPrice = Number(state.dispute.unitPrice || 0)
+  const shippingFee = Number(state.dispute.shippingFee || 0)
+  const productRefund = Math.round(Math.max(missingQuantity, 0) * Math.max(unitPrice, 0))
+  const shippingRefund = Math.round(Math.max(shippingFee, 0) * 0.1)
+  const isFullRefund = state.refundType === 'FULL'
+  const totalRefund = isFullRefund ? totalPaid : productRefund + shippingRefund
+  const unit = state.dispute.orderItemUnit || 'kg'
+  const disputeReason = 'Thiếu hàng khi giao'
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" onMouseDown={onClose}>
+      <div
+        className="w-full max-w-xl rounded-2xl bg-white shadow-2xl"
+        style={{ animation: 'modalIn 0.22s ease both' }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <div>
+            <h3 className="text-base font-extrabold text-slate-900">Hoàn tiền</h3>
+            <p className="mt-1 text-xs text-slate-400">Refund trực tiếp vào ví Buyer</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100">
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="max-h-[72vh] space-y-4 overflow-y-auto px-5 py-4">
+          <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
+            <DetailField label="Order" value={`#${state.dispute.orderId}`} />
+            <DetailField label="Buyer" value={state.dispute.buyerName} />
+            <DetailField label="Đã thanh toán" value={money(totalPaid)} valueClass="font-bold text-emerald-700" />
+            <DetailField label="Order Status" value={state.dispute.orderStatus || '-'} />
+            <DetailField label="Shipment Status" value={state.dispute.shipmentStatus || '-'} />
+            <DetailField label="Payment Status" value={state.dispute.paymentStatus || '-'} />
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Dispute Reason</p>
+            <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-700">
+              {disputeReason}
+            </span>
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Loại hoàn tiền</p>
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
+              {[
+                { key: 'PARTIAL' as const, label: 'Hoàn một phần' },
+                { key: 'FULL' as const, label: 'Hoàn toàn bộ' },
+              ].map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => onChange({ refundType: option.key })}
+                  className={`rounded-lg px-3 py-2 text-sm font-extrabold transition ${
+                    state.refundType === option.key
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-white'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {isFullRefund ? (
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">
+              Hệ thống sẽ hoàn toàn bộ số tiền đã thanh toán: {money(totalPaid)}.
+            </div>
+          ) : (
+            <label className="block">
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Số lượng thiếu (kg)</span>
+              <input
+                type="number"
+                min={0.01}
+                max={orderQuantity || undefined}
+                step="0.01"
+                value={state.missingQuantity}
+                onChange={(e) => onChange({ missingQuantity: e.target.value })}
+                className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+              />
+              <span className="mt-1 block text-[11px] text-slate-400">
+                Không vượt quá {orderQuantity || 0} {unit}. Refund Amount được hệ thống tự tính.
+              </span>
+            </label>
+          )}
+
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3.5 text-sm">
+            <p className="mb-2 text-xs font-extrabold uppercase tracking-wide text-emerald-700">Chi tiết tính toán</p>
+            <CalcRow label="Sản phẩm" value={state.dispute.product} />
+            <CalcRow label="Đơn giá" value={`${money(unitPrice)} / ${unit}`} />
+            {isFullRefund ? (
+              <CalcRow label="Hoàn toàn bộ đơn" value={money(totalPaid)} />
+            ) : (
+              <>
+                <CalcRow label="Tiền sản phẩm thiếu" value={`${missingQuantity || 0} ${unit} x ${money(unitPrice)} = ${money(productRefund)}`} />
+                <CalcRow label="Hoàn phí vận chuyển" value={`10% x ${money(shippingFee)} = ${money(shippingRefund)}`} />
+              </>
+            )}
+            <div className="mt-2 flex justify-between border-t border-emerald-200 pt-2 text-base font-extrabold text-emerald-800">
+              <span>Tổng hoàn</span>
+              <span>{money(totalRefund)}</span>
+            </div>
+          </div>
+        </div>
+
+        <footer className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
+          <button onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50">
+            Hủy
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+            {saving ? 'Đang hoàn tiền...' : 'Xác nhận hoàn tiền'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  )
+}
+
+function RefundModal({
+  state, saving, onClose, onSubmit, onChange,
+}: {
+  state: RefundState
+  saving: boolean
+  onClose: () => void
+  onSubmit: () => void
+  onChange: (patch: Partial<RefundState>) => void
+}) {
+  const totalPaid = Number(state.dispute.totalPaid || 0)
+  const missingQuantity = Number(state.missingQuantity || 0)
+  const orderQuantity = Number(state.dispute.orderQuantity || 0)
+  const unitPrice = Number(state.dispute.unitPrice || 0)
+  const shippingFee = Number(state.dispute.shippingFee || 0)
+  const productRefund = Math.round(Math.max(missingQuantity, 0) * Math.max(unitPrice, 0))
+  const shippingRefund = Math.round(Math.max(shippingFee, 0) * 0.1)
+  const totalRefund = productRefund + shippingRefund
+  const unit = state.dispute.orderItemUnit || 'kg'
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" onMouseDown={onClose}>
+      <div
+        className="w-full max-w-lg rounded-2xl bg-white shadow-2xl"
+        style={{ animation: 'modalIn 0.22s ease both' }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <div>
+            <h3 className="text-base font-extrabold text-slate-900">Hoàn tiền</h3>
+            <p className="mt-1 text-xs text-slate-400">Refund trực tiếp vào ví Buyer</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100">
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="space-y-4 px-5 py-4">
+          <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
+            <DetailField label="Order" value={`#${state.dispute.orderId}`} />
+            <DetailField label="Buyer" value={state.dispute.buyerName} />
+            <DetailField label="Đã thanh toán" value={money(totalPaid)} valueClass="font-bold text-emerald-700" />
+            <DetailField label="Order status" value={state.dispute.orderStatus || '—'} />
+          </div>
+
+          <label className="block">
+            <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Số tiền hoàn</span>
+            <input
+              type="number"
+              min={0.01}
+              max={orderQuantity || undefined}
+              step="0.01"
+              value={state.missingQuantity}
+              onChange={(e) => onChange({ missingQuantity: e.target.value })}
+              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            />
+            <span className="mt-1 block text-[11px] text-slate-400">Không vượt quá {orderQuantity || 0} {unit}. Tổng đã thanh toán tối đa {money(totalPaid)}.</span>
+          </label>
+
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3.5 text-sm">
+            <p className="mb-2 text-xs font-extrabold uppercase tracking-wide text-emerald-700">Chi tiết tính toán</p>
+            <CalcRow label="Sản phẩm" value={state.dispute.product} />
+            <CalcRow label="Đơn giá" value={`${money(unitPrice)} / ${unit}`} />
+            <CalcRow label={`Tiền sản phẩm thiếu (${missingQuantity || 0} ${unit})`} value={money(productRefund)} />
+            <CalcRow label="Phí vận chuyển" value={money(shippingFee)} />
+            <CalcRow label="Hoàn 10% phí vận chuyển" value={money(shippingRefund)} />
+            <div className="mt-2 flex justify-between border-t border-emerald-200 pt-2 text-base font-extrabold text-emerald-800">
+              <span>Tổng tiền cần hoàn</span>
+              <span>{money(totalRefund)}</span>
+            </div>
+          </div>
+
+          <label className="block">
+            <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Lý do hoàn tiền</span>
+            <textarea
+              value={state.reason}
+              onChange={(e) => onChange({ reason: e.target.value })}
+              rows={4}
+              placeholder="Supplier không giao hàng đúng cam kết"
+              className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            />
+          </label>
+        </div>
+
+        <footer className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
+          <button onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50">
+            Hủy
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+            {saving ? 'Đang hoàn tiền...' : 'Xác nhận hoàn tiền'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  )
+}
+
+function CalcRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3 py-1 text-slate-700">
+      <span>{label}</span>
+      <span className="text-right font-bold text-slate-900">{value}</span>
+    </div>
+  )
+}
+
+void RefundModal
+
 function EvidenceLinks({ title, urls }: { title: string; urls: string[] }) {
   if (urls.length === 0) return null
   return (

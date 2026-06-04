@@ -42,6 +42,7 @@ const iconByKey = {
   branches: Store,
   delivery: Truck,
   debt: Wallet,
+  wallet: Wallet,
   market: LineChart,
 }
 
@@ -50,6 +51,7 @@ const notificationModuleByMenuKey: Partial<Record<BuyerMenuKey, string[]>> = {
   orders: ['ORDER', 'PAYMENT'],
   delivery: ['DELIVERY'],
   debt: ['DEBT', 'PAYMENT'],
+  wallet: ['PAYMENT'],
 }
 
 function moduleCounts(items: AppNotification[]) {
@@ -194,6 +196,13 @@ export function BuyerShell({ activeKey, title, subtitle, actions, filterBar, chi
 
   /* ── Sidebar inner content ── */
   function SidebarContent() {
+    const menuItems = buyerMenuItems.some((item) => item.key === 'wallet')
+      ? buyerMenuItems
+      : [
+          ...buyerMenuItems.slice(0, Math.max(0, buyerMenuItems.findIndex((item) => item.key === 'market'))),
+          { key: 'wallet' as const, label: 'Ví hoàn tiền', path: '/buyer/wallet' },
+          ...buyerMenuItems.slice(Math.max(0, buyerMenuItems.findIndex((item) => item.key === 'market'))),
+        ]
     return (
       <div className="flex h-full flex-col">
         {/* Logo */}
@@ -210,7 +219,7 @@ export function BuyerShell({ activeKey, title, subtitle, actions, filterBar, chi
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-2 py-3">
           <ul className="space-y-1.5">
-            {buyerMenuItems.map((item) => {
+            {menuItems.map((item) => {
               const Icon = iconByKey[item.key]
               const isActive = activeKey === item.key
               const badgeCount = notificationModuleByMenuKey[item.key]?.reduce(

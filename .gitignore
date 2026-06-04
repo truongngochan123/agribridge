@@ -1,1 +1,23 @@
 AGRIBRIDGE-BE/run-be-local.cmd
+
+# dependencies
+node_modules/
+AGRIBRIDGE-FE/node_modules/
+
+# build output
+dist/
+build/
+AGRIBRIDGE-FE/dist/
+
+# local caches
+.m2-temp/
+
+# logs
+*.log
+logs/
+AGRIBRIDGE-BE/logs/
+
+# local env
+.env
+.env.local
+*.env.local

@@ -31,6 +31,7 @@ import { BuyerOrdersPage } from './pages/buyer/BuyerOrdersPage'
 import { BuyerBranchesPage } from './pages/buyer/BuyerBranchesPage'
 import { BuyerDeliveryPage } from './pages/buyer/BuyerDeliveryPage'
 import { BuyerDebtPage } from './pages/buyer/BuyerDebtPage'
+import { BuyerWalletPage } from './pages/buyer/BuyerWalletPage'
 import { BuyerMarketPricePage } from './pages/buyer/BuyerMarketPricePage'
 import { BuyerLotDetailPage } from './pages/buyer/BuyerLotDetailPage'
 import { BuyerProfilePage } from './pages/buyer/BuyerProfilePage'
@@ -93,6 +94,7 @@ function App() {
       <Route path="/buyer/branches" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerBranchesPage /></ProtectedAppRoute>} />
       <Route path="/buyer/delivery" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerDeliveryPage /></ProtectedAppRoute>} />
       <Route path="/buyer/debt" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerDebtPage /></ProtectedAppRoute>} />
+      <Route path="/buyer/wallet" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerWalletPage /></ProtectedAppRoute>} />
       <Route path="/buyer/market-price" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerMarketPricePage /></ProtectedAppRoute>} />
       <Route path="/buyer/lots/:lotId" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerLotDetailPage /></ProtectedAppRoute>} />
       <Route path="/buyer/profile" element={<ProtectedAppRoute allowedCompanyTypes={['buyer']}><BuyerProfilePage /></ProtectedAppRoute>} />

@@ -50,8 +50,8 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
         DateRange previous = new DateRange(current.start().minusDays(current.days()), current.start().minusDays(1), current.days());
 
         OverviewMetrics metrics = queryOverviewMetrics(current, previous);
-        BigDecimal currentGmv = metrics.currentPlatformRevenue();
-        BigDecimal previousGmv = metrics.previousPlatformRevenue();
+        BigDecimal currentPlatformRevenue = metrics.currentPlatformRevenue();
+        BigDecimal previousPlatformRevenue = metrics.previousPlatformRevenue();
         long currentOrders = metrics.currentOrders();
         long previousOrders = metrics.previousOrders();
         long currentNewUsers = metrics.currentNewUsers();
@@ -68,10 +68,12 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
 
         AdminOverviewResponseDto response = AdminOverviewResponseDto.builder()
                 .kpis(List.of(
-                        buildStat("Doanh thu n\u1ec1n t\u1ea3ng", formatCompactCurrency(currentGmv), buildChangeText(currentGmv, previousGmv, current.days()), tone(currentGmv, previousGmv), "emerald"),
-                        buildStat("T\u1ed5ng \u0111\u01a1n h\u00e0ng", formatWholeNumber(currentOrders), buildChangeText(currentOrders, previousOrders, current.days()), tone(currentOrders, previousOrders), "blue"),
-                        buildStat("Ng\u01b0\u1eddi d\u00f9ng m\u1edbi", formatWholeNumber(currentNewUsers), buildChangeText(currentNewUsers, previousNewUsers, current.days()), tone(currentNewUsers, previousNewUsers), "violet"),
-                        buildStat("T\u1ef7 l\u1ec7 tranh ch\u1ea5p", formatPercent(currentDisputeRate), buildChangeText(currentDisputeRate, previousDisputeRate, current.days()), tone(currentDisputeRate, previousDisputeRate), "amber")))
+                        buildStat("T\u1ed5ng ng\u01b0\u1eddi d\u00f9ng", formatWholeNumber(metrics.totalUsers()), buildChangeText(currentNewUsers, previousNewUsers, current.days()), tone(currentNewUsers, previousNewUsers), "violet"),
+                        buildStat("T\u1ed5ng nh\u00e0 cung c\u1ea5p", formatWholeNumber(metrics.totalSuppliers()), "H\u1ed3 s\u01a1 \u0111\u00e3 \u0111\u01b0\u1ee3c duy\u1ec7t", "up", "emerald"),
+                        buildStat("T\u1ed5ng nh\u00e0 bu\u00f4n", formatWholeNumber(metrics.totalBuyers()), "H\u1ed3 s\u01a1 \u0111\u00e3 \u0111\u01b0\u1ee3c duy\u1ec7t", "up", "blue"),
+                        buildStat("H\u1ed3 s\u01a1 ch\u1edd duy\u1ec7t", formatWholeNumber(metrics.pendingProfiles()), "Bao g\u1ed3m PENDING/PENDING_REVIEW/DRAFT", metrics.pendingProfiles() == 0 ? "up" : "down", "amber"),
+                        buildStat("T\u1ed5ng \u0111\u01a1n h\u00e0ng", formatWholeNumber(metrics.totalOrders()), buildChangeText(currentOrders, previousOrders, current.days()), tone(currentOrders, previousOrders), "blue"),
+                        buildStat("Doanh thu n\u1ec1n t\u1ea3ng", formatCompactCurrency(currentPlatformRevenue), buildChangeText(currentPlatformRevenue, previousPlatformRevenue, current.days()), tone(currentPlatformRevenue, previousPlatformRevenue), "emerald")))
                 .gmvSeries(buildGmvSeries(current))
                 .risks(List.of(
                         AdminOverviewResponseDto.AdminRiskMetricDto.builder().key("outstandingDebt").label("T\u1ed5ng c\u00f4ng n\u1ee3 ch\u01b0a thanh to\u00e1n").value(formatCompactCurrency(outstandingDebt)).hint("T\u1ed5ng gi\u00e1 tr\u1ecb invoice ch\u01b0a x\u1eed l\u00fd xong").critical(outstandingDebt.compareTo(BigDecimal.ZERO) > 0).build(),
@@ -216,8 +218,13 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
         Timestamp previousEnd = Timestamp.valueOf(previous.endExclusive().atStartOfDay());
         Map<String, Object> row = jdbcTemplate.queryForMap("""
                 SELECT
-                    (SELECT COALESCE(SUM(fee_amount), 0) FROM withdrawal_requests WHERE status IN ('PENDING', 'APPROVED', 'PAID') AND requested_at >= ? AND requested_at < ?) AS current_platform_revenue,
-                    (SELECT COALESCE(SUM(fee_amount), 0) FROM withdrawal_requests WHERE status IN ('PENDING', 'APPROVED', 'PAID') AND requested_at >= ? AND requested_at < ?) AS previous_platform_revenue,
+                    (SELECT COALESCE(SUM(fee_amount), 0) FROM withdrawal_requests WHERE status = 'PAID' AND paid_at >= ? AND paid_at < ?) AS current_platform_revenue,
+                    (SELECT COALESCE(SUM(fee_amount), 0) FROM withdrawal_requests WHERE status = 'PAID' AND paid_at >= ? AND paid_at < ?) AS previous_platform_revenue,
+                    (SELECT COUNT(1) FROM users) AS total_users,
+                    (SELECT COUNT(1) FROM companies WHERE company_type = 'SUPPLIER' AND verification_status IN ('APPROVED', 'AUTO_APPROVED', 'MANUAL_APPROVED')) AS total_suppliers,
+                    (SELECT COUNT(1) FROM companies WHERE company_type = 'BUYER' AND verification_status IN ('APPROVED', 'AUTO_APPROVED', 'MANUAL_APPROVED')) AS total_buyers,
+                    (SELECT COUNT(1) FROM companies WHERE COALESCE(verification_status, 'PENDING') IN ('PENDING', 'PENDING_REVIEW', 'DRAFT')) AS pending_profiles,
+                    (SELECT COUNT(1) FROM orders) AS total_orders,
                     (SELECT COUNT(1) FROM orders WHERE created_at >= ? AND created_at < ?) AS current_orders,
                     (SELECT COUNT(1) FROM orders WHERE created_at >= ? AND created_at < ?) AS previous_orders,
                     (SELECT COUNT(1) FROM users WHERE created_at >= ? AND created_at < ?) AS current_new_users,
@@ -242,6 +249,11 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
         return new OverviewMetrics(
                 mapBigDecimal(row, "current_platform_revenue"),
                 mapBigDecimal(row, "previous_platform_revenue"),
+                mapLong(row, "total_users"),
+                mapLong(row, "total_suppliers"),
+                mapLong(row, "total_buyers"),
+                mapLong(row, "pending_profiles"),
+                mapLong(row, "total_orders"),
                 mapLong(row, "current_orders"),
                 mapLong(row, "previous_orders"),
                 mapLong(row, "current_new_users"),
@@ -297,20 +309,18 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
 
     private List<AdminOverviewResponseDto.AdminQuickStatDto> resolveQuickStats() {
         List<AdminQuickStatEntity> customStats = quickStatRepository.findAllByOrderBySortOrderAscIdAsc();
-        if (!customStats.isEmpty()) {
-            return customStats.stream().map(this::mapQuickStat).toList();
-        }
-
-        long suppliers = queryLong("SELECT COUNT(1) FROM companies WHERE company_type = ? AND verification_status = ?", "SUPPLIER", "APPROVED");
-        long buyers = queryLong("SELECT COUNT(1) FROM companies WHERE company_type = ? AND verification_status = ?", "BUYER", "APPROVED");
+        long suppliers = queryLong("SELECT COUNT(1) FROM companies WHERE company_type = ? AND verification_status IN ('APPROVED', 'AUTO_APPROVED', 'MANUAL_APPROVED')", "SUPPLIER");
+        long buyers = queryLong("SELECT COUNT(1) FROM companies WHERE company_type = ? AND verification_status IN ('APPROVED', 'AUTO_APPROVED', 'MANUAL_APPROVED')", "BUYER");
         long lots = queryLong("SELECT COUNT(1) FROM batches");
         long pending = queryLong("SELECT COUNT(1) FROM complaints WHERE status IN (?, ?)", "OPEN", "INVESTIGATING");
 
-        return List.of(
+        List<AdminOverviewResponseDto.AdminQuickStatDto> stats = new ArrayList<>(List.of(
                 AdminOverviewResponseDto.AdminQuickStatDto.builder().id(null).label("Nh\u00e0 cung c\u1ea5p").subLabel("\u0110\u00e3 \u0111\u01b0\u1ee3c duy\u1ec7t").value(formatWholeNumber(suppliers)).color("emerald").build(),
                 AdminOverviewResponseDto.AdminQuickStatDto.builder().id(null).label("Nh\u00e0 bu\u00f4n").subLabel("\u0110\u00e3 \u0111\u01b0\u1ee3c duy\u1ec7t").value(formatWholeNumber(buyers)).color("blue").build(),
                 AdminOverviewResponseDto.AdminQuickStatDto.builder().id(null).label("L\u00f4 h\u00e0ng").subLabel("Trong h\u1ec7 th\u1ed1ng").value(formatWholeNumber(lots)).color("violet").build(),
-                AdminOverviewResponseDto.AdminQuickStatDto.builder().id(null).label("Ch\u1edd x\u1eed l\u00fd").subLabel("Tranh ch\u1ea5p \u0111ang m\u1edf").value(formatWholeNumber(pending)).color("amber").build());
+                AdminOverviewResponseDto.AdminQuickStatDto.builder().id(null).label("Ch\u1edd x\u1eed l\u00fd").subLabel("Tranh ch\u1ea5p \u0111ang m\u1edf").value(formatWholeNumber(pending)).color("amber").build()));
+        stats.addAll(customStats.stream().map(this::mapQuickStat).toList());
+        return stats;
     }
 
     private AdminOverviewResponseDto.AdminActivityDto mapActivity(AdminOverviewActivityEntity entity) {
@@ -360,7 +370,7 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
 
     private String buildChangeText(BigDecimal current, BigDecimal previous, long days) {
         double ratio = previous.compareTo(BigDecimal.ZERO) == 0
-                ? 100.0
+                ? (current.compareTo(BigDecimal.ZERO) == 0 ? 0.0 : 100.0)
                 : current.subtract(previous)
                         .divide(previous.abs().compareTo(BigDecimal.ZERO) == 0 ? BigDecimal.ONE : previous.abs(), 4, RoundingMode.HALF_UP)
                         .multiply(BigDecimal.valueOf(100))
@@ -369,7 +379,7 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
     }
 
     private String buildChangeText(long current, long previous, long days) {
-        double ratio = previous == 0 ? 100.0 : ((double) (current - previous) / Math.abs(previous)) * 100.0;
+        double ratio = previous == 0 ? (current == 0 ? 0.0 : 100.0) : ((double) (current - previous) / Math.abs(previous)) * 100.0;
         return formatSignedPercent(ratio) + " so v\u1edbi " + days + " ng\u00e0y tr\u01b0\u1edbc";
     }
 
@@ -459,6 +469,11 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
     private record OverviewMetrics(
             BigDecimal currentPlatformRevenue,
             BigDecimal previousPlatformRevenue,
+            long totalUsers,
+            long totalSuppliers,
+            long totalBuyers,
+            long pendingProfiles,
+            long totalOrders,
             long currentOrders,
             long previousOrders,
             long currentNewUsers,

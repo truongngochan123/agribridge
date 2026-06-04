@@ -1,4 +1,4 @@
 #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
-#Wed Apr 15 20:53:11 GMT+07:00 2026
-@default-central-https\://repo.maven.apache.org/maven2/.lastUpdated=1776261191046
-https\://repo.maven.apache.org/maven2/.error=Could not transfer artifact org.apache.maven.plugins\:maven-dependency-plugin\:pom\:3.8.1 from/to central (https\://repo.maven.apache.org/maven2)\: d\:\\AGRIBRIDGE\\.m2-temp\\org\\apache\\maven\\plugins\\maven-dependency-plugin\\3.8.1\\maven-dependency-plugin-3.8.1.pom.594701689152331968.tmp.2595922664377646939.tmp
+#Thu Jun 04 14:00:56 GMT+07:00 2026
+@default-central-https\://repo.maven.apache.org/maven2/.lastUpdated=1780556456312
+https\://repo.maven.apache.org/maven2/.error=Could not transfer artifact org.apache.maven.plugins\:maven-dependency-plugin\:pom\:3.8.1 from/to central (https\://repo.maven.apache.org/maven2)\: d\:\\AGRIBRIDGE\\.m2-temp\\org\\apache\\maven\\plugins\\maven-dependency-plugin\\3.8.1\\maven-dependency-plugin-3.8.1.pom.17576834806391780510.tmp.17414694540365350128.tmp

@@ -9,9 +9,12 @@ import com.agribridge.backend.entity.RfqEntity;
 import com.agribridge.backend.entity.ShipmentEntity;
 import com.agribridge.backend.entity.ShipmentIncidentEntity;
 import com.agribridge.backend.entity.UserEntity;
+import com.agribridge.backend.entity.CompanyEntity;
+import com.agribridge.backend.entity.enums.CompanyTypeEnum;
 import com.agribridge.backend.entity.enums.NotificationTypeEnum;
 import com.agribridge.backend.entity.enums.RfqTypeEnum;
 import com.agribridge.backend.entity.enums.UserRoleEnum;
+import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.repository.NotificationRepository;
 import com.agribridge.backend.repository.ProductRepository;
 import com.agribridge.backend.repository.UserRepository;
@@ -31,11 +34,15 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class NotificationCenterServiceImpl implements NotificationCenterService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -43,6 +50,7 @@ public class NotificationCenterServiceImpl implements NotificationCenterService 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
+    private final CompanyRepository companyRepository;
     private final ObjectMapper objectMapper;
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -91,6 +99,38 @@ public class NotificationCenterServiceImpl implements NotificationCenterService 
                 .or(() -> userRepository.findFirstByCompanyIdOrderByCreatedAtAsc(companyId))
                 .map(owner -> save(owner, companyId, type, title, body, module, actionUrl, entityType, entityId, actionRequired, metadata))
                 .orElse(null);
+    }
+
+    @Override
+    public void notifyAdmins(
+            String title,
+            String body,
+            String module,
+            String actionUrl,
+            String entityType,
+            Long entityId,
+            boolean actionRequired,
+            Map<String, Object> metadata) {
+        Map<String, Object> adminMetadata = new LinkedHashMap<>();
+        adminMetadata.put("role", "admin");
+        if (metadata != null) {
+            adminMetadata.putAll(metadata);
+        }
+        userRepository.findActiveAdminUsers().forEach(admin -> {
+            NotificationEntity notification = save(
+                    admin,
+                    admin.getCompanyId(),
+                    NotificationTypeEnum.SYSTEM,
+                    title,
+                    body,
+                    module,
+                    actionUrl,
+                    entityType,
+                    entityId,
+                    actionRequired,
+                    adminMetadata);
+            pushRealtime(notification);
+        });
     }
 
     @Override
@@ -286,6 +326,8 @@ public class NotificationCenterServiceImpl implements NotificationCenterService 
     public void notifySuppliersNewRfq(RfqEntity rfq, String buyerName) {
         if (rfq == null) return;
         Set<Long> supplierIds = eligibleSupplierIds(rfq);
+        log.debug("RFQ supplier notification targets resolved rfqId={} type={} supplierCount={} supplierIds={}",
+                rfq.getId(), rfq.getType(), supplierIds.size(), supplierIds);
         for (Long supplierId : supplierIds) {
             notifyCompanyOwner(
                     supplierId,
@@ -451,7 +493,7 @@ public class NotificationCenterServiceImpl implements NotificationCenterService 
         fullMetadata.put("actionRequired", actionRequired);
         fullMetadata.put("type", type.name());
 
-        return notificationRepository.save(NotificationEntity.builder()
+        NotificationEntity notification = notificationRepository.save(NotificationEntity.builder()
                 .userId(owner.getId())
                 .companyId(companyId)
                 .type(type)
@@ -463,11 +505,29 @@ public class NotificationCenterServiceImpl implements NotificationCenterService 
                 .isRead(Boolean.FALSE)
                 .createdAt(LocalDateTime.now())
                 .build());
+        log.debug("Notification saved id={} type={} companyId={} userId={} module={} entityType={} entityId={}",
+                notification.getId(), type, companyId, owner.getId(), module, entityType, entityId);
+        return notification;
     }
 
     @Override
     public void pushRealtime(NotificationEntity notification) {
         if (notification == null) return;
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sendRealtimeNow(notification);
+                }
+            });
+            log.debug("Websocket message scheduled after commit notificationId={} companyId={} userId={}",
+                    notification.getId(), notification.getCompanyId(), notification.getUserId());
+            return;
+        }
+        sendRealtimeNow(notification);
+    }
+
+    private void sendRealtimeNow(NotificationEntity notification) {
         Map<String, Object> metadata = parseMetadata(notification.getMetadata());
         String module = stringValue(metadata.get("module"), inferModule(notification));
         String actionUrl = stringValue(metadata.get("actionUrl"), stringValue(metadata.get("route"), null));
@@ -487,8 +547,12 @@ public class NotificationCenterServiceImpl implements NotificationCenterService 
         payload.put("actionRequired", actionRequired);
         payload.put("isRead", notification.getIsRead());
         payload.put("createdAt", notification.getCreatedAt());
-        messagingTemplate.convertAndSend("/topic/notifications.company." + notification.getCompanyId(), payload);
-        messagingTemplate.convertAndSend("/topic/notifications.user." + notification.getUserId(), payload);
+        String companyDestination = "/topic/notifications.company." + notification.getCompanyId();
+        String userDestination = "/topic/notifications.user." + notification.getUserId();
+        messagingTemplate.convertAndSend(companyDestination, payload);
+        messagingTemplate.convertAndSend(userDestination, payload);
+        log.debug("Websocket message sent notificationId={} companyDestination={} userDestination={} module={} type={}",
+                notification.getId(), companyDestination, userDestination, module, notification.getType());
     }
 
     private Map<String, Object> parseMetadata(String metadata) {
@@ -507,17 +571,36 @@ public class NotificationCenterServiceImpl implements NotificationCenterService 
         }
         String province = normalize(rfq.getProvince());
         String productName = normalize(firstText(rfq.getProductName(), rfq.getTitle()));
-        return productRepository.findAll().stream()
+        Set<Long> supplierIds = productRepository.findAll().stream()
                 .filter(product -> !Objects.equals(product.getSupplierCompanyId(), rfq.getBuyerCompanyId()))
-                .filter(product -> rfq.getProductId() == null || Objects.equals(product.getId(), rfq.getProductId()))
-                .filter(product -> rfq.getCategoryId() == null || Objects.equals(product.getCategoryId(), rfq.getCategoryId()))
-                .filter(product -> province == null || province.equals(normalize(product.getOriginProvince())))
-                .filter(product -> productName == null || normalize(product.getName()) == null
-                        || normalize(product.getName()).contains(productName)
-                        || productName.contains(normalize(product.getName())))
+                .filter(product -> productMatchesRfqNotification(product, rfq, province, productName))
                 .map(ProductEntity::getSupplierCompanyId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+
+        if (province != null) {
+            companyRepository.findAll().stream()
+                    .filter(company -> CompanyTypeEnum.SUPPLIER.equals(company.getCompanyType()))
+                    .filter(company -> !Objects.equals(company.getId(), rfq.getBuyerCompanyId()))
+                    .filter(company -> province.equals(normalize(company.getProvince())))
+                    .map(CompanyEntity::getId)
+                    .filter(Objects::nonNull)
+                    .forEach(supplierIds::add);
+        }
+
+        return supplierIds;
+    }
+
+    private boolean productMatchesRfqNotification(ProductEntity product, RfqEntity rfq, String province, String productName) {
+        if (product == null || rfq == null) return false;
+        if (rfq.getProductId() != null && Objects.equals(product.getId(), rfq.getProductId())) return true;
+        if (rfq.getCategoryId() != null && Objects.equals(product.getCategoryId(), rfq.getCategoryId())) return true;
+        String supplierProductName = normalize(product.getName());
+        if (productName != null && supplierProductName != null
+                && (supplierProductName.contains(productName) || productName.contains(supplierProductName))) {
+            return true;
+        }
+        return province != null && province.equals(normalize(product.getOriginProvince()));
     }
 
     private Map<String, Object> orderMeta(OrderEntity order, String role, Map<String, Object> extra) {

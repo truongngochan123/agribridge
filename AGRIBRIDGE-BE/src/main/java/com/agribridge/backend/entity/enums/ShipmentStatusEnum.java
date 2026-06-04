@@ -14,6 +14,7 @@ public enum ShipmentStatusEnum {
     SHIPPING,
     DELIVERED,
     INCIDENT,
+    WAITING_REPLACEMENT,
     FAILED,
     FAILED_DELIVERY
 }

@@ -3,6 +3,7 @@ package com.agribridge.backend.controller;
 import com.agribridge.backend.dto.AdminRegistrationDecisionRequestDto;
 import com.agribridge.backend.dto.AdminRegistrationProfileDto;
 import com.agribridge.backend.entity.enums.VerificationStatusEnum;
+import com.agribridge.backend.service.AdminAuthorizationService;
 import com.agribridge.backend.service.AdminRegistrationService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -21,11 +22,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminRegistrationController {
 
     private final AdminRegistrationService adminRegistrationService;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     @GetMapping
     public List<AdminRegistrationProfileDto> getRegistrations(
             @RequestParam(required = false) VerificationStatusEnum status,
             @RequestParam(required = false) String search) {
+        adminAuthorizationService.requireAdmin();
         return adminRegistrationService.getRegistrations(status, search);
     }
 
@@ -33,6 +36,7 @@ public class AdminRegistrationController {
     public AdminRegistrationProfileDto approveRegistration(
             @PathVariable Long companyId,
             @Valid @RequestBody AdminRegistrationDecisionRequestDto request) {
+        adminAuthorizationService.requireAdmin();
         return adminRegistrationService.approveRegistration(
                 companyId,
                 request.getAdminUserId(),
@@ -44,6 +48,7 @@ public class AdminRegistrationController {
     public AdminRegistrationProfileDto requestMoreInfo(
             @PathVariable Long companyId,
             @Valid @RequestBody AdminRegistrationDecisionRequestDto request) {
+        adminAuthorizationService.requireAdmin();
         return adminRegistrationService.requestMoreInfo(
                 companyId,
                 request.getAdminUserId(),
@@ -57,6 +62,7 @@ public class AdminRegistrationController {
     public AdminRegistrationProfileDto rejectRegistration(
             @PathVariable Long companyId,
             @Valid @RequestBody AdminRegistrationDecisionRequestDto request) {
+        adminAuthorizationService.requireAdmin();
         return adminRegistrationService.rejectRegistration(
                 companyId,
                 request.getAdminUserId(),
@@ -70,6 +76,7 @@ public class AdminRegistrationController {
     public AdminRegistrationProfileDto reopenRegistration(
             @PathVariable Long companyId,
             @Valid @RequestBody AdminRegistrationDecisionRequestDto request) {
+        adminAuthorizationService.requireAdmin();
         return adminRegistrationService.reopenRegistration(
                 companyId,
                 request.getAdminUserId(),

@@ -38,8 +38,9 @@ import type {
 /* ─── types / consts ────────────────────────────────────────── */
 type ActionMode = 'need-more-info' | 'reject' | null
 type ActionFormState = { reasonCodes: string[]; note: string; sendEmail: boolean; sendNotification: boolean }
+type RegistrationTabKey = 'PENDING' | 'NEED_MORE_INFO' | 'REJECTED' | 'APPROVED'
 
-const registrationTabs: Array<{ key: AdminRegistrationStatus; label: string }> = [
+const registrationTabs: Array<{ key: RegistrationTabKey; label: string }> = [
   { key: 'PENDING',        label: 'Chờ duyệt'       },
   { key: 'NEED_MORE_INFO', label: 'Yêu cầu bổ sung' },
   { key: 'REJECTED',       label: 'Đã từ chối'       },
@@ -70,9 +71,14 @@ const statusConfig: Record<AdminRegistrationStatus, {
   label: string; badge: string; dot: string; cardRing: string; strip: string
 }> = {
   PENDING:        { label: 'Chờ duyệt',        badge: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-500',   cardRing: 'ring-amber-300',   strip: 'from-amber-400 to-orange-400'  },
+  PENDING_REVIEW: { label: 'Chờ duyệt',        badge: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-500',   cardRing: 'ring-amber-300',   strip: 'from-amber-400 to-orange-400'  },
+  DRAFT:          { label: 'Nháp',             badge: 'bg-slate-100 text-slate-700',   dot: 'bg-slate-500',   cardRing: 'ring-slate-300',   strip: 'from-slate-400 to-slate-500'   },
   NEED_MORE_INFO: { label: 'Yêu cầu bổ sung',  badge: 'bg-sky-100 text-sky-700',       dot: 'bg-sky-500',     cardRing: 'ring-sky-300',     strip: 'from-sky-400 to-blue-500'      },
+  NEEDS_MORE_INFO:{ label: 'Yêu cầu bổ sung',  badge: 'bg-sky-100 text-sky-700',       dot: 'bg-sky-500',     cardRing: 'ring-sky-300',     strip: 'from-sky-400 to-blue-500'      },
   REJECTED:       { label: 'Đã từ chối',        badge: 'bg-red-100 text-red-700',       dot: 'bg-red-500',     cardRing: 'ring-red-300',     strip: 'from-red-400 to-rose-500'      },
   APPROVED:       { label: 'Đã duyệt',          badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500', cardRing: 'ring-emerald-300', strip: 'from-emerald-400 to-teal-500' },
+  AUTO_APPROVED:  { label: 'Tự động duyệt',     badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500', cardRing: 'ring-emerald-300', strip: 'from-emerald-400 to-teal-500' },
+  MANUAL_APPROVED:{ label: 'Admin duyệt',       badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500', cardRing: 'ring-emerald-300', strip: 'from-emerald-400 to-teal-500' },
 }
 
 const companyTypeLabel: Record<string, string> = { supplier: 'Nhà cung cấp', buyer: 'Nhà buôn' }
@@ -91,6 +97,13 @@ function getAdminUserId(): number | undefined {
   if (!raw) return undefined
   const v = Number(raw)
   return Number.isFinite(v) && v > 0 ? v : undefined
+}
+
+function statusInGroup(status: AdminRegistrationStatus, group: AdminRegistrationStatus): boolean {
+  if (group === 'PENDING') return status === 'PENDING' || status === 'PENDING_REVIEW' || status === 'DRAFT'
+  if (group === 'NEED_MORE_INFO') return status === 'NEED_MORE_INFO' || status === 'NEEDS_MORE_INFO'
+  if (group === 'APPROVED') return status === 'APPROVED' || status === 'AUTO_APPROVED' || status === 'MANUAL_APPROVED'
+  return status === group
 }
 
 function buildPreviewMessage(mode: ActionMode, sel: AdminRegistrationProfile | null, form: ActionFormState) {
@@ -185,11 +198,11 @@ export function AdminRegistrationsPage() {
 
   function syncAfterMutation(updated: AdminRegistrationProfile) {
     setProfiles((cur) => {
-      if (updated.verificationStatus !== activeStatus) return cur.filter((p) => p.companyId !== updated.companyId)
+      if (!statusInGroup(updated.verificationStatus, activeStatus)) return cur.filter((p) => p.companyId !== updated.companyId)
       const exists = cur.some((p) => p.companyId === updated.companyId)
       return exists ? cur.map((p) => (p.companyId === updated.companyId ? updated : p)) : [updated, ...cur]
     })
-    setSelectedId(updated.verificationStatus === activeStatus ? updated.companyId : null)
+    setSelectedId(statusInGroup(updated.verificationStatus, activeStatus) ? updated.companyId : null)
   }
 
   async function handleApprove(profile: AdminRegistrationProfile) {
@@ -243,18 +256,18 @@ export function AdminRegistrationsPage() {
   }
 
   /* counts per tab */
-  const tabCounts: Record<AdminRegistrationStatus, number> = useMemo(() => ({
-    PENDING:        profiles.filter((p) => p.verificationStatus === 'PENDING').length,
-    NEED_MORE_INFO: profiles.filter((p) => p.verificationStatus === 'NEED_MORE_INFO').length,
+  const tabCounts: Record<RegistrationTabKey, number> = useMemo(() => ({
+    PENDING:        profiles.filter((p) => statusInGroup(p.verificationStatus, 'PENDING')).length,
+    NEED_MORE_INFO: profiles.filter((p) => statusInGroup(p.verificationStatus, 'NEED_MORE_INFO')).length,
     REJECTED:       profiles.filter((p) => p.verificationStatus === 'REJECTED').length,
-    APPROVED:       profiles.filter((p) => p.verificationStatus === 'APPROVED').length,
+    APPROVED:       profiles.filter((p) => statusInGroup(p.verificationStatus, 'APPROVED')).length,
   }), [profiles])
 
   const statCards = [
-    { label: 'Chờ duyệt',        gradient: 'from-amber-500 to-orange-500', icon: <Hourglass className="h-5 w-5 text-white" />,     key: 'PENDING'        as AdminRegistrationStatus },
-    { label: 'Cần bổ sung',      gradient: 'from-sky-500 to-blue-600',     icon: <Info className="h-5 w-5 text-white" />,           key: 'NEED_MORE_INFO' as AdminRegistrationStatus },
-    { label: 'Đã duyệt',         gradient: 'from-emerald-500 to-teal-600', icon: <CheckCircle2 className="h-5 w-5 text-white" />,   key: 'APPROVED'       as AdminRegistrationStatus },
-    { label: 'Đã từ chối',       gradient: 'from-red-500 to-rose-600',     icon: <ShieldOff className="h-5 w-5 text-white" />,      key: 'REJECTED'       as AdminRegistrationStatus },
+    { label: 'Chờ duyệt',        gradient: 'from-amber-500 to-orange-500', icon: <Hourglass className="h-5 w-5 text-white" />,     key: 'PENDING'        as RegistrationTabKey },
+    { label: 'Cần bổ sung',      gradient: 'from-sky-500 to-blue-600',     icon: <Info className="h-5 w-5 text-white" />,           key: 'NEED_MORE_INFO' as RegistrationTabKey },
+    { label: 'Đã duyệt',         gradient: 'from-emerald-500 to-teal-600', icon: <CheckCircle2 className="h-5 w-5 text-white" />,   key: 'APPROVED'       as RegistrationTabKey },
+    { label: 'Đã từ chối',       gradient: 'from-red-500 to-rose-600',     icon: <ShieldOff className="h-5 w-5 text-white" />,      key: 'REJECTED'       as RegistrationTabKey },
   ]
 
   const reasonOptions = actionMode === 'reject' ? rejectionReasons : needMoreInfoReasons
@@ -488,6 +501,8 @@ export function AdminRegistrationsPage() {
                       <InfoRow label="Ngày đăng ký"     value={selected.createdAt || 'N/A'} />
                       <InfoRow label="Người xử lý"      value={selected.lastProcessedByName || 'Chưa có'} />
                       <InfoRow label="Thời gian xử lý"  value={selected.lastProcessedAt || 'Chưa có'} />
+                      {typeof selected.verificationScore === 'number' && <InfoRow label="Điểm xác minh" value={`${selected.verificationScore}/100`} />}
+                      {selected.verificationReason && <InfoRow label="Lý do scoring" value={selected.verificationReason} />}
                       {selected.verificationNote && <InfoRow label="Ghi chú" value={selected.verificationNote} />}
                     </InfoCard>
                   </div>
@@ -586,7 +601,7 @@ export function AdminRegistrationsPage() {
 
                   {/* Action bar */}
                   <div className="flex flex-wrap justify-end gap-2.5 rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4">
-                    {(selected.verificationStatus === 'PENDING' || selected.verificationStatus === 'NEED_MORE_INFO') && (
+                    {(statusInGroup(selected.verificationStatus, 'PENDING') || statusInGroup(selected.verificationStatus, 'NEED_MORE_INFO')) && (
                       <>
                         <ActionBtn
                           icon={Check}
@@ -603,7 +618,7 @@ export function AdminRegistrationsPage() {
                           onClick={() => openActionModal('need-more-info')}
                           disabled={actionLoading !== null}
                         >
-                          {selected.verificationStatus === 'NEED_MORE_INFO' ? 'Cập nhật yêu cầu' : 'Yêu cầu bổ sung'}
+                          {statusInGroup(selected.verificationStatus, 'NEED_MORE_INFO') ? 'Cập nhật yêu cầu' : 'Yêu cầu bổ sung'}
                         </ActionBtn>
                         <ActionBtn
                           icon={X}
@@ -634,7 +649,7 @@ export function AdminRegistrationsPage() {
                       </>
                     )}
 
-                    {selected.verificationStatus === 'APPROVED' && (
+                    {statusInGroup(selected.verificationStatus, 'APPROVED') && (
                       <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs text-emerald-700">
                         <CheckCircle2 className="h-4 w-4 shrink-0" />
                         Hồ sơ đã được phê duyệt thành công.

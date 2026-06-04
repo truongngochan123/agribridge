@@ -61,6 +61,8 @@ export type BuyerQuickOrderPaymentSummary = {
 
 export type BuyerQuickOrderPayload = {
   buyerCompanyId?: number | null
+  rfqId?: number | null
+  quoteId?: number | null
   supplierId?: number | null
   productId: number
   batchId?: number | null

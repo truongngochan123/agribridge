@@ -36,6 +36,15 @@ public class ShipmentEntity {
     @Column(name = "order_id", nullable = false)
     private Long orderId;
 
+    @Column(name = "parent_shipment_id")
+    private Long parentShipmentId;
+
+    @Column(name = "shipment_type")
+    private String shipmentType;
+
+    @Column(name = "replacement_incident_id")
+    private Long replacementIncidentId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", insertable = false, updatable = false)
     private OrderEntity order;

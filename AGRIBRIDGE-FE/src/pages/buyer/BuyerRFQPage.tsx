@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, MessageCircle, X } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BuyerPanel, SearchInput } from '../../components/buyer/BuyerCommon'
+import { BuyerOrderPaymentModal } from '../../components/buyer/BuyerOrderPaymentModal'
+import { BuyerQuickOrderModal } from '../../components/buyer/BuyerQuickOrderModal'
 import { BuyerShell } from '../../components/buyer/BuyerShell'
+import type { BuyerPaymentMethod, BuyerQuickOrderPayload, BuyerQuickOrderPaymentSummary, BuyerQuickOrderTarget } from '../../components/buyer/buyerQuickOrderTypes'
 import { RfqChatModal } from '../../components/rfq/RfqChatModal'
+import { useBuyerOrderPayment } from '../../hooks/useBuyerOrderPayment'
 import { useNotificationModuleRefresh } from '../../hooks/useNotificationModuleRefresh'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { useToast } from '../../hooks/useToast'
 import {
   cancelBuyerRfq,
-  convertQuoteToOrder,
   createMarketplaceBuyerRfq,
   getBuyerRfqCompare,
   getBuyerRfqDetail,
@@ -17,6 +21,7 @@ import {
   updateBuyerRfq,
 } from '../../services/buyerRfqApi'
 import { fetchBuyerBranches, type BuyerBranchSummary } from '../../services/buyerBranchService'
+import { createQuickOrder } from '../../services/buyerOrderService'
 import { fetchCategories } from '../../services/supplierService'
 import { readApiErrorMessage } from '../../utils/readApiErrorMessage'
 import { getBranchContextFromSearchParams } from '../../utils/branchContext'
@@ -55,6 +60,31 @@ type BuyerChatTarget = {
   subtitle?: string
 }
 
+type RfqQuickOrderSelection = {
+  rfqId: number
+  quoteId: number
+  target: BuyerQuickOrderTarget
+}
+
+type QuickOrderPaymentModalData = {
+  orderId: number
+  paymentId?: number | null
+  orderCode: string
+  productName: string
+  quantity: number
+  unit?: string | null
+  subtotal?: number | null
+  shippingFee?: number | null
+  totalAmount?: number | null
+  transferContent?: string | null
+  paymentMethod: BuyerPaymentMethod
+  creditTermDays?: number | null
+  supplierName?: string | null
+  creditLimit?: number | null
+  remainingCreditAfterOrder?: number | null
+  orderStatus?: string | null
+}
+
 const emptyForm: RfqFormState = {
   title: '',
   productName: '',
@@ -70,7 +100,10 @@ const emptyForm: RfqFormState = {
 
 export function BuyerRFQPage() {
   usePageTitle('Yêu cầu báo giá')
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { showToast } = useToast()
+  const { confirmPayment, confirming } = useBuyerOrderPayment()
   const [rfqs, setRfqs] = useState<BuyerRfqListItem[]>([])
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState('')
@@ -88,6 +121,8 @@ export function BuyerRFQPage() {
   const [loadingCompare, setLoadingCompare] = useState(false)
   const [selectedQuoteId, setSelectedQuoteId] = useState<number | null>(null)
   const [converting, setConverting] = useState(false)
+  const [quickOrderSelection, setQuickOrderSelection] = useState<RfqQuickOrderSelection | null>(null)
+  const [paymentModalData, setPaymentModalData] = useState<QuickOrderPaymentModalData | null>(null)
 
   const [orders, setOrders] = useState<BuyerRfqOrderItem[]>([])
   const [ordersRfqId, setOrdersRfqId] = useState<number | null>(null)
@@ -353,24 +388,88 @@ export function BuyerRFQPage() {
 
   const handleConvert = async () => {
     if (!compareData || selectedQuoteId == null) return
-    if (!window.confirm('Bạn muốn chuyển báo giá này thành đơn hàng?')) return
+    const selectedQuote = compareData.quotes.find((quote) => quote.id === selectedQuoteId)
+    if (!selectedQuote) return
 
+    const productId = selectedQuote.productId ?? compareData.rfq.productId
+    if (!productId || !selectedQuote.batchId) {
+      setCompareError('Bao gia nay chua co lo hang hop le de dat hang.')
+      return
+    }
+
+    setQuickOrderSelection({
+      rfqId: compareData.rfq.id,
+      quoteId: selectedQuote.id,
+      target: {
+        productId,
+        categoryId: compareData.rfq.categoryId ?? null,
+        productName: compareData.rfq.productName || compareData.rfq.product || 'San pham RFQ',
+        supplierName: selectedQuote.supplierName ?? null,
+        supplierId: selectedQuote.supplierId ?? null,
+        supplierCompanyId: selectedQuote.supplierId ?? null,
+        supplierProvince: selectedQuote.supplierProvince ?? null,
+        originRegion: selectedQuote.supplierProvince ?? null,
+        unit: selectedQuote.unit || compareData.rfq.unit || 'kg',
+        price: selectedQuote.price ?? null,
+        minMoq: selectedQuote.quantity ?? compareData.rfq.quantity ?? 1,
+        availableQuantity: selectedQuote.quantity ?? compareData.rfq.quantity ?? null,
+        batchId: selectedQuote.batchId,
+        batchCode: selectedQuote.batchCode ?? null,
+        grade: selectedQuote.gradeSize ?? null,
+        expiryDate: selectedQuote.expiryDate ?? null,
+        expired: false,
+      },
+    })
+    setCompareData(null)
+    setCompareError(null)
+    setSelectedQuoteId(null)
+  }
+
+  const handleQuickOrderSubmit = async (payload: BuyerQuickOrderPayload, summary?: BuyerQuickOrderPaymentSummary) => {
+    if (!quickOrderSelection) return
     setConverting(true)
+    const currentSelection = quickOrderSelection
     try {
-      const response = await convertQuoteToOrder(compareData.rfq.id, selectedQuoteId, {
-        deliveryAddress: compareData.rfq.deliveryAddress || '',
-        deliveryProvince: compareData.rfq.province || '',
-        note: 'Tạo đơn từ báo giá đã chọn',
-        createInvoice: true,
+      const result = await createQuickOrder({
+        ...payload,
+        rfqId: currentSelection.rfqId,
+        quoteId: currentSelection.quoteId,
+        note: payload.note || `Created from RFQ #${currentSelection.rfqId}`,
       })
-      alert(`Đã chuyển báo giá thành đơn hàng. Mã đơn #${response.orderId}${response.invoiceId ? `, hóa đơn #${response.invoiceId}` : ''}`)
-      setCompareData(null)
-      setSelectedQuoteId(null)
+      showToast(payload.paymentMethod === 'CREDIT' ? 'Da tao don hang cong no.' : 'Tao don hang thanh cong. Vui long hoan tat thanh toan.', 'success')
+      setQuickOrderSelection(null)
+      setPaymentModalData({
+        orderId: result.orderId,
+        paymentId: result.paymentId,
+        orderCode: result.orderCode,
+        productName: currentSelection.target.productName,
+        quantity: payload.quantity,
+        unit: payload.unit,
+        subtotal: payload.subtotal,
+        shippingFee: payload.shippingFee,
+        totalAmount: result.payableAmount ?? result.grandTotal ?? (payload.subtotal ?? 0) + (payload.shippingFee ?? 0),
+        transferContent: result.transferContent ?? null,
+        paymentMethod: payload.paymentMethod,
+        creditTermDays: payload.creditTermDays ?? null,
+        supplierName: summary?.supplierName ?? currentSelection.target.supplierName ?? null,
+        creditLimit: summary?.creditLimit ?? null,
+        remainingCreditAfterOrder: summary?.remainingCreditAfterOrder ?? null,
+        orderStatus: result.orderStatus ?? summary?.orderStatus ?? null,
+      })
       await loadRfqs()
     } catch (error) {
-      setCompareError(formatBuyerRfqError(error, 'Không thể chuyển báo giá thành đơn hàng'))
+      setCompareError(formatBuyerRfqError(error, 'Khong the tao don hang tu bao gia'))
     } finally {
       setConverting(false)
+    }
+  }
+
+  const handleConfirmPayment = async () => {
+    if (!paymentModalData) return
+    const updated = await confirmPayment({ orderId: paymentModalData.orderId, paymentId: paymentModalData.paymentId })
+    if (updated) {
+      setPaymentModalData(null)
+      navigate(`/buyer/orders?orderId=${paymentModalData.orderId}`)
     }
   }
 
@@ -603,6 +702,39 @@ export function BuyerRFQPage() {
             setOrders([])
             setOrdersError(null)
           }}
+        />
+      ) : null}
+
+      {quickOrderSelection ? (
+        <BuyerQuickOrderModal
+          target={quickOrderSelection.target}
+          submitting={converting}
+          onClose={() => setQuickOrderSelection(null)}
+          onSubmit={handleQuickOrderSubmit}
+        />
+      ) : null}
+
+      {paymentModalData ? (
+        <BuyerOrderPaymentModal
+          open={Boolean(paymentModalData)}
+          orderCode={paymentModalData.orderCode}
+          productName={paymentModalData.productName}
+          quantity={paymentModalData.quantity}
+          unit={paymentModalData.unit}
+          subtotal={paymentModalData.subtotal}
+          shippingFee={paymentModalData.shippingFee}
+          totalAmount={paymentModalData.totalAmount}
+          paymentMethod={paymentModalData.paymentMethod}
+          creditTermDays={paymentModalData.creditTermDays}
+          supplierName={paymentModalData.supplierName}
+          creditLimit={paymentModalData.creditLimit}
+          remainingCreditAfterOrder={paymentModalData.remainingCreditAfterOrder}
+          orderStatus={paymentModalData.orderStatus}
+          transferContent={paymentModalData.transferContent}
+          confirming={confirming}
+          onClose={() => setPaymentModalData(null)}
+          onViewOrder={() => navigate(`/buyer/orders?orderId=${paymentModalData.orderId}`)}
+          onConfirmPaid={() => void handleConfirmPayment()}
         />
       ) : null}
 

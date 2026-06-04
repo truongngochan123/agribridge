@@ -134,7 +134,7 @@ public class AutoShipmentProgressScheduler {
             case OUT_FOR_DELIVERY -> 4;
             case WAITING_CONFIRMATION -> 5;
             case DELIVERED -> 6;
-            case INCIDENT, CANCELLED, FAILED, FAILED_DELIVERY -> 99;
+            case WAITING_REPLACEMENT, INCIDENT, CANCELLED, FAILED, FAILED_DELIVERY -> 99;
         };
     }
 

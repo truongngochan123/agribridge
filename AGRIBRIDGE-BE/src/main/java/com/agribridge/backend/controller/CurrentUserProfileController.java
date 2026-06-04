@@ -4,6 +4,7 @@ import com.agribridge.backend.dto.CurrentUserProfileDto;
 import com.agribridge.backend.entity.CompanyEntity;
 import com.agribridge.backend.entity.UserEntity;
 import com.agribridge.backend.entity.enums.CompanyTypeEnum;
+import com.agribridge.backend.entity.enums.UserRoleEnum;
 import com.agribridge.backend.repository.CompanyRepository;
 import com.agribridge.backend.service.CurrentUserService;
 import java.time.format.DateTimeFormatter;
@@ -25,6 +26,34 @@ public class CurrentUserProfileController {
     @GetMapping("/profile")
     public CurrentUserProfileDto profile() {
         UserEntity user = currentUserService.requireCurrentUser();
+        if (UserRoleEnum.ADMIN.equals(user.getRole())) {
+            String fullName = firstText(user.getFullName(), "Quản trị viên");
+            return new CurrentUserProfileDto(
+                    user.getId(),
+                    null,
+                    fullName,
+                    firstText(user.getEmail(), "admin@agribridge.vn"),
+                    firstText(user.getPhone(), "N/A"),
+                    "Quản trị viên",
+                    "ADM-" + String.format("%06d", user.getId()),
+                    "ADMIN",
+                    "Quản trị viên / Admin",
+                    user.getCreatedAt() == null ? "N/A" : user.getCreatedAt().format(DATE_FORMATTER),
+                    "Đang hoạt động",
+                    initials(fullName),
+                    "AgriBridge",
+                    "N/A",
+                    "N/A",
+                    "N/A",
+                    "N/A",
+                    "N/A",
+                    "N/A",
+                    null,
+                    "N/A",
+                    "N/A",
+                    fullName,
+                    "N/A");
+        }
         CompanyEntity company = companyRepository.findById(user.getCompanyId())
                 .orElseThrow(() -> new IllegalArgumentException("COMPANY_NOT_FOUND"));
         String companyType = company.getCompanyType() == null ? null : company.getCompanyType().name();
@@ -49,7 +78,7 @@ public class CurrentUserProfileController {
                 company.getEstablishedYear() == null ? "N/A" : String.valueOf(company.getEstablishedYear()),
                 firstText(company.getWebsite(), "N/A"),
                 firstText(company.getProvince(), "N/A"),
-                "N/A",
+                firstText(company.getDistrict(), "N/A"),
                 company.getWard(),
                 firstText(company.getAddress(), "N/A"),
                 firstText(company.getDescription(), "N/A"),

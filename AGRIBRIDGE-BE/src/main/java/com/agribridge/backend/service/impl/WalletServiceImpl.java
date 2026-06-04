@@ -13,6 +13,7 @@ import com.agribridge.backend.repository.WalletAccountRepository;
 import com.agribridge.backend.repository.WalletLedgerEntryRepository;
 import com.agribridge.backend.repository.WithdrawalRequestRepository;
 import com.agribridge.backend.service.CurrentUserService;
+import com.agribridge.backend.service.NotificationCenterService;
 import com.agribridge.backend.service.WalletService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -38,6 +39,7 @@ public class WalletServiceImpl implements WalletService {
     private final PaymentRepository paymentRepository;
     private final CompanyRepository companyRepository;
     private final CurrentUserService currentUserService;
+    private final NotificationCenterService notificationCenterService;
 
     @Override
     @Transactional
@@ -82,6 +84,8 @@ public class WalletServiceImpl implements WalletService {
     @Transactional(readOnly = true)
     public WalletDtos.WalletSummary getBuyerWalletSummary() {
         Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
+        WalletAccountEntity wallet = walletAccountRepository.findByCompanyId(buyerCompanyId).orElse(null);
+        List<WithdrawalRequestEntity> withdrawals = withdrawalRequestRepository.findBySupplierCompanyIdOrderByRequestedAtDesc(buyerCompanyId);
         List<PaymentEntity> payments = paymentRepository.findByBuyerCompanyIdOrderByPaymentDateDesc(buyerCompanyId);
         BigDecimal held = payments.stream()
                 .filter(payment -> "HELD".equalsIgnoreCase(nullToEmpty(payment.getEscrowStatus())) || "PARTIALLY_HELD".equalsIgnoreCase(nullToEmpty(payment.getEscrowStatus())))
@@ -94,14 +98,14 @@ public class WalletServiceImpl implements WalletService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         return new WalletDtos.WalletSummary(
                 buyerCompanyId,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
+                wallet == null ? BigDecimal.ZERO : positive(wallet.getAvailableBalance()),
+                wallet == null ? BigDecimal.ZERO : positive(wallet.getPendingBalance()),
+                wallet == null ? BigDecimal.ZERO : positive(wallet.getTotalEarned()),
+                wallet == null ? BigDecimal.ZERO : positive(wallet.getTotalWithdrawn()),
                 held,
                 outstanding,
                 payments.stream().map(this::toPayment).toList(),
-                List.of());
+                withdrawals.stream().map(this::toWithdrawal).toList());
     }
 
     @Override
@@ -109,6 +113,15 @@ public class WalletServiceImpl implements WalletService {
     public List<WalletDtos.LedgerItem> getSupplierLedger() {
         Long supplierCompanyId = currentUserService.requireCurrentSupplierCompanyId();
         return walletLedgerEntryRepository.findByCompanyIdOrderByCreatedAtDesc(supplierCompanyId).stream()
+                .map(this::toLedger)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<WalletDtos.LedgerItem> getBuyerLedger() {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
+        return walletLedgerEntryRepository.findByCompanyIdOrderByCreatedAtDesc(buyerCompanyId).stream()
                 .map(this::toLedger)
                 .toList();
     }
@@ -131,6 +144,58 @@ public class WalletServiceImpl implements WalletService {
         walletAccountRepository.save(wallet);
         WithdrawalRequestEntity withdrawal = withdrawalRequestRepository.save(WithdrawalRequestEntity.builder()
                 .supplierCompanyId(supplierCompanyId)
+                .amount(amount)
+                .feeAmount(feeAmount)
+                .payoutAmount(payoutAmount)
+                .bankName(clean(request.bankName()))
+                .bankAccountNumber(clean(request.bankAccountNumber()))
+                .bankAccountName(clean(request.bankAccountName()))
+                .note(clean(request.note()))
+                .status("PENDING")
+                .requestedAt(now)
+                .build());
+        addLedger(wallet, null, null, withdrawal.getId(), "WITHDRAW_REQUESTED", payoutAmount.negate(), "Số tiền thực chuyển đang chờ rút", now);
+        addLedger(wallet, null, null, withdrawal.getId(), "WITHDRAW_FEE", feeAmount.negate(), "Phí rút tiền 1% được ghi nhận cho nền tảng", now);
+        String supplierName = companyRepository.findById(supplierCompanyId)
+                .map(CompanyEntity::getName)
+                .filter(name -> !name.isBlank())
+                .orElse("Nha cung cap");
+        notificationCenterService.notifyAdmins(
+                "Yeu cau rut tien moi",
+                supplierName + " vua tao yeu cau rut tien " + payoutAmount.toPlainString() + " VND.",
+                "WITHDRAWAL",
+                "/admin/withdrawals?withdrawalId=" + withdrawal.getId(),
+                "WITHDRAWAL",
+                withdrawal.getId(),
+                true,
+                Map.of(
+                        "withdrawalId", withdrawal.getId(),
+                        "supplierCompanyId", supplierCompanyId,
+                        "supplierName", supplierName,
+                        "amount", amount,
+                        "payoutAmount", payoutAmount,
+                        "status", withdrawal.getStatus()));
+        return toWithdrawal(withdrawal);
+    }
+
+    @Override
+    @Transactional
+    public WalletDtos.WithdrawalItem createBuyerWithdrawal(WalletDtos.WithdrawalRequest request) {
+        Long buyerCompanyId = currentUserService.requireCurrentBuyerCompanyId();
+        LocalDateTime now = LocalDateTime.now();
+        BigDecimal amount = request == null ? BigDecimal.ZERO : positive(request.amount());
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException("WITHDRAW_AMOUNT_INVALID");
+        BigDecimal feeAmount = calculateWithdrawalFee(amount);
+        BigDecimal payoutAmount = amount.subtract(feeAmount);
+        if (payoutAmount.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException("WITHDRAW_AMOUNT_INVALID");
+        WalletAccountEntity wallet = requireWallet(buyerCompanyId, now);
+        if (positive(wallet.getAvailableBalance()).compareTo(amount) < 0) throw new IllegalArgumentException("INSUFFICIENT_WALLET_BALANCE");
+        wallet.setAvailableBalance(positive(wallet.getAvailableBalance()).subtract(amount));
+        wallet.setPendingBalance(positive(wallet.getPendingBalance()).add(payoutAmount));
+        wallet.setUpdatedAt(now);
+        walletAccountRepository.save(wallet);
+        WithdrawalRequestEntity withdrawal = withdrawalRequestRepository.save(WithdrawalRequestEntity.builder()
+                .supplierCompanyId(buyerCompanyId)
                 .amount(amount)
                 .feeAmount(feeAmount)
                 .payoutAmount(payoutAmount)

@@ -12,11 +12,17 @@ import {
   ShieldCheck,
   Sparkles,
   User,
+  Upload,
+  Save,
+  KeyRound,
 } from 'lucide-react'
 import { AdminShell } from '../../components/admin/AdminShell'
 import { useCurrentUserProfile } from '../../hooks/useCurrentUserProfile'
 import { usePageTitle } from '../../hooks/usePageTitle'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { apiClient } from '../../services/apiClient'
+import { clearCurrentUserProfileCache } from '../../services/currentUserService'
+import { uploadRegistrationFile } from '../../services/uploadService'
 
 /* ── avatar gradient by initials hash ──────────────────────── */
 function avatarGradient(initials: string): string {
@@ -80,12 +86,87 @@ export function AdminProfilePage() {
   usePageTitle('Hồ sơ cá nhân')
   const { profile, loading, reloadProfile } = useCurrentUserProfile()
   const [refreshing, setRefreshing] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [savingPassword, setSavingPassword] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [message, setMessage] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState('')
 
   async function handleRefresh() {
     setRefreshing(true)
     await reloadProfile()
     setRefreshing(false)
+    hydrateEditableFields()
   }
+
+  function hydrateEditableFields() {
+    if (!profile) return
+    setFullName(profile.fullName === 'N/A' ? '' : profile.fullName)
+    setEmail(profile.email === 'N/A' ? '' : profile.email)
+    setPhone(profile.phone === 'N/A' ? '' : profile.phone)
+    setAvatarUrl(profile.userId ? localStorage.getItem(`agribridge.admin.avatar.${profile.userId}`) ?? '' : '')
+  }
+
+  async function handleSaveProfile() {
+    if (!profile?.userId) return
+    setSavingProfile(true)
+    setMessage('')
+    try {
+      await apiClient.put(`/api/users/${profile.userId}/personal-profile`, {
+        fullName: fullName.trim(),
+        email: email.trim() || undefined,
+        phone: phone.trim(),
+      })
+      clearCurrentUserProfileCache()
+      await reloadProfile()
+      setMessage('Đã cập nhật thông tin Admin.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Không cập nhật được hồ sơ.')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  async function handleChangePassword() {
+    if (!profile?.userId) return
+    setSavingPassword(true)
+    setMessage('')
+    try {
+      await apiClient.put(`/api/users/${profile.userId}/password`, { currentPassword, newPassword })
+      setCurrentPassword('')
+      setNewPassword('')
+      setMessage('Đã đổi mật khẩu.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Không đổi được mật khẩu.')
+    } finally {
+      setSavingPassword(false)
+    }
+  }
+
+  async function handleAvatarFile(file?: File | null) {
+    if (!file || !profile?.userId) return
+    setUploadingAvatar(true)
+    setMessage('')
+    try {
+      const uploaded = await uploadRegistrationFile(file)
+      localStorage.setItem(`agribridge.admin.avatar.${profile.userId}`, uploaded.url)
+      setAvatarUrl(uploaded.url)
+      setMessage('Đã upload avatar.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Không upload được avatar.')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
+  useEffect(() => {
+    hydrateEditableFields()
+  }, [profile?.userId])
 
   const isAdmin = (profile?.companyType ?? '').toLowerCase() === 'admin' ||
                   (profile?.companyType ?? '').toLowerCase() === 'system'
@@ -130,11 +211,15 @@ export function AdminProfilePage() {
               {/* Avatar + info */}
               <div className="flex items-center gap-5">
                 <div className="relative shrink-0">
-                  <div
-                    className={`flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br ${avatarGradient(profile.initials)} text-2xl font-extrabold text-white shadow-xl`}
-                  >
-                    {profile.initials}
-                  </div>
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={profile.fullName} className="h-20 w-20 rounded-2xl object-cover shadow-xl" />
+                  ) : (
+                    <div
+                      className={`flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br ${avatarGradient(profile.initials)} text-2xl font-extrabold text-white shadow-xl`}
+                    >
+                      {profile.initials}
+                    </div>
+                  )}
                   {/* Online dot */}
                   <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500">
                     <span className="h-2 w-2 animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -187,6 +272,33 @@ export function AdminProfilePage() {
           </section>
 
           {/* ── Info cards ─────────────────────────────────────────── */}
+          <section className="profile-enter rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" style={{ animationDelay: '60ms' }}>
+            <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr_auto]">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <input value={fullName} onChange={(event) => setFullName(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Họ và tên" />
+                <input value={email} onChange={(event) => setEmail(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Email" />
+                <input value={phone} onChange={(event) => setPhone(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Số điện thoại" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Mật khẩu hiện tại" />
+                <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Mật khẩu mới" />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={handleSaveProfile} disabled={savingProfile} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-60">
+                  <Save className="h-4 w-4" /> {savingProfile ? 'Đang lưu' : 'Lưu'}
+                </button>
+                <button type="button" onClick={handleChangePassword} disabled={savingPassword || !currentPassword || !newPassword} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white disabled:opacity-60">
+                  <KeyRound className="h-4 w-4" /> Đổi mật khẩu
+                </button>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">
+                  <Upload className="h-4 w-4" /> {uploadingAvatar ? 'Đang upload' : 'Avatar'}
+                  <input type="file" accept="image/*" className="hidden" onChange={(event) => void handleAvatarFile(event.target.files?.[0])} />
+                </label>
+              </div>
+            </div>
+            {message ? <p className="mt-3 text-sm font-semibold text-slate-600">{message}</p> : null}
+          </section>
+
           <div className="grid gap-5 xl:grid-cols-2">
             {/* Personal info */}
             <section

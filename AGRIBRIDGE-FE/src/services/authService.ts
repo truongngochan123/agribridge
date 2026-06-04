@@ -26,6 +26,7 @@ export type ContactVerificationPayload = {
   password: string
   confirmPassword: string
   identityDocumentUrl: string
+  identityDocumentBackUrl: string
   businessDocumentUrl: string
   agreedTerms: boolean
 }
@@ -117,10 +118,11 @@ export async function registerAccount(draft: RegistrationDraft, contact: Contact
   const normalizedTaxCode = normalizeDigitsOnly(draft.taxCode)
   const businessType = draft.role === 'supplier' ? 'BUSINESS' : normalizedTaxCode ? 'BUSINESS' : 'INDIVIDUAL'
   const normalizedIdentityDoc = normalizeMediaRef(contact.identityDocumentUrl)
+  const normalizedIdentityBackDoc = normalizeMediaRef(contact.identityDocumentBackUrl)
   const normalizedBusinessDoc = normalizeMediaRef(contact.businessDocumentUrl)
 
   if (draft.role === 'supplier') {
-    const documentUrls = [normalizedIdentityDoc, normalizedBusinessDoc].filter((item) => item && item.trim().length > 0)
+    const documentUrls = [normalizedIdentityDoc, normalizedBusinessDoc, normalizedIdentityBackDoc].filter((item) => item && item.trim().length > 0)
 
     const response = await apiClient.post<AuthResponse>('/api/auth/register/supplier', {
       companyName: draft.companyName,

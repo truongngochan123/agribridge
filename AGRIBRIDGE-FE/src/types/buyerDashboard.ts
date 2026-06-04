@@ -6,6 +6,7 @@ export type BuyerMenuKey =
   | 'branches'
   | 'delivery'
   | 'debt'
+  | 'wallet'
   | 'market'
 
 export type BuyerMenuItem = {
@@ -47,6 +48,7 @@ export type OrderStatus =
   | 'CANCELLED'
   | 'DISPUTED'
   | 'REFUND_PENDING'
+  | 'PARTIALLY_REFUNDED'
   | 'REFUNDED'
 
 export type OrderItemRow = {

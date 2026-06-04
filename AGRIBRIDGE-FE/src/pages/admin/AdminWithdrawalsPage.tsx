@@ -162,7 +162,7 @@ export function AdminWithdrawalsPage() {
       paidCount:     paid.length,
       rejectedCount: items.filter((i) => i.status === 'REJECTED').length,
       pendingPayout: pending.reduce((s, i) => s + Number(i.payoutAmount ?? i.amount ?? 0), 0),
-      feeRevenue:    items.filter((i) => i.status !== 'REJECTED').reduce((s, i) => s + Number(i.feeAmount || 0), 0),
+      feeRevenue:    paid.reduce((s, i) => s + Number(i.feeAmount || 0), 0),
       totalPaid:     paid.reduce((s, i) => s + Number(i.payoutAmount ?? i.amount ?? 0), 0),
     }
   }, [items])
